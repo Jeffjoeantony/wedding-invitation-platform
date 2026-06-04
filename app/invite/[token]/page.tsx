@@ -15,45 +15,74 @@ export default function InvitePage() {
   useEffect(() => {
     const fetchData = async () => {
       const res = await fetch(`/api/invite?token=${encodeURIComponent(token)}`)
-
       if (!res.ok) {
         setError(true)
         setLoading(false)
         return
       }
-
       const { guest, event } = await res.json()
       setGuest(guest)
       setEvent(event)
       setLoading(false)
     }
-
-    if (token) {
-      fetchData()
-    }
+    if (token) fetchData()
   }, [token])
 
+  const bg = {
+    background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)',
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-rose-50 to-amber-50">
-        <div className="text-center">
-          <div className="animate-pulse">
-            <div className="w-12 h-12 bg-rose-300 rounded-full mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your invitation...</p>
+      <div
+        className="min-h-screen flex flex-col items-center justify-center gap-6"
+        style={bg}
+      >
+        {/* Pulsing ring */}
+        <div className="relative w-20 h-20">
+          <div
+            className="absolute inset-0 rounded-full animate-pulse-ring"
+            style={{ border: '2px solid rgba(255,100,130,0.5)' }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-3xl animate-heart-beat">
+            💍
           </div>
         </div>
+        <p className="text-rose-300/70 text-sm tracking-widest animate-pulse">
+          Loading your invitation…
+        </p>
       </div>
     )
   }
 
   if (error || !guest) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-rose-50 to-amber-50">
-        <div className="text-center max-w-md">
-          <h1 className="text-3xl font-light text-gray-900 mb-4">Invitation not found</h1>
-          <p className="text-gray-600 mb-6">We couldn&apos;t find your invitation. Please check your link and try again.</p>
-          <a href="/" className="text-rose-700 hover:text-rose-800 font-light">Return home</a>
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={bg}
+      >
+        <div
+          className="text-center max-w-sm p-10 rounded-3xl"
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(20px)',
+          }}
+        >
+          <div className="text-5xl mb-4">💌</div>
+          <h1 className="text-2xl font-serif italic text-white mb-3">
+            Invitation Not Found
+          </h1>
+          <p className="text-rose-200/60 text-sm font-light mb-6">
+            We couldn&apos;t find your invitation. Please check your link and try again.
+          </p>
+          <a
+            href="/"
+            className="inline-block px-6 py-2.5 rounded-full text-sm text-white font-medium transition-all hover:scale-105"
+            style={{ background: 'linear-gradient(135deg, #be123c, #9f1239)' }}
+          >
+            Return Home
+          </a>
         </div>
       </div>
     )

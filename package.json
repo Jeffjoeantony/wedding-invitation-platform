@@ -47,6 +47,7 @@
     "date-fns": "4.1.0",
     "embla-carousel-react": "8.6.0",
     "input-otp": "1.4.2",
+    "localtunnel": "^2.0.2",
     "lucide-react": "^0.564.0",
     "next": "16.2.6",
     "next-themes": "^0.4.6",
