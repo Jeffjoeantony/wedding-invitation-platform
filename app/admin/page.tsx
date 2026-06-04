@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 
 interface Guest {
   id: string
@@ -35,6 +35,69 @@ interface Event {
   maps_url?: string
 }
 
+// ── Avatar component ──────────────────────────────────────────────────────────
+function GuestAvatar({ name }: { name: string }) {
+  const initials = name
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+  const palette = [
+    'bg-rose-100 text-rose-700',
+    'bg-amber-100 text-amber-700',
+    'bg-emerald-100 text-emerald-700',
+    'bg-blue-100 text-blue-700',
+    'bg-violet-100 text-violet-700',
+    'bg-pink-100 text-pink-700',
+    'bg-cyan-100 text-cyan-700',
+    'bg-orange-100 text-orange-700',
+  ]
+  const c = palette[name.charCodeAt(0) % palette.length]
+  return (
+    <div
+      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${c}`}
+    >
+      {initials}
+    </div>
+  )
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+function StatCard({
+  label,
+  value,
+  sub,
+  icon,
+  accent,
+  textColor,
+  iconBg,
+}: {
+  label: string
+  value: number | string
+  sub: string
+  icon: string
+  accent: string
+  textColor: string
+  iconBg: string
+}) {
+  return (
+    <Card className={`bg-white/90 border-l-4 ${accent} shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5`}>
+      <CardContent className="pt-5 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+            <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
+            <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>
+          </div>
+          <span className={`text-xl p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const [admin, setAdmin] = useState(false)
   const [password, setPassword] = useState('')
@@ -42,13 +105,20 @@ export default function AdminPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
   const [newGuestCategory, setNewGuestCategory] = useState('Friends')
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importPreview, setImportPreview] = useState<any[]>([])
+  const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState('')
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -56,7 +126,6 @@ export default function AdminPage() {
       fetch('/api/guests'),
       fetch('/api/event'),
     ])
-
     if (guestRes.ok) setGuests(await guestRes.json())
     if (eventRes.ok) setEvent(await eventRes.json())
     setLoading(false)
@@ -64,17 +133,12 @@ export default function AdminPage() {
     setLastUpdated(new Date())
   }, [])
 
-  // Restore login from sessionStorage on mount
   useEffect(() => {
     const saved = sessionStorage.getItem('wedding_admin')
-    if (saved === 'true') {
-      setAdmin(true)
-    } else {
-      setLoading(false)
-    }
+    if (saved === 'true') setAdmin(true)
+    else setLoading(false)
   }, [])
 
-  // Start auto-refresh when logged in, stop when logged out
   useEffect(() => {
     if (admin) {
       fetchData()
@@ -90,7 +154,6 @@ export default function AdminPage() {
     }
   }, [admin, fetchData])
 
-  // Admin password check
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault()
     if (password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD || password === 'wedding123') {
@@ -109,11 +172,9 @@ export default function AdminPage() {
     setEvent(null)
   }
 
-
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
     setAdding(true)
-
     const res = await fetch('/api/guests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -123,7 +184,6 @@ export default function AdminPage() {
         guest_category: newGuestCategory,
       }),
     })
-
     if (!res.ok) {
       alert('Error adding guest')
     } else {
@@ -135,6 +195,18 @@ export default function AdminPage() {
     setAdding(false)
   }
 
+  const deleteGuest = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
+    setDeletingId(id)
+    const res = await fetch(`/api/guests?id=${id}`, { method: 'DELETE' })
+    if (res.ok) {
+      setGuests((prev) => prev.filter((g) => g.id !== id))
+    } else {
+      alert('Failed to delete guest. Please try again.')
+    }
+    setDeletingId(null)
+  }
+
   const updateEvent = async (updates: Partial<Event>) => {
     await fetch('/api/event', {
       method: 'PATCH',
@@ -144,210 +216,700 @@ export default function AdminPage() {
     setEvent({ ...event!, ...updates })
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportFile(file)
+    setImportResult('')
+    setImportPreview([])
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target?.result as ArrayBuffer)
+      const wb = XLSX.read(data, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+      const preview = rows.slice(0, 5)
+      setImportPreview(preview)
+      setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleBulkImport = () => {
+    if (!importFile) return
+    setImporting(true)
+    const reader = new FileReader()
+    reader.onload = async (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
+        const wb = XLSX.read(data, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        const guests = rows
+          .map((row) => {
+            const norm: Record<string, string> = {}
+            Object.keys(row).forEach((k) => {
+              norm[k.toLowerCase().trim()] = String(row[k])
+            })
+            return {
+              name: norm.name || norm['guest name'] || norm['full name'] || '',
+              phone: norm.phone || norm['phone number'] || norm.mobile || norm.contact || '',
+              email: norm.email || norm['email address'] || '',
+              guest_category: norm.category || norm['guest category'] || norm.group || 'Other',
+            }
+          })
+          .filter((g) => g.name.trim())
+        const res = await fetch('/api/guests/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guests }),
+        })
+        if (res.ok) {
+          const result = await res.json()
+          setImportResult(`✓ Successfully imported ${result.count} guests`)
+          setImportFile(null)
+          setImportPreview([])
+          setImportPreviewCols([])
+          fetchData()
+        } else {
+          const err = await res.json()
+          setImportResult(`✗ Import failed: ${err.error}`)
+        }
+      } catch {
+        setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
+      } finally {
+        setImporting(false)
+      }
+    }
+    reader.readAsArrayBuffer(importFile)
+  }
+
+  const handleExportExcel = () => {
+    const origin = window.location.origin
+    const rows = guests.map((g) => ({
+      Name: g.name,
+      Phone: g.phone || '',
+      Email: g.email || '',
+      Category: g.guest_category || '',
+      Status: g.rsvp_status,
+      'Pax Count': g.pax_count,
+      'Invite Link': `${origin}/invite/${g.unique_token}`,
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Guests')
+    XLSX.writeFile(wb, 'wedding-guest-links.xlsx')
+  }
+
+  const handleExportCSV = () => {
+    const origin = window.location.origin
+    const header = 'Name,Phone,Email,Category,Status,Guests,Invite Link'
+    const rows = guests.map((g) =>
+      [
+        `"${g.name}"`,
+        `"${g.phone || ''}"`,
+        `"${g.email || ''}"`,
+        `"${g.guest_category || ''}"`,
+        g.rsvp_status,
+        g.pax_count,
+        `${origin}/invite/${g.unique_token}`,
+      ].join(',')
+    )
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'wedding-guest-links.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Login screen ────────────────────────────────────────────────────────────
   if (!admin) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-amber-50 via-rose-50 to-amber-50">
+      <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-rose-950 via-rose-900 to-rose-950">
         <div className="w-full max-w-md">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Admin Dashboard</CardTitle>
-              <CardDescription>Wedding Management Portal</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleAdminLogin} className="space-y-4">
-                <div>
-                  <Label htmlFor="password">Admin Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter admin password"
-                    className="mt-2"
-                  />
-                </div>
-                <Button type="submit" className="w-full bg-rose-700 hover:bg-rose-800 text-white">
-                  Login
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-3xl mx-auto mb-4 shadow-xl">
+              💍
+            </div>
+            <h1 className="text-2xl font-semibold text-white">Wedding Admin</h1>
+            <p className="text-rose-300 text-sm mt-1">Management Portal</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-2xl">
+            <form onSubmit={handleAdminLogin} className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-rose-200 block mb-2">Admin Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter admin password"
+                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-rose-300/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-white text-rose-800 font-semibold hover:bg-rose-50 transition-colors shadow-lg"
+              >
+                Login
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     )
   }
 
-  const filteredGuests = guests.filter(g => filter === 'all' || g.rsvp_status === filter)
+  // ── Derived stats ───────────────────────────────────────────────────────────
+  const responded = guests.filter((g) => g.rsvp_status !== 'pending').length
   const stats = {
     total: guests.length,
-    pending: guests.filter(g => g.rsvp_status === 'pending').length,
-    confirmed: guests.filter(g => g.rsvp_status === 'yes').length,
-    declined: guests.filter(g => g.rsvp_status === 'no').length,
-    totalPax: guests.filter(g => g.rsvp_status === 'yes').reduce((sum, g) => sum + g.pax_count, 0),
-    opened: guests.filter(g => g.opened_at).length,
+    pending: guests.filter((g) => g.rsvp_status === 'pending').length,
+    confirmed: guests.filter((g) => g.rsvp_status === 'yes').length,
+    declined: guests.filter((g) => g.rsvp_status === 'no').length,
+    totalPax: guests.filter((g) => g.rsvp_status === 'yes').reduce((s, g) => s + g.pax_count, 0),
+    opened: guests.filter((g) => g.opened_at).length,
+    responseRate:
+      guests.length > 0 ? Math.round((responded / guests.length) * 100) : 0,
+    openRate:
+      guests.length > 0
+        ? Math.round((guests.filter((g) => g.opened_at).length / guests.length) * 100)
+        : 0,
+    confirmedRate:
+      guests.length > 0
+        ? Math.round((guests.filter((g) => g.rsvp_status === 'yes').length / guests.length) * 100)
+        : 0,
+    declinedRate:
+      guests.length > 0
+        ? Math.round((guests.filter((g) => g.rsvp_status === 'no').length / guests.length) * 100)
+        : 0,
+    pendingRate:
+      guests.length > 0
+        ? Math.round((guests.filter((g) => g.rsvp_status === 'pending').length / guests.length) * 100)
+        : 0,
   }
 
+  // Category breakdown
+  const categoryMap: Record<string, { total: number; yes: number; no: number; pending: number }> = {}
+  guests.forEach((g) => {
+    const cat = g.guest_category || 'Other'
+    if (!categoryMap[cat]) categoryMap[cat] = { total: 0, yes: 0, no: 0, pending: 0 }
+    categoryMap[cat].total++
+    categoryMap[cat][g.rsvp_status]++
+  })
+  const categories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total)
+
+  // Recent responses
+  const recentActivity = [...guests]
+    .filter((g) => g.responded_at)
+    .sort(
+      (a, b) =>
+        new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime()
+    )
+    .slice(0, 6)
+
+  // Filtered guest list
+  const filteredGuests = guests.filter((g) => {
+    const matchFilter = filter === 'all' || g.rsvp_status === filter
+    const term = search.toLowerCase()
+    const matchSearch =
+      !term ||
+      g.name.toLowerCase().includes(term) ||
+      (g.phone || '').includes(term) ||
+      (g.guest_category || '').toLowerCase().includes(term)
+    return matchFilter && matchSearch
+  })
+
+  const eventDateStr = event?.date
+    ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : ''
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-amber-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-light text-gray-900">Wedding Dashboard</h1>
-            <p className="text-gray-600 font-light mt-2">Manage your invitations and RSVPs</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {lastUpdated && (
-              <span className="text-xs text-gray-500 hidden sm:block">
-                Updated {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
-            <Button
-              onClick={fetchData}
-              disabled={refreshing}
-              variant="outline"
-              size="sm"
-              className="text-gray-700 border-gray-300"
-            >
-              {refreshing ? '↻ Refreshing...' : '↻ Refresh'}
-            </Button>
-            <Button onClick={handleLogout} variant="outline" className="text-gray-900">
-              Logout
-            </Button>
+    <main className="min-h-screen bg-gradient-to-br from-rose-50 via-amber-50/20 to-rose-50">
+
+      {/* ── Sticky header ── */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-rose-100/80 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-7xl mx-auto px-6 py-3.5">
+          <div className="flex items-center justify-between gap-4">
+            {/* Brand */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white text-lg shadow-md">
+                💍
+              </div>
+              <div>
+                <h1 className="text-base font-semibold text-gray-900 leading-tight">
+                  {event ? `${event.couple_1} & ${event.couple_2}` : 'Wedding Dashboard'}
+                </h1>
+                <p className="text-[11px] text-gray-400 leading-tight">
+                  {event
+                    ? `${eventDateStr}${event.venue ? ` · ${event.venue}` : ''}`
+                    : 'Manage your invitations and RSVPs'}
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              {lastUpdated && (
+                <span className="text-[11px] text-gray-400 hidden lg:block">
+                  Updated {lastUpdated.toLocaleTimeString()}
+                </span>
+              )}
+              <button
+                onClick={fetchData}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all disabled:opacity-50"
+              >
+                <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <button
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
+      </div>
 
+      {/* ── Main content ── */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-white">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="guests">Guest List</TabsTrigger>
-            <TabsTrigger value="add-guest">Add Guest</TabsTrigger>
-            <TabsTrigger value="event">Event Details</TabsTrigger>
+
+          {/* Tab bar */}
+          <TabsList className="grid w-full grid-cols-5 bg-white/90 shadow-sm border border-rose-100 rounded-2xl p-1 mb-6">
+            <TabsTrigger
+              value="overview"
+              className="rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+            >
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="guests"
+              className="rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+            >
+              Guest List
+              {stats.total > 0 && (
+                <span className="ml-1.5 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full font-semibold data-[state=active]:bg-rose-600 data-[state=active]:text-white">
+                  {stats.total}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="add-guest"
+              className="rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+            >
+              Add Guest
+            </TabsTrigger>
+            <TabsTrigger
+              value="import-export"
+              className="rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+            >
+              Import / Export
+            </TabsTrigger>
+            <TabsTrigger
+              value="event"
+              className="rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+            >
+              Event Details
+            </TabsTrigger>
           </TabsList>
 
-          {/* Overview */}
-          <TabsContent value="overview" className="space-y-6 mt-6">
+          {/* ══════════════════════════════════════════════════════════════════
+              OVERVIEW TAB
+          ═════════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="overview" className="space-y-6">
+
+            {/* Hero — Response Rate */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-700 via-rose-800 to-rose-900 text-white shadow-xl p-6">
+              {/* Decorative blobs */}
+              <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
+              <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5" />
+
+              <div className="relative flex flex-col md:flex-row md:items-center gap-6">
+                {/* Rate */}
+                <div className="flex-1">
+                  <p className="text-rose-300 text-xs font-semibold uppercase tracking-widest mb-1">Overall Response Rate</p>
+                  <div className="flex items-end gap-3 mb-4">
+                    <span className="text-6xl font-bold tabular-nums">{stats.responseRate}%</span>
+                    <span className="text-rose-300 text-sm mb-2">{responded} of {stats.total} guests responded</span>
+                  </div>
+                  {/* Stacked bar */}
+                  <div className="h-3 bg-white/10 rounded-full overflow-hidden flex gap-0.5">
+                    {stats.confirmed > 0 && (
+                      <div
+                        className="bg-emerald-400 rounded-l-full transition-all duration-700"
+                        style={{ width: `${stats.confirmedRate}%` }}
+                        title={`Confirmed: ${stats.confirmed}`}
+                      />
+                    )}
+                    {stats.declined > 0 && (
+                      <div
+                        className="bg-red-400 transition-all duration-700"
+                        style={{ width: `${stats.declinedRate}%` }}
+                        title={`Declined: ${stats.declined}`}
+                      />
+                    )}
+                    {stats.pending > 0 && (
+                      <div
+                        className="bg-amber-300 rounded-r-full transition-all duration-700"
+                        style={{ width: `${stats.pendingRate}%` }}
+                        title={`Pending: ${stats.pending}`}
+                      />
+                    )}
+                  </div>
+                  <div className="flex gap-4 mt-2">
+                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
+                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
+                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
+                  </div>
+                </div>
+
+                {/* Quick counts */}
+                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
+                  {[
+                    { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
+                    { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
+                    { label: 'Pending', value: stats.pending, color: 'text-amber-300', bg: 'bg-white/5' },
+                    { label: 'Attendees', value: stats.totalPax, color: 'text-white', bg: 'bg-white/10' },
+                  ].map((item) => (
+                    <div key={item.label} className={`${item.bg} px-6 py-3 text-center flex md:flex-row items-center gap-3`}>
+                      <span className={`text-2xl font-bold tabular-nums ${item.color}`}>{item.value}</span>
+                      <span className="text-rose-300 text-xs">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 6 Stat cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <Card className="bg-white/80">
+              <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
+              <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
+              <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
+              <StatCard label="Declined" value={stats.declined} sub="Sent their regrets" icon="❌" accent="border-red-400" textColor="text-red-600" iconBg="bg-red-50" />
+              <StatCard label="Awaiting Reply" value={stats.pending} sub="Haven't responded yet" icon="⏳" accent="border-amber-400" textColor="text-amber-600" iconBg="bg-amber-50" />
+              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent="border-rose-400" textColor="text-rose-700" iconBg="bg-rose-50" />
+            </div>
+
+            {/* Category breakdown + Recent activity */}
+            <div className="grid md:grid-cols-2 gap-6">
+
+              {/* Category breakdown */}
+              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
                 <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Total Invited</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Guests by Category</CardTitle>
+                      <CardDescription className="text-xs">{categories.length} group{categories.length !== 1 ? 's' : ''}</CardDescription>
+                    </div>
+                    <span className="text-2xl">📊</span>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-gray-900">{stats.total}</div>
+                <CardContent className="space-y-4">
+                  {categories.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-6">No guests added yet</p>
+                  )}
+                  {categories.map(([cat, data]) => (
+                    <div key={cat}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-800">{cat}</span>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-emerald-600 font-semibold">✓{data.yes}</span>
+                          <span className="text-red-500 font-semibold">✗{data.no}</span>
+                          <span className="text-amber-600 font-semibold">⏳{data.pending}</span>
+                          <span className="text-gray-400 font-bold w-5 text-right">{data.total}</span>
+                        </div>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
+                        {data.yes > 0 && (
+                          <div className="bg-emerald-400 transition-all" style={{ width: `${(data.yes / data.total) * 100}%` }} />
+                        )}
+                        {data.no > 0 && (
+                          <div className="bg-red-300 transition-all" style={{ width: `${(data.no / data.total) * 100}%` }} />
+                        )}
+                        {data.pending > 0 && (
+                          <div className="bg-amber-200 transition-all" style={{ width: `${(data.pending / data.total) * 100}%` }} />
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
 
-              <Card className="bg-white/80">
+              {/* Recent responses */}
+              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
                 <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Opened</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">Recent Responses</CardTitle>
+                      <CardDescription className="text-xs">Latest guest replies</CardDescription>
+                    </div>
+                    <span className="text-2xl">🔔</span>
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-blue-600">{stats.opened}</div>
-                  <p className="text-xs text-gray-600 mt-2">{Math.round((stats.opened / stats.total) * 100)}%</p>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80">
-                <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Pending Response</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-amber-600">{stats.pending}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80">
-                <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Confirmed</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-green-600">{stats.confirmed}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80">
-                <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Declined</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-red-600">{stats.declined}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/80">
-                <CardHeader className="pb-3">
-                  <CardDescription className="text-xs">Total Attendees</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-light text-rose-700">{stats.totalPax}</div>
+                <CardContent className="space-y-3">
+                  {recentActivity.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-6">No responses yet</p>
+                  )}
+                  {recentActivity.map((g) => (
+                    <div key={g.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                      <GuestAvatar name={g.name} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {g.guest_category || 'Other'}
+                          {g.responded_at
+                            ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                            : ''}
+                        </p>
+                      </div>
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
+                          g.rsvp_status === 'yes'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : g.rsvp_status === 'no'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {g.rsvp_status === 'yes'
+                          ? '✓ Attending'
+                          : g.rsvp_status === 'no'
+                          ? '✗ Declined'
+                          : '⏳ Pending'}
+                      </span>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Not-opened banner */}
+            {guests.filter((g) => !g.opened_at).length > 0 && (
+              <Card className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <span className="text-2xl shrink-0">📭</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      {guests.filter((g) => !g.opened_at).length} guest{guests.filter((g) => !g.opened_at).length !== 1 ? 's' : ''} haven't opened their invite yet
+                    </p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      Consider sending a reminder via WhatsApp or SMS.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          {/* Guest List */}
-          <TabsContent value="guests" className="space-y-4 mt-6">
-            <Card className="bg-white/80">
-              <CardHeader>
-                <CardTitle className="text-lg">Guest Responses</CardTitle>
-                <CardDescription>Filter by RSVP status</CardDescription>
+          {/* ══════════════════════════════════════════════════════════════════
+              GUEST LIST TAB
+          ═════════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="guests" className="space-y-4">
+            <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <CardHeader className="pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg">Guest List</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      Showing <span className="font-semibold text-gray-700">{filteredGuests.length}</span> of <span className="font-semibold text-gray-700">{guests.length}</span> guests
+                    </CardDescription>
+                  </div>
+                  {/* Search */}
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none">🔍</span>
+                    <Input
+                      placeholder="Search name, phone, category…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-8 w-64 h-9 text-sm border-gray-200 focus:border-rose-300 rounded-xl"
+                    />
+                  </div>
+                </div>
               </CardHeader>
+
               <CardContent className="space-y-4">
+                {/* Filter pills */}
                 <div className="flex gap-2 flex-wrap">
-                  {(['all', 'pending', 'yes', 'no'] as const).map(f => (
-                    <Button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      variant={filter === f ? 'default' : 'outline'}
-                      className={filter === f ? 'bg-rose-700 hover:bg-rose-800' : ''}
+                  {(
+                    [
+                      { key: 'all', label: 'All', count: guests.length },
+                      { key: 'pending', label: 'Pending', count: stats.pending },
+                      { key: 'yes', label: 'Confirmed', count: stats.confirmed },
+                      { key: 'no', label: 'Declined', count: stats.declined },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setFilter(f.key)}
+                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                        filter === f.key
+                          ? 'bg-rose-700 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                     >
-                      {f === 'all' ? 'All' : f === 'yes' ? 'Confirmed' : f === 'no' ? 'Declined' : 'Pending'}
-                    </Button>
+                      {f.label}
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                          filter === f.key ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-500'
+                        }`}
+                      >
+                        {f.count}
+                      </span>
+                    </button>
                   ))}
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Table */}
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Guests</TableHead>
-                        <TableHead>Opened</TableHead>
-                        <TableHead>Invite Link</TableHead>
+                      <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Responded</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredGuests.map(guest => (
-                        <TableRow key={guest.id}>
-                          <TableCell className="font-medium">{guest.name}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{guest.guest_category || '—'}</TableCell>
+                      {filteredGuests.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-16 text-gray-400">
+                            <div className="flex flex-col items-center gap-2">
+                              <span className="text-4xl">🔍</span>
+                              <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {filteredGuests.map((guest) => (
+                        <TableRow
+                          key={guest.id}
+                          className="hover:bg-rose-50/40 transition-colors group border-gray-50"
+                        >
+                          {/* Guest name + phone */}
                           <TableCell>
-                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                              guest.rsvp_status === 'yes' ? 'bg-green-100 text-green-800' :
-                              guest.rsvp_status === 'no' ? 'bg-red-100 text-red-800' :
-                              'bg-amber-100 text-amber-800'
-                            }`}>
-                              {guest.rsvp_status === 'yes' ? 'Yes' : guest.rsvp_status === 'no' ? 'No' : 'Pending'}
+                            <div className="flex items-center gap-3">
+                              <GuestAvatar name={guest.name} />
+                              <div className="min-w-0">
+                                <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
+                                {guest.phone && (
+                                  <p className="text-xs text-gray-400 font-mono">{guest.phone}</p>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {/* Category */}
+                          <TableCell>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
+                              {guest.guest_category || 'Other'}
                             </span>
                           </TableCell>
-                          <TableCell>{guest.pax_count}</TableCell>
-                          <TableCell className="text-xs text-gray-600">
-                            {guest.opened_at ? new Date(guest.opened_at).toLocaleDateString() : '—'}
-                          </TableCell>
+
+                          {/* Status */}
                           <TableCell>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7 px-2 border-rose-200 text-rose-700 hover:bg-rose-50"
-                              onClick={() => {
-                                const link = `${window.location.origin}/invite/${guest.unique_token}`
-                                navigator.clipboard.writeText(link)
-                                alert(`Copied!\n\n${link}`)
-                              }}
+                            <span
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                                guest.rsvp_status === 'yes'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : guest.rsvp_status === 'no'
+                                  ? 'bg-red-100 text-red-600'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
                             >
-                              Copy Link
-                            </Button>
+                              {guest.rsvp_status === 'yes'
+                                ? '✓ Yes'
+                                : guest.rsvp_status === 'no'
+                                ? '✗ No'
+                                : '⏳ Pending'}
+                            </span>
+                          </TableCell>
+
+                          {/* Pax */}
+                          <TableCell>
+                            {guest.rsvp_status === 'yes' ? (
+                              <span className="text-sm font-semibold text-emerald-700">
+                                {guest.pax_count}
+                                <span className="text-xs font-normal text-gray-400 ml-1">
+                                  {guest.pax_count === 1 ? 'person' : 'people'}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 text-sm">—</span>
+                            )}
+                          </TableCell>
+
+                          {/* Opened */}
+                          <TableCell>
+                            {guest.opened_at ? (
+                              <div className="text-xs">
+                                <p className="font-medium text-gray-700">
+                                  {new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </p>
+                                <p className="text-gray-400">
+                                  {new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-300 italic">Not yet</span>
+                            )}
+                          </TableCell>
+
+                          {/* Responded */}
+                          <TableCell>
+                            {guest.responded_at ? (
+                              <div className="text-xs">
+                                <p className="font-medium text-gray-700">
+                                  {new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </p>
+                                <p className="text-gray-400">
+                                  {new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-300">—</span>
+                            )}
+                          </TableCell>
+
+                          {/* Actions */}
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7 px-3 border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg"
+                                onClick={() => {
+                                  const link = `${window.location.origin}/invite/${guest.unique_token}`
+                                  navigator.clipboard.writeText(link)
+                                  alert(`Copied!\n\n${link}`)
+                                }}
+                              >
+                                Copy Link
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-xs h-7 px-3 text-red-400 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                disabled={deletingId === guest.id}
+                                onClick={() => deleteGuest(guest.id, guest.name)}
+                              >
+                                {deletingId === guest.id ? 'Deleting…' : 'Delete'}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -358,80 +920,247 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          {/* Add Guest */}
-          <TabsContent value="add-guest" className="mt-6">
-            <Card className="bg-white/80 max-w-md">
+          {/* ══════════════════════════════════════════════════════════════════
+              ADD GUEST TAB
+          ═════════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="add-guest" className="mt-0">
+            <div className="max-w-md">
+              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">👤</span>
+                    <div>
+                      <CardTitle>Add New Guest</CardTitle>
+                      <CardDescription>Create a personalised invitation</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={addGuest} className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">Guest Name *</Label>
+                      <Input
+                        id="name"
+                        value={newGuestName}
+                        onChange={(e) => setNewGuestName(e.target.value)}
+                        placeholder="Full name"
+                        className="mt-2 rounded-xl"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone</Label>
+                      <Input
+                        id="phone"
+                        value={newGuestPhone}
+                        onChange={(e) => setNewGuestPhone(e.target.value)}
+                        placeholder="+1234567890"
+                        className="mt-2 rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="category">Category</Label>
+                      <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
+                        <SelectTrigger className="mt-2 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Family">Family</SelectItem>
+                          <SelectItem value="Friends">Friends</SelectItem>
+                          <SelectItem value="Bride Side">Bride Side</SelectItem>
+                          <SelectItem value="Groom Side">Groom Side</SelectItem>
+                          <SelectItem value="Neighbours">Neighbours</SelectItem>
+                          <SelectItem value="Office">Office</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={!newGuestName || adding}
+                      className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
+                    >
+                      {adding ? 'Adding…' : '+ Add Guest'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════════════════════════════════
+              IMPORT / EXPORT TAB
+          ═════════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="import-export" className="mt-0 space-y-6">
+
+            {/* Import */}
+            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
               <CardHeader>
-                <CardTitle>Add New Guest</CardTitle>
-                <CardDescription>Create a new invitation</CardDescription>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📥</span>
+                  <div>
+                    <CardTitle>Import from Excel / CSV</CardTitle>
+                    <CardDescription>
+                      Upload a spreadsheet — tokens and links are auto-generated.
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
-                <form onSubmit={addGuest} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Guest Name *</Label>
-                    <Input
-                      id="name"
-                      value={newGuestName}
-                      onChange={(e) => setNewGuestName(e.target.value)}
-                      placeholder="Full name"
-                      className="mt-2"
-                      required
-                    />
-                  </div>
+              <CardContent className="space-y-4">
+                <label
+                  htmlFor="import-file"
+                  className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-rose-200 rounded-2xl p-10 cursor-pointer hover:bg-rose-50/40 transition-colors"
+                >
+                  <span className="text-4xl">📂</span>
+                  <p className="text-gray-700 font-light text-sm">
+                    {importFile ? importFile.name : 'Click to upload or drag & drop'}
+                  </p>
+                  <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
+                  <input
+                    id="import-file"
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </label>
 
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={newGuestPhone}
-                      onChange={(e) => setNewGuestPhone(e.target.value)}
-                      placeholder="+1234567890"
-                      className="mt-2"
-                    />
-                  </div>
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
+                  <p className="font-semibold text-amber-900 mb-1">Expected columns (case-insensitive):</p>
+                  <p className="font-mono text-amber-800 text-xs">Name · Phone · Email · Category</p>
+                  <p className="text-amber-700 text-xs mt-1">
+                    Only <strong>Name</strong> is required. All other columns are optional.
+                  </p>
+                </div>
 
+                {importPreview.length > 0 && (
                   <div>
-                    <Label htmlFor="category">Category</Label>
-                    <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Family">Family</SelectItem>
-                        <SelectItem value="Friends">Friends</SelectItem>
-                        <SelectItem value="Bride Side">Bride Side</SelectItem>
-                        <SelectItem value="Groom Side">Groom Side</SelectItem>
-                        <SelectItem value="Neighbours">Neighbours</SelectItem>
-                        <SelectItem value="Office">Office</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <p className="text-sm text-gray-600 mb-2 font-medium">
+                      Preview — first {importPreview.length} rows:
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-gray-200">
+                      <table className="text-xs w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            {importPreviewCols.map((col) => (
+                              <th key={col} className="px-3 py-2 text-left text-gray-700 font-semibold border-b border-gray-200">
+                                {col}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPreview.map((row, i) => (
+                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                              {importPreviewCols.map((col) => (
+                                <td key={col} className="px-3 py-2 text-gray-700">
+                                  {String(row[col] ?? '')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
+                )}
 
-                  <Button type="submit" disabled={!newGuestName || adding} className="w-full bg-rose-700 hover:bg-rose-800 text-white">
-                    {adding ? 'Adding...' : 'Add Guest'}
+                {importResult && (
+                  <p
+                    className={`text-sm font-semibold px-4 py-3 rounded-xl ${
+                      importResult.startsWith('✓')
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-red-50 text-red-700'
+                    }`}
+                  >
+                    {importResult}
+                  </p>
+                )}
+
+                <Button
+                  onClick={handleBulkImport}
+                  disabled={!importFile || importing}
+                  className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
+                >
+                  {importing
+                    ? 'Importing…'
+                    : importFile
+                    ? `Import "${importFile.name}"`
+                    : 'Select a file first'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Export */}
+            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📤</span>
+                  <div>
+                    <CardTitle>Export Guest Links</CardTitle>
+                    <CardDescription>
+                      Download the full guest list with unique invite URLs.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-gray-50 rounded-xl p-4 text-sm">
+                  <p className="text-gray-700">
+                    <strong>{guests.length}</strong> guests · links will use:
+                  </p>
+                  <p className="font-mono text-xs text-gray-500 mt-1 break-all">
+                    {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}
+                    /invite/<em>TOKEN</em>
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={handleExportExcel}
+                    disabled={guests.length === 0}
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl"
+                  >
+                    ⬇ Export Excel (.xlsx)
                   </Button>
-                </form>
+                  <Button
+                    onClick={handleExportCSV}
+                    disabled={guests.length === 0}
+                    variant="outline"
+                    className="border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-xl"
+                  >
+                    ⬇ Export CSV
+                  </Button>
+                </div>
+                {guests.length === 0 && (
+                  <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Event Details */}
-          <TabsContent value="event" className="mt-6">
+          {/* ══════════════════════════════════════════════════════════════════
+              EVENT DETAILS TAB
+          ═════════════════════════════════════════════════════════════════════ */}
+          <TabsContent value="event" className="mt-0">
             {event && (
-              <Card className="bg-white/80 max-w-2xl">
+              <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
                 <CardHeader>
-                  <CardTitle>Event Details</CardTitle>
-                  <CardDescription>Update your wedding information</CardDescription>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🎊</span>
+                    <div>
+                      <CardTitle>Event Details</CardTitle>
+                      <CardDescription>Update your wedding information</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-5">
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Partner 1</Label>
                       <Input
                         defaultValue={event.couple_1}
                         onChange={(e) => updateEvent({ couple_1: e.target.value })}
-                        className="mt-2"
+                        className="mt-2 rounded-xl"
                       />
                     </div>
                     <div>
@@ -439,11 +1168,10 @@ export default function AdminPage() {
                       <Input
                         defaultValue={event.couple_2}
                         onChange={(e) => updateEvent({ couple_2: e.target.value })}
-                        className="mt-2"
+                        className="mt-2 rounded-xl"
                       />
                     </div>
                   </div>
-
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Date</Label>
@@ -451,7 +1179,7 @@ export default function AdminPage() {
                         type="date"
                         defaultValue={event.date}
                         onChange={(e) => updateEvent({ date: e.target.value })}
-                        className="mt-2"
+                        className="mt-2 rounded-xl"
                       />
                     </div>
                     <div>
@@ -460,49 +1188,46 @@ export default function AdminPage() {
                         type="time"
                         defaultValue={event.time}
                         onChange={(e) => updateEvent({ time: e.target.value })}
-                        className="mt-2"
+                        className="mt-2 rounded-xl"
                       />
                     </div>
                   </div>
-
                   <div>
                     <Label>Venue</Label>
                     <Input
                       defaultValue={event.venue}
                       onChange={(e) => updateEvent({ venue: e.target.value })}
-                      className="mt-2"
+                      className="mt-2 rounded-xl"
                     />
                   </div>
-
                   <div>
-                    <Label>Location</Label>
+                    <Label>Location / City</Label>
                     <Input
                       defaultValue={event.location}
                       onChange={(e) => updateEvent({ location: e.target.value })}
-                      className="mt-2"
+                      className="mt-2 rounded-xl"
                     />
                   </div>
-
                   <div>
                     <Label>Contact Number</Label>
                     <Input
                       defaultValue={event.contact}
                       onChange={(e) => updateEvent({ contact: e.target.value })}
-                      className="mt-2"
+                      className="mt-2 rounded-xl"
                     />
                   </div>
-
                   <div>
                     <Label>Google Maps URL</Label>
                     <Input
                       defaultValue={event.maps_url || ''}
                       onChange={(e) => updateEvent({ maps_url: e.target.value })}
-                      placeholder="https://maps.google.com/..."
-                      className="mt-2"
+                      placeholder="https://maps.google.com/…"
+                      className="mt-2 rounded-xl"
                     />
                   </div>
-
-                  <p className="text-xs text-gray-600 italic">Changes are saved automatically</p>
+                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5">
+                    <span>✓</span> Changes are saved automatically
+                  </p>
                 </CardContent>
               </Card>
             )}
