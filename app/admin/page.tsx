@@ -472,15 +472,24 @@ export default function AdminPage() {
                 💍
               </div>
               <div>
-                <h1 className="text-base font-semibold text-gray-900 leading-tight">
-                  {event ? `${event.couple_1} & ${event.couple_2}` : 'Wedding Dashboard'}
+                <h1 className="text-base font-semibold text-gray-900 leading-tight tracking-tight">
+                  Digital Wedding Invitation
                 </h1>
                 <p className="text-[11px] text-gray-400 leading-tight">
-                  {event
-                    ? `${eventDateStr}${event.venue ? ` · ${event.venue}` : ''}`
-                    : 'Manage your invitations and RSVPs'}
+                  Admin Dashboard · Invitation &amp; RSVP Management
                 </p>
               </div>
+              {/* Event badge — subtle, not the primary identity */}
+              {event && (
+                <div className="hidden md:flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-100">
+                  <span className="text-[10px] text-rose-500 font-medium">
+                    {event.couple_1} &amp; {event.couple_2}
+                  </span>
+                  {eventDateStr && (
+                    <span className="text-[10px] text-rose-300">· {eventDateStr}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Actions */}
