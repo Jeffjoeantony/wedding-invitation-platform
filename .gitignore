@@ -6,10 +6,18 @@ __v0_jsx-dev-runtime.ts
 .v0-trash/
 .vercel/
 
-# Environment variables
+# Environment variables — NEVER commit real secrets
 .env*.local
+.env
 
 # Common ignores
 node_modules
 .next/
 .DS_Store
+
+# Local data / uploads — don't commit guest data to git
+*.xlsx
+*.csv
+
+# Dev proxy
+proxy.ts

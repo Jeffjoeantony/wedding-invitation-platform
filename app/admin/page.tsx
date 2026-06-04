@@ -101,6 +101,7 @@ function StatCard({
 export default function AdminPage() {
   const [admin, setAdmin] = useState(false)
   const [password, setPassword] = useState('')
+  const [adminToken, setAdminToken] = useState('')
   const [guests, setGuests] = useState<Guest[]>([])
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -120,23 +121,41 @@ export default function AdminPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState('')
 
+  // Authenticated fetch — injects the admin token header on every privileged call
+  const authFetch = useCallback(
+    (url: string, init: RequestInit = {}) =>
+      fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers ?? {}),
+          'x-admin-token': adminToken,
+        },
+      }),
+    [adminToken]
+  )
+
   const fetchData = useCallback(async () => {
     setRefreshing(true)
     const [guestRes, eventRes] = await Promise.all([
-      fetch('/api/guests'),
-      fetch('/api/event'),
+      authFetch('/api/guests'),
+      fetch('/api/event'),   // event GET is public
     ])
     if (guestRes.ok) setGuests(await guestRes.json())
     if (eventRes.ok) setEvent(await eventRes.json())
     setLoading(false)
     setRefreshing(false)
     setLastUpdated(new Date())
-  }, [])
+  }, [authFetch])
 
   useEffect(() => {
     const saved = sessionStorage.getItem('wedding_admin')
-    if (saved === 'true') setAdmin(true)
-    else setLoading(false)
+    const tok  = sessionStorage.getItem('wedding_admin_token') ?? ''
+    if (saved === 'true' && tok) {
+      setAdminToken(tok)
+      setAdmin(true)
+    } else {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -156,8 +175,15 @@ export default function AdminPage() {
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === process.env.NEXT_PUBLIC_ADMIN_PASSWORD || password === 'wedding123') {
+    const expected = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
+    if (!expected) {
+      alert('Admin password not configured. Set NEXT_PUBLIC_ADMIN_PASSWORD in your environment.')
+      return
+    }
+    if (password === expected) {
       sessionStorage.setItem('wedding_admin', 'true')
+      sessionStorage.setItem('wedding_admin_token', password)
+      setAdminToken(password)
       setAdmin(true)
       setPassword('')
     } else {
@@ -167,7 +193,9 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     sessionStorage.removeItem('wedding_admin')
+    sessionStorage.removeItem('wedding_admin_token')
     setAdmin(false)
+    setAdminToken('')
     setGuests([])
     setEvent(null)
   }
@@ -175,7 +203,7 @@ export default function AdminPage() {
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
     setAdding(true)
-    const res = await fetch('/api/guests', {
+    const res = await authFetch('/api/guests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -198,7 +226,7 @@ export default function AdminPage() {
   const deleteGuest = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
     setDeletingId(id)
-    const res = await fetch(`/api/guests?id=${id}`, { method: 'DELETE' })
+    const res = await authFetch(`/api/guests?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
     } else {
@@ -208,7 +236,7 @@ export default function AdminPage() {
   }
 
   const updateEvent = async (updates: Partial<Event>) => {
-    await fetch('/api/event', {
+    await authFetch('/api/event', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -259,7 +287,7 @@ export default function AdminPage() {
             }
           })
           .filter((g) => g.name.trim())
-        const res = await fetch('/api/guests/bulk', {
+        const res = await authFetch('/api/guests/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ guests }),
