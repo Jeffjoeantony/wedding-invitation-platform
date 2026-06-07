@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 
 // ── Falling hearts canvas ─────────────────────────────────────────────────────
 function FallingHearts() {
@@ -121,6 +120,16 @@ function useCountdown(targetDate: string | undefined) {
     return () => clearInterval(id)
   }, [targetDate])
   return tick
+}
+
+// Formats "HH:MM:SS" (24-hr) to "H:MM AM/PM"
+function formatTime(time: string | undefined): string {
+  if (!time) return ''
+  const [h, m] = time.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return time
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
 function CountCell({ value, label }: { value: number; label: string }) {
@@ -326,7 +335,7 @@ export default function HomePage() {
                 </div>
                 <p className="text-white font-light text-sm leading-relaxed">{dateStr || 'To Be Announced'}</p>
                 {event.time && (
-                  <p className="text-rose-300/70 text-xs mt-1 font-mono">{event.time}</p>
+                  <p className="text-rose-300/70 text-xs mt-1 font-mono">{formatTime(event.time)}</p>
                 )}
               </div>
 
@@ -366,24 +375,7 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* CTA */}
-          <div className="animate-fade-in-up opacity-0-init delay-1000 space-y-4">
-            <p className="text-white/40 text-xs tracking-wide">
-              Have you received your personal invitation link?
-            </p>
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-2 px-10 py-3.5 rounded-full font-medium text-white text-sm tracking-wide shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-rose-500/30 hover:shadow-2xl animate-glow-pulse"
-              style={{
-                background: 'linear-gradient(135deg, #be123c, #9f1239)',
-                border: '1px solid rgba(255,255,255,0.15)',
-              }}
-            >
-              <span>View Your Invitation</span>
-              <span className="text-rose-300">→</span>
-            </Link>
-            <p className="text-white/25 text-[11px]">Or check your message for your unique link</p>
-          </div>
+
 
           {/* Bottom ornament */}
           <div className="animate-fade-in opacity-0-init delay-1200 flex items-center justify-center gap-3 mt-12">

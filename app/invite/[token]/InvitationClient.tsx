@@ -163,6 +163,16 @@ function Ornament({ text = '♥ ♥ ♥' }: { text?: string }) {
   )
 }
 
+// Formats "HH:MM:SS" (24-hr) to "H:MM AM/PM"
+function formatTime(time: string | undefined): string {
+  if (!time) return ''
+  const [h, m] = time.split(':').map(Number)
+  if (isNaN(h) || isNaN(m)) return time
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  return `${hour}:${String(m).padStart(2, '0')} ${period}`
+}
+
 // ── Attending step types ──────────────────────────────────────────────────────
 type Step = 'view' | 'rsvp-yes' | 'confirmed'
 
@@ -338,7 +348,7 @@ export default function InvitationClient({ guest, event }: any) {
                   <span className="text-[9px] uppercase tracking-widest text-rose-300/80 font-semibold">Date &amp; Time</span>
                 </div>
                 <p className="text-white text-sm font-light leading-snug">{dateStr}</p>
-                {event.time && <p className="text-rose-300/60 text-xs mt-0.5 font-mono">{event.time}</p>}
+                {event.time && <p className="text-rose-300/60 text-xs mt-0.5 font-mono">{formatTime(event.time)}</p>}
               </div>
 
               <div
@@ -564,7 +574,7 @@ export default function InvitationClient({ guest, event }: any) {
               >
                 <div className="flex items-center gap-2">
                   <span className="text-sm">📅</span>
-                  <p className="text-white/70 text-sm">{dateStr} · {event?.time}</p>
+                  <p className="text-white/70 text-sm">{dateStr} · {formatTime(event?.time)}</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <span className="text-sm">📍</span>
