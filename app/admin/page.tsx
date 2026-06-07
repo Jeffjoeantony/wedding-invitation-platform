@@ -121,6 +121,9 @@ export default function AdminPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState('')
   const [addGuestError, setAddGuestError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -183,7 +186,8 @@ export default function AdminPage() {
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
     } else {
-      alert('Failed to delete guest. Please try again.')
+      setDeleteError(`Failed to delete "${name}". Please try again.`)
+      setTimeout(() => setDeleteError(''), 4000)
     }
     setDeletingId(null)
   }
@@ -850,14 +854,19 @@ export default function AdminPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="text-xs h-7 px-3 border-rose-200 text-rose-700 hover:bg-rose-50 rounded-lg"
+                                className={`text-xs h-7 px-3 rounded-lg transition-all ${
+                                  copiedId === guest.id
+                                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+                                    : 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                                }`}
                                 onClick={() => {
                                   const link = `${window.location.origin}/invite/${guest.unique_token}`
                                   navigator.clipboard.writeText(link)
-                                  alert(`Copied!\n\n${link}`)
+                                  setCopiedId(guest.id)
+                                  setTimeout(() => setCopiedId(null), 2000)
                                 }}
                               >
-                                Copy Link
+                                {copiedId === guest.id ? '✓ Copied!' : 'Copy Link'}
                               </Button>
                               <Button
                                 variant="ghost"
@@ -878,6 +887,13 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Delete error toast */}
+          {deleteError && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium text-red-700 bg-red-50 border border-red-200 animate-fade-in-up">
+              <span>⚠</span> {deleteError}
+            </div>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════════
               ADD GUEST TAB
@@ -911,11 +927,34 @@ export default function AdminPage() {
                       <Label htmlFor="phone">Phone</Label>
                       <Input
                         id="phone"
+                        type="tel"
                         value={newGuestPhone}
-                        onChange={(e) => setNewGuestPhone(e.target.value)}
-                        placeholder="+1234567890"
-                        className="mt-2 rounded-xl"
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                          setNewGuestPhone(digits)
+                          setPhoneError(
+                            digits.length > 0 && digits.length < 10
+                              ? 'Phone number must be exactly 10 digits'
+                              : ''
+                          )
+                        }}
+                        placeholder="10-digit number"
+                        maxLength={10}
+                        inputMode="numeric"
+                        className={`mt-2 rounded-xl font-mono ${
+                          phoneError ? 'border-red-400 focus-visible:ring-red-300' : ''
+                        }`}
                       />
+                      {phoneError && (
+                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                          <span>⚠</span> {phoneError}
+                        </p>
+                      )}
+                      {newGuestPhone.length === 10 && !phoneError && (
+                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                          <span>✓</span> Valid number
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="category">Category</Label>
@@ -943,7 +982,7 @@ export default function AdminPage() {
                     )}
                     <Button
                       type="submit"
-                      disabled={!newGuestName || adding}
+                      disabled={!newGuestName || adding || !!phoneError || (newGuestPhone.length > 0 && newGuestPhone.length < 10)}
                       className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
                     >
                       {adding ? 'Adding…' : '+ Add Guest'}
