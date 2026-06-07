@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
+import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -99,9 +101,7 @@ function StatCard({
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const [admin, setAdmin] = useState(false)
-  const [password, setPassword] = useState('')
-  const [adminToken, setAdminToken] = useState('')
+  const router = useRouter()
   const [guests, setGuests] = useState<Guest[]>([])
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -121,89 +121,38 @@ export default function AdminPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState('')
 
-  // Authenticated fetch — injects the admin token header on every privileged call
-  const authFetch = useCallback(
-    (url: string, init: RequestInit = {}) =>
-      fetch(url, {
-        ...init,
-        headers: {
-          ...(init.headers ?? {}),
-          'x-admin-token': adminToken,
-        },
-      }),
-    [adminToken]
-  )
-
   const fetchData = useCallback(async () => {
     setRefreshing(true)
     const [guestRes, eventRes] = await Promise.all([
-      authFetch('/api/guests'),
-      fetch('/api/event'),   // event GET is public
+      fetch('/api/guests'),
+      fetch('/api/event'),
     ])
     if (guestRes.ok) setGuests(await guestRes.json())
     if (eventRes.ok) setEvent(await eventRes.json())
     setLoading(false)
     setRefreshing(false)
     setLastUpdated(new Date())
-  }, [authFetch])
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem('wedding_admin')
-    const tok  = sessionStorage.getItem('wedding_admin_token') ?? ''
-    if (saved === 'true' && tok) {
-      setAdminToken(tok)
-      setAdmin(true)
-    } else {
-      setLoading(false)
-    }
   }, [])
 
   useEffect(() => {
-    if (admin) {
-      fetchData()
-      intervalRef.current = setInterval(fetchData, 30_000)
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
+    fetchData()
+    intervalRef.current = setInterval(fetchData, 30_000)
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [admin, fetchData])
+  }, [fetchData])
 
-  const handleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    const expected = process.env.NEXT_PUBLIC_ADMIN_PASSWORD
-    if (!expected) {
-      alert('Admin password not configured. Set NEXT_PUBLIC_ADMIN_PASSWORD in your environment.')
-      return
-    }
-    if (password === expected) {
-      sessionStorage.setItem('wedding_admin', 'true')
-      sessionStorage.setItem('wedding_admin_token', password)
-      setAdminToken(password)
-      setAdmin(true)
-      setPassword('')
-    } else {
-      alert('Incorrect password')
-    }
-  }
-
-  const handleLogout = () => {
-    sessionStorage.removeItem('wedding_admin')
-    sessionStorage.removeItem('wedding_admin_token')
-    setAdmin(false)
-    setAdminToken('')
-    setGuests([])
-    setEvent(null)
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/admin/login')
+    router.refresh()
   }
 
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
     setAdding(true)
-    const res = await authFetch('/api/guests', {
+    const res = await fetch('/api/guests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -226,7 +175,7 @@ export default function AdminPage() {
   const deleteGuest = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
     setDeletingId(id)
-    const res = await authFetch(`/api/guests?id=${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/guests?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
     } else {
@@ -236,7 +185,7 @@ export default function AdminPage() {
   }
 
   const updateEvent = async (updates: Partial<Event>) => {
-    await authFetch('/api/event', {
+    await fetch('/api/event', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -287,7 +236,7 @@ export default function AdminPage() {
             }
           })
           .filter((g) => g.name.trim())
-        const res = await authFetch('/api/guests/bulk', {
+        const res = await fetch('/api/guests/bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ guests }),
@@ -353,42 +302,7 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
-  // ── Login screen ────────────────────────────────────────────────────────────
-  if (!admin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-rose-950 via-rose-900 to-rose-950">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center text-3xl mx-auto mb-4 shadow-xl">
-              💍
-            </div>
-            <h1 className="text-2xl font-semibold text-white">Wedding Admin</h1>
-            <p className="text-rose-300 text-sm mt-1">Management Portal</p>
-          </div>
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 shadow-2xl">
-            <form onSubmit={handleAdminLogin} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-rose-200 block mb-2">Admin Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter admin password"
-                  className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-rose-300/60 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-white text-rose-800 font-semibold hover:bg-rose-50 transition-colors shadow-lg"
-              >
-                Login
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // ── Middleware handles auth; page just renders the dashboard ────────────────
 
   // ── Derived stats ───────────────────────────────────────────────────────────
   const responded = guests.filter((g) => g.rsvp_status !== 'pending').length

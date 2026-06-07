@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const limited = rateLimit(req, 10)
   if (limited) return limited
 
-  const unauth = requireAdmin(req)
+  const unauth = await requireAdmin(req)
   if (unauth) return unauth
 
   try {

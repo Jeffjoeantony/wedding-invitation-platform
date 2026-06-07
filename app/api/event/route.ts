@@ -27,7 +27,7 @@ export async function PATCH(req: NextRequest) {
   const limited = rateLimit(req, 30)
   if (limited) return limited
 
-  const unauth = requireAdmin(req)
+  const unauth = await requireAdmin(req)
   if (unauth) return unauth
 
   try {

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const limited = rateLimit(req, 60)
   if (limited) return limited
 
-  const unauth = requireAdmin(req)
+  const unauth = await requireAdmin(req)
   if (unauth) return unauth
 
   try {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const limited = rateLimit(req, 30)
   if (limited) return limited
 
-  const unauth = requireAdmin(req)
+  const unauth = await requireAdmin(req)
   if (unauth) return unauth
 
   try {
@@ -66,7 +66,7 @@ export async function DELETE(req: NextRequest) {
   const limited = rateLimit(req, 30)
   if (limited) return limited
 
-  const unauth = requireAdmin(req)
+  const unauth = await requireAdmin(req)
   if (unauth) return unauth
 
   try {
