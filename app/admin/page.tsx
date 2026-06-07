@@ -35,6 +35,7 @@ interface Event {
   location: string
   contact: string
   maps_url?: string
+  event_template?: 'Wedding' | 'Engagement'
 }
 
 // ── Avatar component ──────────────────────────────────────────────────────────
@@ -362,7 +363,7 @@ export default function AdminPage() {
       (a, b) =>
         new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime()
     )
-    .slice(0, 6)
+    .slice(0, 4)
 
   // Filtered guest list
   const filteredGuests = guests.filter((g) => {
@@ -399,7 +400,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
-                  Digital Wedding Invitation
+                  Digital Invitation
                 </h1>
                 <p className="text-[11px] text-gray-400 leading-tight">
                   Admin Dashboard · Invitation &amp; RSVP Management
@@ -1154,11 +1155,36 @@ export default function AdminPage() {
                     <span className="text-2xl">🎊</span>
                     <div>
                       <CardTitle>Event Details</CardTitle>
-                      <CardDescription>Update your wedding information</CardDescription>
+                      <CardDescription>
+                        {event.event_template === 'Engagement'
+                          ? 'Update your engagement ceremony information'
+                          : 'Update your wedding information'}
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-5">
+
+                  {/* ── Event Type selector ───────────────────────────────── */}
+                  <div>
+                    <Label htmlFor="event-type">Event Type</Label>
+                    <Select
+                      value={event.event_template ?? 'Wedding'}
+                      onValueChange={(val) => updateEvent({ event_template: val })}
+                    >
+                      <SelectTrigger id="event-type" className="mt-2 rounded-xl">
+                        <SelectValue placeholder="Select event type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* ── Add new event types here ── */}
+                        <SelectItem value="Wedding">💍 Wedding</SelectItem>
+                        <SelectItem value="Engagement">💑 Engagement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Changes all wording on the invitation cards automatically.
+                    </p>
+                  </div>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Partner 1</Label>
@@ -1182,6 +1208,7 @@ export default function AdminPage() {
                       <Label>Date</Label>
                       <Input
                         type="date"
+                        min={new Date().toISOString().split('T')[0]}
                         defaultValue={event.date}
                         onChange={(e) => updateEvent({ date: e.target.value })}
                         className="mt-2 rounded-xl"

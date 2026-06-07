@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { getEventCopy } from '@/lib/eventCopy'
 
 // ── Falling hearts canvas ─────────────────────────────────────────────────────
 function FallingHearts() {
@@ -157,6 +158,7 @@ export default function HomePage() {
   const [splashDone, setSplashDone] = useState(false)
   const [contentVisible, setContentVisible] = useState(false)
   const countdown = useCountdown(event?.date)
+  const copy = getEventCopy(event?.event_template)
 
   useEffect(() => {
     fetch('/api/event')
@@ -216,7 +218,7 @@ export default function HomePage() {
           className="animate-fade-in-up delay-300 text-4xl md:text-5xl font-serif italic text-white text-center px-6"
           style={{ textShadow: '0 0 40px rgba(255,100,130,0.5)' }}
         >
-          A Celebration of Love
+          {copy.splashHeading}
         </h1>
         <p className="animate-fade-in delay-700 text-rose-300/70 text-xs tracking-widest mt-4">
           ✦ &nbsp; ✦ &nbsp; ✦
@@ -308,7 +310,7 @@ export default function HomePage() {
             Request the honour of your presence
           </p>
           <p className="animate-fade-in-up opacity-0-init delay-600 text-rose-300/80 text-sm font-light tracking-wide mb-10">
-            at their wedding celebration
+            {copy.atLine}
           </p>
 
           {/* Divider */}
@@ -362,7 +364,7 @@ export default function HomePage() {
           {/* Live countdown */}
           {!loading && event?.date && !countdown.past && (
             <div className="animate-fade-in-up opacity-0-init delay-800 mb-10">
-              <p className="text-rose-300/60 text-[10px] uppercase tracking-widest mb-4">Counting down to forever</p>
+              <p className="text-rose-300/60 text-[10px] uppercase tracking-widest mb-4">{copy.countdownLabel}</p>
               <div className="flex items-start justify-center gap-2 md:gap-5">
                 <CountCell value={countdown.days}    label="Days"    />
                 <div className="h-16 md:h-20 flex items-center justify-center"><span className="text-rose-400 text-2xl font-light pb-2">:</span></div>
@@ -396,7 +398,7 @@ export default function HomePage() {
           <span className="text-rose-700/50 text-lg">♥</span>
           <div className="h-px w-16 bg-gradient-to-l from-transparent to-rose-700/40" />
         </div>
-        <p className="text-white/30 text-xs tracking-widest uppercase">A Celebration of Love</p>
+        <p className="text-white/30 text-xs tracking-widest uppercase">{copy.footerTagline}</p>
         {event?.contact && (
           <p className="text-white/20 text-xs mt-2">Contact: {event.contact}</p>
         )}

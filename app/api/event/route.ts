@@ -9,7 +9,7 @@ export async function GET() {
     const supabase = createAdminClient()
     const { data, error } = await supabase
       .from('event')
-      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url')
+      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
       .single()
 
     if (error) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest) {
     // Allowlist only safe fields
     const ALLOWED_FIELDS = [
       'couple_1', 'couple_2', 'date', 'time',
-      'venue', 'location', 'contact', 'maps_url',
+      'venue', 'location', 'contact', 'maps_url', 'event_template',
     ] as const
     type AllowedKey = typeof ALLOWED_FIELDS[number]
 

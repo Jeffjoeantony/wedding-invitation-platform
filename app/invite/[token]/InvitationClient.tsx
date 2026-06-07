@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { getEventCopy } from '@/lib/eventCopy'
 
 // ── Falling hearts (same as homepage, scoped to invite only) ─────────────────
 function FallingHearts() {
@@ -190,6 +191,7 @@ export default function InvitationClient({ guest, event }: any) {
   }, [])
 
   const countdown = useCountdown(event.date)
+  const copy = getEventCopy(event.event_template)
 
   const submitRsvp = async (status: string, count: number) => {
     setSubmitting(true)
@@ -331,8 +333,9 @@ export default function InvitationClient({ guest, event }: any) {
             </div>
 
             <p className="text-white/50 text-sm font-light text-center leading-relaxed mb-6">
-              Together with their families request the honour of your presence
-              at their wedding celebration
+              {copy.requestLine}
+              <br />
+              {copy.atLine}
             </p>
 
             <Ornament />
@@ -377,7 +380,7 @@ export default function InvitationClient({ guest, event }: any) {
             {/* Countdown */}
             {!countdown.past && (
               <div className="mb-6 text-center">
-                <p className="text-[9px] uppercase tracking-widest text-rose-300/50 mb-3">Counting down to forever</p>
+                <p className="text-[9px] uppercase tracking-widest text-rose-300/50 mb-3">{copy.countdownLabel}</p>
                 <div className="flex items-start justify-center gap-2 md:gap-3">
                   <CountCell value={countdown.days}    label="Days"    />
                   <div className="h-14 md:h-16 flex items-center justify-center"><span className="text-rose-400 text-xl font-light pb-1">:</span></div>
