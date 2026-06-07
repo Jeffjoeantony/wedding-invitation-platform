@@ -73,7 +73,12 @@ const nextConfig = {
     ],
   },
 
-  // ── Webpack fallback for browser bundles (production builds via webpack) ──────
+  // ── Turbopack (Next.js 16 default for builds) ─────────────────────────────────
+  // An explicit (even empty) turbopack config is required when a webpack config
+  // is also present, otherwise Next.js 16 throws a build-time error.
+  turbopack: {},
+
+  // ── Webpack fallback — used only when running `next dev --webpack` ─────────────
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
