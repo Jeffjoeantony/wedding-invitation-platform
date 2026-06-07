@@ -1170,7 +1170,7 @@ export default function AdminPage() {
                     <Label htmlFor="event-type">Event Type</Label>
                     <Select
                       value={event.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateEvent({ event_template: val })}
+                      onValueChange={(val) => updateEvent({ event_template: val as 'Wedding' | 'Engagement' })}
                     >
                       <SelectTrigger id="event-type" className="mt-2 rounded-xl">
                         <SelectValue placeholder="Select event type" />
