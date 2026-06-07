@@ -363,7 +363,7 @@ export default function AdminPage() {
       (a, b) =>
         new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime()
     )
-    .slice(0, 6)
+    .slice(0, 4)
 
   // Filtered guest list
   const filteredGuests = guests.filter((g) => {
@@ -400,7 +400,7 @@ export default function AdminPage() {
               </div>
               <div>
                 <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
-                  Digital Wedding Invitation
+                  Digital Invitation
                 </h1>
                 <p className="text-[11px] text-gray-400 leading-tight">
                   Admin Dashboard · Invitation &amp; RSVP Management
@@ -1208,6 +1208,7 @@ export default function AdminPage() {
                       <Label>Date</Label>
                       <Input
                         type="date"
+                        min={new Date().toISOString().split('T')[0]}
                         defaultValue={event.date}
                         onChange={(e) => updateEvent({ date: e.target.value })}
                         className="mt-2 rounded-xl"
