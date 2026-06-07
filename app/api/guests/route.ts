@@ -47,6 +47,27 @@ export async function POST(req: NextRequest) {
     const guest_category = String(body.guest_category || 'Other').trim().slice(0, 100)
 
     const supabase = createAdminClient()
+
+    // ── Duplicate check ────────────────────────────────────────────────────────
+    // Build OR conditions: always check name; also check phone if provided
+    const orParts = [`name.ilike.${name}`]
+    if (phone) orParts.push(`phone.eq.${phone}`)
+
+    const { data: existing } = await supabase
+      .from('guests')
+      .select('id, name, phone')
+      .or(orParts.join(','))
+      .limit(1)
+
+    if (existing && existing.length > 0) {
+      const dup = existing[0]
+      const reason =
+        dup.name.toLowerCase() === name.toLowerCase()
+          ? `A guest named "${dup.name}" already exists`
+          : `Phone number ${phone} is already registered to "${dup.name}"`
+      return NextResponse.json({ error: reason, duplicate: true }, { status: 409 })
+    }
+
     const { data, error } = await supabase
       .from('guests')
       .insert({ name, phone, email, guest_category, rsvp_status: 'pending' })
