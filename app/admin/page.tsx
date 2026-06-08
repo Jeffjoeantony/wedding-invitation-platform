@@ -1,151 +1,436 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-interface Guest {
+interface ProjectStats {
+  total: number
+  confirmed: number
+  declined: number
+  pending: number
+  totalPax: number
+}
+
+interface Project {
   id: string
   name: string
-  phone?: string
-  email?: string
-  unique_token: string
-  rsvp_status: 'pending' | 'yes' | 'no'
-  pax_count: number
-  guest_category?: string
-  opened_at?: string
-  responded_at?: string
-}
-
-interface Event {
-  id: number
   couple_1: string
   couple_2: string
-  date: string
-  time: string
-  venue: string
-  location: string
-  contact: string
+  date?: string
+  time?: string
+  venue?: string
+  location?: string
+  contact?: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement'
+  event_template?: string
+  status: 'active' | 'paused' | 'completed'
+  created_at: string
+  _stats: ProjectStats
 }
 
-// ── Avatar component ──────────────────────────────────────────────────────────
-function GuestAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-  const palette = [
-    'bg-rose-100 text-rose-700',
-    'bg-amber-100 text-amber-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-blue-100 text-blue-700',
-    'bg-violet-100 text-violet-700',
-    'bg-pink-100 text-pink-700',
-    'bg-cyan-100 text-cyan-700',
-    'bg-orange-100 text-orange-700',
-  ]
-  const c = palette[name.charCodeAt(0) % palette.length]
+// ── Icons ────────────────────────────────────────────────────────────────────
+function IconHome() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  )
+}
+function IconGrid() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />
+    </svg>
+  )
+}
+function IconUsers() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+function IconSettings() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+function IconPlus() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+function IconSearch() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  )
+}
+function IconList() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  )
+}
+function IconChevronDown() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+function IconX() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+function IconDots() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+    </svg>
+  )
+}
+function IconRing() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  )
+}
+
+// ── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const config = {
+    active: { label: 'Active', dot: '#22c55e', bg: 'rgba(34,197,94,0.1)', color: '#86efac' },
+    paused: { label: 'Paused', dot: '#f59e0b', bg: 'rgba(245,158,11,0.1)', color: '#fcd34d' },
+    completed: { label: 'Completed', dot: '#6366f1', bg: 'rgba(99,102,241,0.1)', color: '#a5b4fc' },
+  }[status] ?? { label: status, dot: '#6b7280', bg: 'rgba(107,114,128,0.1)', color: '#9ca3af' }
+
+  return (
+    <span
+      style={{ background: config.bg, color: config.color, border: `1px solid ${config.dot}30` }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide"
+    >
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: config.dot }} />
+      {config.label}
+    </span>
+  )
+}
+
+// ── Project Card ──────────────────────────────────────────────────────────────
+function ProjectCard({ project, onOpen, onToggleStatus, onDelete }: {
+  project: Project
+  onOpen: () => void
+  onToggleStatus: () => void
+  onDelete: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const dateStr = project.date
+    ? new Date(project.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null
+
+  const responseRate = project._stats.total > 0
+    ? Math.round(((project._stats.confirmed + project._stats.declined) / project._stats.total) * 100)
+    : 0
+
   return (
     <div
-      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${c}`}
+      className="project-card"
+      style={{
+        background: '#161616',
+        border: '1px solid #2a2a2a',
+        borderRadius: '12px',
+        padding: '20px',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.border = '1px solid #3a3a3a'
+        e.currentTarget.style.transform = 'translateY(-1px)'
+        e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.border = '1px solid #2a2a2a'
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
+      onClick={() => { if (!menuOpen) onOpen() }}
     >
-      {initials}
+      {/* Header row */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0 pr-2">
+          <p className="text-white font-semibold text-[15px] truncate leading-tight">{project.name}</p>
+          {(project.couple_1 || project.couple_2) && (
+            <p style={{ color: '#6b7280', fontSize: '12px' }} className="mt-0.5 truncate">
+              {project.couple_1}{project.couple_1 && project.couple_2 ? ' & ' : ''}{project.couple_2}
+            </p>
+          )}
+        </div>
+
+        {/* Context menu */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{ color: '#4b5563', background: 'transparent', border: 'none', padding: '4px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#9ca3af' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4b5563' }}
+          >
+            <IconDots />
+          </button>
+          {menuOpen && (
+            <div
+              style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', background: '#1f1f1f', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '4px', minWidth: '160px', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.6)' }}
+            >
+              <button
+                className="context-menu-item"
+                onClick={() => { setMenuOpen(false); onOpen() }}
+              >
+                Open project
+              </button>
+              <button
+                className="context-menu-item"
+                onClick={() => { setMenuOpen(false); onToggleStatus() }}
+              >
+                {project.status === 'paused' ? 'Mark as active' : 'Pause project'}
+              </button>
+              <div style={{ height: '1px', background: '#2a2a2a', margin: '4px 0' }} />
+              <button
+                className="context-menu-item context-menu-danger"
+                onClick={() => { setMenuOpen(false); onDelete() }}
+              >
+                Delete project
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Meta info */}
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4" style={{ color: '#6b7280', fontSize: '12px' }}>
+        {project.event_template && (
+          <span>{project.event_template === 'Engagement' ? '💑' : '💍'} {project.event_template}</span>
+        )}
+        {dateStr && <span>📅 {dateStr}</span>}
+        {project.venue && <span className="truncate max-w-[160px]">📍 {project.venue}</span>}
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-3 mb-4">
+        <div style={{ flex: 1, height: '4px', background: '#2a2a2a', borderRadius: '999px', overflow: 'hidden', display: 'flex' }}>
+          {project._stats.confirmed > 0 && (
+            <div style={{ width: `${(project._stats.confirmed / project._stats.total) * 100}%`, background: '#22c55e' }} />
+          )}
+          {project._stats.declined > 0 && (
+            <div style={{ width: `${(project._stats.declined / project._stats.total) * 100}%`, background: '#ef4444' }} />
+          )}
+          {project._stats.pending > 0 && (
+            <div style={{ width: `${(project._stats.pending / project._stats.total) * 100}%`, background: '#f59e0b' }} />
+          )}
+        </div>
+        <span style={{ color: '#9ca3af', fontSize: '11px', whiteSpace: 'nowrap' }}>
+          {project._stats.total} invited
+        </span>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between">
+        <StatusBadge status={project.status} />
+        <div className="flex items-center gap-3" style={{ fontSize: '11px', color: '#4b5563' }}>
+          {project._stats.total > 0 && (
+            <>
+              <span style={{ color: '#22c55e' }}>✓ {project._stats.confirmed}</span>
+              <span style={{ color: '#f59e0b' }}>⏳ {project._stats.pending}</span>
+              <span style={{ color: '#9ca3af' }}>{responseRate}% responded</span>
+            </>
+          )}
+          {project._stats.total === 0 && (
+            <span style={{ color: '#374151' }}>No guests yet</span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  sub,
-  icon,
-  accent,
-  textColor,
-  iconBg,
-}: {
-  label: string
-  value: number | string
-  sub: string
-  icon: string
-  accent: string
-  textColor: string
-  iconBg: string
+// ── New Project Modal ─────────────────────────────────────────────────────────
+function NewProjectModal({ onClose, onCreate }: {
+  onClose: () => void
+  onCreate: (p: Project) => void
 }) {
+  const [form, setForm] = useState({
+    name: '', couple_1: '', couple_2: '', event_template: 'Wedding',
+    date: '', venue: '', location: '', contact: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim()) { setErr('Project name is required'); return }
+    setSaving(true)
+    setErr('')
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      onCreate(data)
+      onClose()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setErr(d.error || 'Failed to create project')
+    }
+    setSaving(false)
+  }
+
+  const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((prev) => ({ ...prev, [k]: e.target.value }))
+
   return (
-    <Card className={`bg-white/90 border-l-4 ${accent} shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5`}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-            <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ background: '#161616', border: '1px solid #2a2a2a', borderRadius: '16px', width: '100%', maxWidth: '520px', boxShadow: '0 24px 64px rgba(0,0,0,0.8)' }}>
+        {/* Modal header */}
+        <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h2 style={{ color: '#fff', fontWeight: 600, fontSize: '17px', margin: 0 }}>New project</h2>
+            <p style={{ color: '#6b7280', fontSize: '13px', marginTop: '2px' }}>Create a new wedding or engagement invitation project</p>
           </div>
-          <span className={`text-xl p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+          <button onClick={onClose} style={{ color: '#4b5563', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}>
+            <IconX />
+          </button>
         </div>
-      </CardContent>
-    </Card>
+
+        <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+            {/* Project name */}
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                Project name <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                value={form.name} onChange={f('name')} required
+                placeholder="e.g. Priya & Arjun Wedding"
+                className="modal-input"
+              />
+            </div>
+
+            {/* Event type */}
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Event type</label>
+              <select value={form.event_template} onChange={f('event_template')} className="modal-input">
+                <option value="Wedding">💍 Wedding</option>
+                <option value="Engagement">💑 Engagement</option>
+              </select>
+            </div>
+
+            {/* Couple names */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Partner 1</label>
+                <input value={form.couple_1} onChange={f('couple_1')} placeholder="Name" className="modal-input" />
+              </div>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Partner 2</label>
+                <input value={form.couple_2} onChange={f('couple_2')} placeholder="Name" className="modal-input" />
+              </div>
+            </div>
+
+            {/* Date & Venue */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Event date</label>
+                <input type="date" value={form.date} onChange={f('date')} className="modal-input" />
+              </div>
+              <div>
+                <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Location / City</label>
+                <input value={form.location} onChange={f('location')} placeholder="Chennai" className="modal-input" />
+              </div>
+            </div>
+
+            {/* Venue */}
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Venue</label>
+              <input value={form.venue} onChange={f('venue')} placeholder="Grand Ballroom, Hotel..." className="modal-input" />
+            </div>
+
+            {/* Contact */}
+            <div>
+              <label style={{ color: '#9ca3af', fontSize: '12px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Contact number</label>
+              <input value={form.contact} onChange={f('contact')} placeholder="+91 98765 43210" className="modal-input" />
+            </div>
+
+            {err && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 14px', color: '#fca5a5', fontSize: '13px' }}>
+                ⚠ {err}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                type="button" onClick={onClose}
+                style={{ flex: 1, padding: '10px', background: '#1f1f1f', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#9ca3af', fontSize: '14px', cursor: 'pointer', fontWeight: 500 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit" disabled={saving}
+                style={{ flex: 1, padding: '10px', background: saving ? '#15803d' : '#16a34a', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '14px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: 600, transition: 'background 0.2s' }}
+              >
+                {saving ? 'Creating…' : 'Create project'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-export default function AdminPage() {
+// ── Main Admin Hub ────────────────────────────────────────────────────────────
+export default function AdminHubPage() {
   const router = useRouter()
-  const [guests, setGuests] = useState<Guest[]>([])
-  const [event, setEvent] = useState<Event | null>(null)
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
-  const [newGuestName, setNewGuestName] = useState('')
-  const [newGuestPhone, setNewGuestPhone] = useState('')
-  const [newGuestCategory, setNewGuestCategory] = useState('Friends')
-  const [adding, setAdding] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importPreview, setImportPreview] = useState<any[]>([])
-  const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState('')
-  const [addGuestError, setAddGuestError] = useState('')
-  const [phoneError, setPhoneError] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'created'>('created')
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [activeNav, setActiveNav] = useState('projects')
 
-  const fetchData = useCallback(async () => {
-    setRefreshing(true)
-    const [guestRes, eventRes] = await Promise.all([
-      fetch('/api/guests'),
-      fetch('/api/event'),
-    ])
-    if (guestRes.ok) setGuests(await guestRes.json())
-    if (eventRes.ok) setEvent(await eventRes.json())
+  const loadProjects = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch('/api/projects')
+    if (res.ok) setProjects(await res.json())
     setLoading(false)
-    setRefreshing(false)
-    setLastUpdated(new Date())
   }, [])
 
-  useEffect(() => {
-    fetchData()
-    intervalRef.current = setInterval(fetchData, 30_000)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
-    }
-  }, [fetchData])
+  useEffect(() => { loadProjects() }, [loadProjects])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -154,1118 +439,368 @@ export default function AdminPage() {
     router.refresh()
   }
 
-  const addGuest = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setAddGuestError('')
-    setAdding(true)
-    const res = await fetch('/api/guests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newGuestName,
-        phone: newGuestPhone || null,
-        guest_category: newGuestCategory,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      setAddGuestError(err.error || 'Failed to add guest. Please try again.')
-    } else {
-      const data = await res.json()
-      setGuests([data, ...guests])
-      setNewGuestName('')
-      setNewGuestPhone('')
-      setAddGuestError('')
-    }
-    setAdding(false)
-  }
-
-  const deleteGuest = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
-    setDeletingId(id)
-    const res = await fetch(`/api/guests?id=${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setGuests((prev) => prev.filter((g) => g.id !== id))
-    } else {
-      setDeleteError(`Failed to delete "${name}". Please try again.`)
-      setTimeout(() => setDeleteError(''), 4000)
-    }
-    setDeletingId(null)
-  }
-
-  const updateEvent = async (updates: Partial<Event>) => {
-    await fetch('/api/event', {
+  const handleToggleStatus = async (project: Project) => {
+    const newStatus = project.status === 'paused' ? 'active' : 'paused'
+    const res = await fetch(`/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({ status: newStatus }),
     })
-    setEvent({ ...event!, ...updates })
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImportFile(file)
-    setImportResult('')
-    setImportPreview([])
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-      const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      const preview = rows.slice(0, 5)
-      setImportPreview(preview)
-      setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+    if (res.ok) {
+      setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status: newStatus } : p))
     }
-    reader.readAsArrayBuffer(file)
   }
 
-  const handleBulkImport = () => {
-    if (!importFile) return
-    setImporting(true)
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-        const wb = XLSX.read(data, { type: 'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-        const guests = rows
-          .map((row) => {
-            const norm: Record<string, string> = {}
-            Object.keys(row).forEach((k) => {
-              norm[k.toLowerCase().trim()] = String(row[k])
-            })
-            return {
-              name: norm.name || norm['guest name'] || norm['full name'] || '',
-              phone: norm.phone || norm['phone number'] || norm.mobile || norm.contact || '',
-              email: norm.email || norm['email address'] || '',
-              guest_category: norm.category || norm['guest category'] || norm.group || 'Other',
-            }
-          })
-          .filter((g) => g.name.trim())
-        const res = await fetch('/api/guests/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guests }),
-        })
-        if (res.ok) {
-          const result = await res.json()
-          setImportResult(
-            result.skipped > 0
-              ? `✓ ${result.message}`
-              : `✓ Successfully imported ${result.count} guests`
-          )
-          setImportFile(null)
-          setImportPreview([])
-          setImportPreviewCols([])
-          fetchData()
-        } else {
-          const err = await res.json()
-          setImportResult(`✗ Import failed: ${err.error}`)
-        }
-      } catch {
-        setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
-      } finally {
-        setImporting(false)
+  const handleDelete = async (project: Project) => {
+    if (!confirm(`Delete "${project.name}"? This will permanently delete all guests and data.`)) return
+    const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' })
+    if (res.ok) setProjects((prev) => prev.filter((p) => p.id !== project.id))
+  }
+
+  // Filter + sort
+  const filtered = projects
+    .filter((p) => {
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter
+      const term = search.toLowerCase()
+      const matchSearch = !term ||
+        p.name.toLowerCase().includes(term) ||
+        (p.couple_1 || '').toLowerCase().includes(term) ||
+        (p.couple_2 || '').toLowerCase().includes(term) ||
+        (p.venue || '').toLowerCase().includes(term) ||
+        (p.location || '').toLowerCase().includes(term)
+      return matchStatus && matchSearch
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'date') {
+        if (!a.date) return 1
+        if (!b.date) return -1
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
       }
-    }
-    reader.readAsArrayBuffer(importFile)
-  }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 
-  const handleExportExcel = () => {
-    const origin = window.location.origin
-    const rows = guests.map((g) => ({
-      Name: g.name,
-      Phone: g.phone || '',
-      Email: g.email || '',
-      Category: g.guest_category || '',
-      Status: g.rsvp_status,
-      'Pax Count': g.pax_count,
-      'Invite Link': `${origin}/invite/${g.unique_token}`,
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Guests')
-    XLSX.writeFile(wb, 'wedding-guest-links.xlsx')
-  }
-
-  const handleExportCSV = () => {
-    const origin = window.location.origin
-    const header = 'Name,Phone,Email,Category,Status,Guests,Invite Link'
-    const rows = guests.map((g) =>
-      [
-        `"${g.name}"`,
-        `"${g.phone || ''}"`,
-        `"${g.email || ''}"`,
-        `"${g.guest_category || ''}"`,
-        g.rsvp_status,
-        g.pax_count,
-        `${origin}/invite/${g.unique_token}`,
-      ].join(',')
-    )
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'wedding-guest-links.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // ── Middleware handles auth; page just renders the dashboard ────────────────
-
-  // ── Derived stats ───────────────────────────────────────────────────────────
-  const responded = guests.filter((g) => g.rsvp_status !== 'pending').length
-  const stats = {
-    total: guests.length,
-    pending: guests.filter((g) => g.rsvp_status === 'pending').length,
-    confirmed: guests.filter((g) => g.rsvp_status === 'yes').length,
-    declined: guests.filter((g) => g.rsvp_status === 'no').length,
-    totalPax: guests.filter((g) => g.rsvp_status === 'yes').reduce((s, g) => s + g.pax_count, 0),
-    opened: guests.filter((g) => g.opened_at).length,
-    responseRate:
-      guests.length > 0 ? Math.round((responded / guests.length) * 100) : 0,
-    openRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.opened_at).length / guests.length) * 100)
-        : 0,
-    confirmedRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'yes').length / guests.length) * 100)
-        : 0,
-    declinedRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'no').length / guests.length) * 100)
-        : 0,
-    pendingRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'pending').length / guests.length) * 100)
-        : 0,
-  }
-
-  // Category breakdown
-  const categoryMap: Record<string, { total: number; yes: number; no: number; pending: number }> = {}
-  guests.forEach((g) => {
-    const cat = g.guest_category || 'Other'
-    if (!categoryMap[cat]) categoryMap[cat] = { total: 0, yes: 0, no: 0, pending: 0 }
-    categoryMap[cat].total++
-    categoryMap[cat][g.rsvp_status]++
-  })
-  const categories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total)
-
-  // Recent responses
-  const recentActivity = [...guests]
-    .filter((g) => g.responded_at)
-    .sort(
-      (a, b) =>
-        new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime()
-    )
-    .slice(0, 4)
-
-  // Filtered guest list
-  const filteredGuests = guests.filter((g) => {
-    const matchFilter = filter === 'all' || g.rsvp_status === filter
-    const term = search.toLowerCase()
-    const matchSearch =
-      !term ||
-      g.name.toLowerCase().includes(term) ||
-      (g.phone || '').includes(term) ||
-      (g.guest_category || '').toLowerCase().includes(term)
-    return matchFilter && matchSearch
-  })
-
-  const eventDateStr = event?.date
-    ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : ''
+  const navItems = [
+    { id: 'projects', icon: <IconGrid />, label: 'Projects' },
+    { id: 'guests', icon: <IconUsers />, label: 'All Guests' },
+    { id: 'settings', icon: <IconSettings />, label: 'Settings' },
+  ]
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-rose-50 via-amber-50/20 to-rose-50">
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; }
+        body { background: #0a0a0a !important; }
+        .admin-hub { font-family: 'Inter', sans-serif; min-height: 100vh; background: #0a0a0a; display: flex; }
 
-      {/* ── Sticky header ── */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-rose-100/80 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-2.5 md:px-6 md:py-3.5">
-          <div className="flex items-center justify-between gap-4">
-            {/* Brand */}
-            <div className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0">
-                💍
-              </div>
-              <div>
-                <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
-                  Digital Invitation
-                </h1>
-                <p className="text-[11px] text-gray-400 leading-tight">
-                  Admin Dashboard · Invitation &amp; RSVP Management
-                </p>
-              </div>
-              {/* Event badge — subtle, not the primary identity */}
-              {event && (
-                <div className="hidden md:flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-100">
-                  <span className="text-[10px] text-rose-500 font-medium">
-                    {event.couple_1} &amp; {event.couple_2}
-                  </span>
-                  {eventDateStr && (
-                    <span className="text-[10px] text-rose-300">· {eventDateStr}</span>
-                  )}
-                </div>
-              )}
+        /* Sidebar */
+        .sidebar { width: 56px; background: #111; border-right: 1px solid #1f1f1f; display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; position: sticky; top: 0; height: 100vh; }
+        .sidebar-logo { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #16a34a, #15803d); display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+        .nav-icon { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #4b5563; border: none; background: transparent; transition: all 0.15s; }
+        .nav-icon:hover { background: #1f1f1f; color: #9ca3af; }
+        .nav-icon.active { background: #1f1f1f; color: #fff; }
+        .sidebar-spacer { flex: 1; }
+        .sidebar-logout { width: 38px; height: 38px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #4b5563; border: none; background: transparent; transition: all 0.15s; font-size: 18px; }
+        .sidebar-logout:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+        /* Main */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .topbar { height: 52px; background: #111; border-bottom: 1px solid #1f1f1f; display: flex; align-items: center; padding: 0 24px; gap: 16px; }
+        .topbar-org { color: #fff; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .topbar-divider { width: 1px; height: 16px; background: #2a2a2a; }
+        .topbar-spacer { flex: 1; }
+
+        /* Page body */
+        .page-body { padding: 32px; flex: 1; overflow-y: auto; }
+        .page-title { color: #fff; font-size: 24px; font-weight: 700; margin: 0 0 24px 0; }
+
+        /* Toolbar */
+        .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .search-box { position: relative; flex: 1; min-width: 200px; max-width: 300px; }
+        .search-box input { width: 100%; padding: 8px 12px 8px 34px; background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-size: 13px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+        .search-box input:focus { border-color: #3a3a3a; }
+        .search-box input::placeholder { color: #4b5563; }
+        .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #4b5563; pointer-events: none; }
+
+        .filter-btn { padding: 7px 12px; background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; color: #9ca3af; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+        .filter-btn:hover { border-color: #3a3a3a; color: #d1d5db; }
+        .filter-btn.active-filter { border-color: #16a34a; color: #86efac; background: rgba(22,163,74,0.1); }
+
+        .view-toggle { display: flex; background: #161616; border: 1px solid #2a2a2a; border-radius: 8px; overflow: hidden; }
+        .view-btn { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #4b5563; border: none; background: transparent; transition: all 0.15s; }
+        .view-btn:hover { color: #9ca3af; }
+        .view-btn.active { background: #2a2a2a; color: #fff; }
+
+        .toolbar-spacer { flex: 1; }
+
+        .new-project-btn { padding: 8px 14px; background: #16a34a; border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s; font-family: inherit; white-space: nowrap; }
+        .new-project-btn:hover { background: #15803d; }
+
+        /* Grid */
+        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+        .projects-list { display: flex; flex-direction: column; gap: 8px; }
+
+        /* List item */
+        .list-item { background: #161616; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap-16px; cursor: pointer; transition: all 0.15s; }
+        .list-item:hover { border-color: #3a3a3a; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 80px 24px; }
+        .empty-icon { width: 64px; height: 64px; border-radius: 16px; background: #161616; border: 1px solid #2a2a2a; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; color: #374151; }
+        .empty-title { color: #9ca3af; font-size: 16px; font-weight: 500; margin: 0 0 8px; }
+        .empty-sub { color: #4b5563; font-size: 13px; margin: 0 0 20px; }
+
+        /* Skeleton */
+        .skeleton { background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* Context menu items */
+        .context-menu-item { width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: none; color: #d1d5db; font-size: 13px; cursor: pointer; border-radius: 6px; transition: background 0.1s; display: block; font-family: inherit; }
+        .context-menu-item:hover { background: #2a2a2a; }
+        .context-menu-danger { color: #fca5a5 !important; }
+        .context-menu-danger:hover { background: rgba(239,68,68,0.1) !important; }
+
+        /* Modal input */
+        .modal-input { width: 100%; padding: 9px 12px; background: #1f1f1f; border: 1px solid #2a2a2a; border-radius: 8px; color: #fff; font-size: 13px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+        .modal-input:focus { border-color: #3a3a3a; }
+        .modal-input::placeholder { color: #4b5563; }
+        select.modal-input option { background: #1f1f1f; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+      `}</style>
+
+      <div className="admin-hub">
+        {/* ── Sidebar ── */}
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <IconRing />
+          </div>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-icon ${activeNav === item.id ? 'active' : ''}`}
+              onClick={() => setActiveNav(item.id)}
+              title={item.label}
+            >
+              {item.icon}
+            </button>
+          ))}
+          <div className="sidebar-spacer" />
+          <button className="sidebar-logout" onClick={handleLogout} title="Logout">⏻</button>
+        </aside>
+
+        {/* ── Main ── */}
+        <div className="main-content">
+          {/* Topbar */}
+          <header className="topbar">
+            <div className="topbar-org">
+              <span style={{ fontSize: '16px' }}>💍</span>
+              <span>Wedding Platform</span>
+              <span style={{ color: '#374151', fontSize: '11px', background: '#1f1f1f', border: '1px solid #2a2a2a', padding: '2px 7px', borderRadius: '4px', fontWeight: 500 }}>
+                ADMIN
+              </span>
             </div>
+            <div className="topbar-divider" />
+            <span style={{ color: '#6b7280', fontSize: '13px' }}>
+              {projects.length} project{projects.length !== 1 ? 's' : ''}
+            </span>
+            <div className="topbar-spacer" />
+            <button
+              onClick={handleLogout}
+              style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '7px', color: '#6b7280', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#2a2a2a'; e.currentTarget.style.color = '#6b7280' }}
+            >
+              Sign out
+            </button>
+          </header>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              {lastUpdated && (
-                <span className="text-[11px] text-gray-400 hidden lg:block">
-                  Updated {lastUpdated.toLocaleTimeString()}
+          {/* Page body */}
+          <div className="page-body">
+            <h1 className="page-title">Projects</h1>
+
+            {/* Toolbar */}
+            <div className="toolbar">
+              {/* Search */}
+              <div className="search-box">
+                <span className="search-icon"><IconSearch /></span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search for a project"
+                />
+              </div>
+
+              {/* Status filter */}
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+                  className="filter-btn"
+                  style={{ appearance: 'none', paddingRight: '28px' }}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280' }}>
+                  <IconChevronDown />
                 </span>
-              )}
-              <button
-                onClick={fetchData}
-                disabled={refreshing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all disabled:opacity-50"
-              >
-                <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
-                {refreshing ? 'Refreshing…' : 'Refresh'}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
-              >
-                Logout
+              </div>
+
+              {/* Sort */}
+              <div style={{ position: 'relative' }}>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="filter-btn"
+                  style={{ appearance: 'none', paddingRight: '28px' }}
+                >
+                  <option value="created">Sort: Recent</option>
+                  <option value="name">Sort: Name</option>
+                  <option value="date">Sort: Event date</option>
+                </select>
+                <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#6b7280' }}>
+                  <IconChevronDown />
+                </span>
+              </div>
+
+              <div className="toolbar-spacer" />
+
+              {/* View toggle */}
+              <div className="view-toggle">
+                <button
+                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => setViewMode('grid')}
+                  title="Grid view"
+                >
+                  <IconGrid />
+                </button>
+                <button
+                  className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+                  onClick={() => setViewMode('list')}
+                  title="List view"
+                >
+                  <IconList />
+                </button>
+              </div>
+
+              {/* New project */}
+              <button className="new-project-btn" onClick={() => setShowNewModal(true)}>
+                <IconPlus /> New project
               </button>
             </div>
+
+            {/* Content */}
+            {loading ? (
+              <div className="projects-grid">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} style={{ background: '#161616', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div className="skeleton" style={{ height: '18px', width: '60%' }} />
+                    <div className="skeleton" style={{ height: '13px', width: '40%' }} />
+                    <div className="skeleton" style={{ height: '4px', marginTop: '8px' }} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                      <div className="skeleton" style={{ height: '22px', width: '70px' }} />
+                      <div className="skeleton" style={{ height: '22px', width: '80px' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon"><IconGrid /></div>
+                <p className="empty-title">
+                  {search || statusFilter !== 'all' ? 'No projects match your filters' : 'No projects yet'}
+                </p>
+                <p className="empty-sub">
+                  {search || statusFilter !== 'all'
+                    ? 'Try adjusting your search or filter'
+                    : 'Create your first wedding invitation project to get started'}
+                </p>
+                {!search && statusFilter === 'all' && (
+                  <button className="new-project-btn" style={{ margin: '0 auto' }} onClick={() => setShowNewModal(true)}>
+                    <IconPlus /> New project
+                  </button>
+                )}
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div className="projects-grid">
+                {filtered.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onOpen={() => router.push(`/admin/projects/${project.id}`)}
+                    onToggleStatus={() => handleToggleStatus(project)}
+                    onDelete={() => handleDelete(project)}
+                  />
+                ))}
+              </div>
+            ) : (
+              /* List view */
+              <div className="projects-list">
+                {/* List header */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 100px 80px 80px 80px', gap: '12px', padding: '8px 18px', color: '#4b5563', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #1f1f1f', marginBottom: '4px' }}>
+                  <span>Project</span>
+                  <span>Type</span>
+                  <span>Status</span>
+                  <span style={{ textAlign: 'right' }}>Guests</span>
+                  <span style={{ textAlign: 'right' }}>Confirmed</span>
+                  <span style={{ textAlign: 'right' }}>Actions</span>
+                </div>
+                {filtered.map((project) => (
+                  <div
+                    key={project.id}
+                    onClick={() => router.push(`/admin/projects/${project.id}`)}
+                    style={{
+                      background: '#161616', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '14px 18px',
+                      display: 'grid', gridTemplateColumns: '1fr 120px 100px 80px 80px 80px', gap: '12px',
+                      alignItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3a3a3a' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#2a2a2a' }}
+                  >
+                    <div className="min-w-0">
+                      <p style={{ color: '#fff', fontWeight: 600, fontSize: '14px', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</p>
+                      {project.date && (
+                        <p style={{ color: '#4b5563', fontSize: '12px', margin: '2px 0 0' }}>
+                          {new Date(project.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                    <span style={{ color: '#6b7280', fontSize: '13px' }}>{project.event_template || 'Wedding'}</span>
+                    <StatusBadge status={project.status} />
+                    <span style={{ color: '#9ca3af', fontSize: '13px', textAlign: 'right' }}>{project._stats.total}</span>
+                    <span style={{ color: '#22c55e', fontSize: '13px', textAlign: 'right', fontWeight: 600 }}>{project._stats.confirmed}</span>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => router.push(`/admin/projects/${project.id}`)}
+                        style={{ padding: '5px 10px', background: '#1f1f1f', border: '1px solid #2a2a2a', borderRadius: '6px', color: '#9ca3af', fontSize: '12px', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#fff' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#1f1f1f'; e.currentTarget.style.color = '#9ca3af' }}
+                      >
+                        Open →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── Main content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="overview" className="w-full">
-
-          {/* Tab bar */}
-          <TabsList className="flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border border-rose-100 rounded-2xl p-1 mb-6">
-            <TabsTrigger
-              value="overview"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="guests"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Guest List
-              {stats.total > 0 && (
-                <span className="ml-1.5 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full font-semibold data-[state=active]:bg-rose-600 data-[state=active]:text-white">
-                  {stats.total}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="add-guest"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Add Guest
-            </TabsTrigger>
-            <TabsTrigger
-              value="import-export"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Import / Export
-            </TabsTrigger>
-            <TabsTrigger
-              value="event"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Event Details
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              OVERVIEW TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="space-y-6">
-
-            {/* Hero — Response Rate */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-700 via-rose-800 to-rose-900 text-white shadow-xl p-6">
-              {/* Decorative blobs */}
-              <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
-              <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5" />
-
-              <div className="relative flex flex-col md:flex-row md:items-center gap-6">
-                {/* Rate */}
-                <div className="flex-1">
-                  <p className="text-rose-300 text-xs font-semibold uppercase tracking-widest mb-1">Overall Response Rate</p>
-                  <div className="flex items-end gap-3 mb-4">
-                    <span className="text-6xl font-bold tabular-nums">{stats.responseRate}%</span>
-                    <span className="text-rose-300 text-sm mb-2">{responded} of {stats.total} guests responded</span>
-                  </div>
-                  {/* Stacked bar */}
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden flex gap-0.5">
-                    {stats.confirmed > 0 && (
-                      <div
-                        className="bg-emerald-400 rounded-l-full transition-all duration-700"
-                        style={{ width: `${stats.confirmedRate}%` }}
-                        title={`Confirmed: ${stats.confirmed}`}
-                      />
-                    )}
-                    {stats.declined > 0 && (
-                      <div
-                        className="bg-red-400 transition-all duration-700"
-                        style={{ width: `${stats.declinedRate}%` }}
-                        title={`Declined: ${stats.declined}`}
-                      />
-                    )}
-                    {stats.pending > 0 && (
-                      <div
-                        className="bg-amber-300 rounded-r-full transition-all duration-700"
-                        style={{ width: `${stats.pendingRate}%` }}
-                        title={`Pending: ${stats.pending}`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex gap-4 mt-2">
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
-                  </div>
-                </div>
-
-                {/* Quick counts */}
-                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
-                  {[
-                    { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
-                    { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
-                    { label: 'Pending', value: stats.pending, color: 'text-amber-300', bg: 'bg-white/5' },
-                    { label: 'Attendees', value: stats.totalPax, color: 'text-white', bg: 'bg-white/10' },
-                  ].map((item) => (
-                    <div key={item.label} className={`${item.bg} px-6 py-3 text-center flex md:flex-row items-center gap-3`}>
-                      <span className={`text-2xl font-bold tabular-nums ${item.color}`}>{item.value}</span>
-                      <span className="text-rose-300 text-xs">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* 6 Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
-              <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
-              <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
-              <StatCard label="Declined" value={stats.declined} sub="Sent their regrets" icon="❌" accent="border-red-400" textColor="text-red-600" iconBg="bg-red-50" />
-              <StatCard label="Awaiting Reply" value={stats.pending} sub="Haven't responded yet" icon="⏳" accent="border-amber-400" textColor="text-amber-600" iconBg="bg-amber-50" />
-              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent="border-rose-400" textColor="text-rose-700" iconBg="bg-rose-50" />
-            </div>
-
-            {/* Category breakdown + Recent activity */}
-            <div className="grid md:grid-cols-2 gap-6">
-
-              {/* Category breakdown */}
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs">{categories.length} group{categories.length !== 1 ? 's' : ''}</CardDescription>
-                    </div>
-                    <span className="text-2xl">📊</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {categories.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-6">No guests added yet</p>
-                  )}
-                  {categories.map(([cat, data]) => (
-                    <div key={cat}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-emerald-600 font-semibold">✓{data.yes}</span>
-                          <span className="text-red-500 font-semibold">✗{data.no}</span>
-                          <span className="text-amber-600 font-semibold">⏳{data.pending}</span>
-                          <span className="text-gray-400 font-bold w-5 text-right">{data.total}</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                        {data.yes > 0 && (
-                          <div className="bg-emerald-400 transition-all" style={{ width: `${(data.yes / data.total) * 100}%` }} />
-                        )}
-                        {data.no > 0 && (
-                          <div className="bg-red-300 transition-all" style={{ width: `${(data.no / data.total) * 100}%` }} />
-                        )}
-                        {data.pending > 0 && (
-                          <div className="bg-amber-200 transition-all" style={{ width: `${(data.pending / data.total) * 100}%` }} />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Recent responses */}
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs">Latest guest replies</CardDescription>
-                    </div>
-                    <span className="text-2xl">🔔</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {recentActivity.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-6">No responses yet</p>
-                  )}
-                  {recentActivity.map((g) => (
-                    <div key={g.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
-                      <GuestAvatar name={g.name} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {g.guest_category || 'Other'}
-                          {g.responded_at
-                            ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                            : ''}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
-                          g.rsvp_status === 'yes'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : g.rsvp_status === 'no'
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {g.rsvp_status === 'yes'
-                          ? '✓ Attending'
-                          : g.rsvp_status === 'no'
-                          ? '✗ Declined'
-                          : '⏳ Pending'}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Not-opened banner */}
-            {guests.filter((g) => !g.opened_at).length > 0 && (
-              <Card className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <span className="text-2xl shrink-0">📭</span>
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      {guests.filter((g) => !g.opened_at).length} guest{guests.filter((g) => !g.opened_at).length !== 1 ? 's' : ''} haven't opened their invite yet
-                    </p>
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      Consider sending a reminder via WhatsApp or SMS.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              GUEST LIST TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="guests" className="space-y-4">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-              <CardHeader className="pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">Guest List</CardTitle>
-                    <CardDescription className="text-xs mt-0.5">
-                      Showing <span className="font-semibold text-gray-700">{filteredGuests.length}</span> of <span className="font-semibold text-gray-700">{guests.length}</span> guests
-                    </CardDescription>
-                  </div>
-                  {/* Search */}
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none">🔍</span>
-                    <Input
-                      placeholder="Search name, phone, category…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 w-64 h-9 text-sm border-gray-200 focus:border-rose-300 rounded-xl"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Filter pills */}
-                <div className="flex gap-2 flex-wrap">
-                  {(
-                    [
-                      { key: 'all', label: 'All', count: guests.length },
-                      { key: 'pending', label: 'Pending', count: stats.pending },
-                      { key: 'yes', label: 'Confirmed', count: stats.confirmed },
-                      { key: 'no', label: 'Declined', count: stats.declined },
-                    ] as const
-                  ).map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        filter === f.key
-                          ? 'bg-rose-700 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {f.label}
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                          filter === f.key ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-500'
-                        }`}
-                      >
-                        {f.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Responded</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredGuests.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-16 text-gray-400">
-                            <div className="flex flex-col items-center gap-2">
-                              <span className="text-4xl">🔍</span>
-                              <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {filteredGuests.map((guest) => (
-                        <TableRow
-                          key={guest.id}
-                          className="hover:bg-rose-50/40 transition-colors group border-gray-50"
-                        >
-                          {/* Guest name + phone */}
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <GuestAvatar name={guest.name} />
-                              <div className="min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
-                                {guest.phone && (
-                                  <p className="text-xs text-gray-400 font-mono">{guest.phone}</p>
-                                )}
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          {/* Category */}
-                          <TableCell>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-                              {guest.guest_category || 'Other'}
-                            </span>
-                          </TableCell>
-
-                          {/* Status */}
-                          <TableCell>
-                            <span
-                              className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                                guest.rsvp_status === 'yes'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : guest.rsvp_status === 'no'
-                                  ? 'bg-red-100 text-red-600'
-                                  : 'bg-amber-100 text-amber-700'
-                              }`}
-                            >
-                              {guest.rsvp_status === 'yes'
-                                ? '✓ Yes'
-                                : guest.rsvp_status === 'no'
-                                ? '✗ No'
-                                : '⏳ Pending'}
-                            </span>
-                          </TableCell>
-
-                          {/* Pax */}
-                          <TableCell>
-                            {guest.rsvp_status === 'yes' ? (
-                              <span className="text-sm font-semibold text-emerald-700">
-                                {guest.pax_count}
-                                <span className="text-xs font-normal text-gray-400 ml-1">
-                                  {guest.pax_count === 1 ? 'person' : 'people'}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 text-sm">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Opened */}
-                          <TableCell>
-                            {guest.opened_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">
-                                  {new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </p>
-                                <p className="text-gray-400">
-                                  {new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-300 italic">Not yet</span>
-                            )}
-                          </TableCell>
-
-                          {/* Responded */}
-                          <TableCell>
-                            {guest.responded_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">
-                                  {new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </p>
-                                <p className="text-gray-400">
-                                  {new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-300">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Actions */}
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={`text-xs h-7 px-3 rounded-lg transition-all ${
-                                  copiedId === guest.id
-                                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
-                                    : 'border-rose-200 text-rose-700 hover:bg-rose-50'
-                                }`}
-                                onClick={() => {
-                                  const link = `${window.location.origin}/invite/${guest.unique_token}`
-                                  navigator.clipboard.writeText(link)
-                                  setCopiedId(guest.id)
-                                  setTimeout(() => setCopiedId(null), 2000)
-                                }}
-                              >
-                                {copiedId === guest.id ? '✓ Copied!' : 'Copy Link'}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs h-7 px-3 text-red-400 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                                disabled={deletingId === guest.id}
-                                onClick={() => deleteGuest(guest.id, guest.name)}
-                              >
-                                {deletingId === guest.id ? 'Deleting…' : 'Delete'}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Delete error toast */}
-          {deleteError && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium text-red-700 bg-red-50 border border-red-200 animate-fade-in-up">
-              <span>⚠</span> {deleteError}
-            </div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════════════
-              ADD GUEST TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="add-guest" className="mt-0">
-            <div className="max-w-md">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">👤</span>
-                    <div>
-                      <CardTitle>Add New Guest</CardTitle>
-                      <CardDescription>Create a personalised invitation</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={addGuest} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Guest Name *</Label>
-                      <Input
-                        id="name"
-                        value={newGuestName}
-                        onChange={(e) => setNewGuestName(e.target.value)}
-                        placeholder="Full name"
-                        className="mt-2 rounded-xl"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={newGuestPhone}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
-                          setNewGuestPhone(digits)
-                          setPhoneError(
-                            digits.length > 0 && digits.length < 10
-                              ? 'Phone number must be exactly 10 digits'
-                              : ''
-                          )
-                        }}
-                        placeholder="10-digit number"
-                        maxLength={10}
-                        inputMode="numeric"
-                        className={`mt-2 rounded-xl font-mono ${
-                          phoneError ? 'border-red-400 focus-visible:ring-red-300' : ''
-                        }`}
-                      />
-                      {phoneError && (
-                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                          <span>⚠</span> {phoneError}
-                        </p>
-                      )}
-                      {newGuestPhone.length === 10 && !phoneError && (
-                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                          <span>✓</span> Valid number
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
-                        <SelectTrigger className="mt-2 rounded-xl">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Family">Family</SelectItem>
-                          <SelectItem value="Friends">Friends</SelectItem>
-                          <SelectItem value="Bride Side">Bride Side</SelectItem>
-                          <SelectItem value="Groom Side">Groom Side</SelectItem>
-                          <SelectItem value="Neighbours">Neighbours</SelectItem>
-                          <SelectItem value="Office">Office</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* Duplicate / error message */}
-                    {addGuestError && (
-                      <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-                        <span className="shrink-0 mt-0.5">⚠</span>
-                        <span>{addGuestError}</span>
-                      </div>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={!newGuestName || adding || !!phoneError || (newGuestPhone.length > 0 && newGuestPhone.length < 10)}
-                      className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
-                    >
-                      {adding ? 'Adding…' : '+ Add Guest'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              IMPORT / EXPORT TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="import-export" className="mt-0 space-y-6">
-
-            {/* Import */}
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📥</span>
-                  <div>
-                    <CardTitle>Import from Excel / CSV</CardTitle>
-                    <CardDescription>
-                      Upload a spreadsheet — tokens and links are auto-generated.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <label
-                  htmlFor="import-file"
-                  className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-rose-200 rounded-2xl p-10 cursor-pointer hover:bg-rose-50/40 transition-colors"
-                >
-                  <span className="text-4xl">📂</span>
-                  <p className="text-gray-700 font-light text-sm">
-                    {importFile ? importFile.name : 'Click to upload or drag & drop'}
-                  </p>
-                  <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
-                  <input
-                    id="import-file"
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
-
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
-                  <p className="font-semibold text-amber-900 mb-1">Expected columns (case-insensitive):</p>
-                  <p className="font-mono text-amber-800 text-xs">Name · Phone · Email · Category</p>
-                  <p className="text-amber-700 text-xs mt-1">
-                    Only <strong>Name</strong> is required. All other columns are optional.
-                  </p>
-                </div>
-
-                {importPreview.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2 font-medium">
-                      Preview — first {importPreview.length} rows:
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="text-xs w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            {importPreviewCols.map((col) => (
-                              <th key={col} className="px-3 py-2 text-left text-gray-700 font-semibold border-b border-gray-200">
-                                {col}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importPreview.map((row, i) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                              {importPreviewCols.map((col) => (
-                                <td key={col} className="px-3 py-2 text-gray-700">
-                                  {String(row[col] ?? '')}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {importResult && (
-                  <p
-                    className={`text-sm font-semibold px-4 py-3 rounded-xl ${
-                      importResult.startsWith('✓')
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-red-50 text-red-700'
-                    }`}
-                  >
-                    {importResult}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleBulkImport}
-                  disabled={!importFile || importing}
-                  className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
-                >
-                  {importing
-                    ? 'Importing…'
-                    : importFile
-                    ? `Import "${importFile.name}"`
-                    : 'Select a file first'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Export */}
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📤</span>
-                  <div>
-                    <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>
-                      Download the full guest list with unique invite URLs.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-gray-50 rounded-xl p-4 text-sm">
-                  <p className="text-gray-700">
-                    <strong>{guests.length}</strong> guests · links will use:
-                  </p>
-                  <p className="font-mono text-xs text-gray-500 mt-1 break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}
-                    /invite/<em>TOKEN</em>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    onClick={handleExportExcel}
-                    disabled={guests.length === 0}
-                    className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl"
-                  >
-                    ⬇ Export Excel (.xlsx)
-                  </Button>
-                  <Button
-                    onClick={handleExportCSV}
-                    disabled={guests.length === 0}
-                    variant="outline"
-                    className="border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-xl"
-                  >
-                    ⬇ Export CSV
-                  </Button>
-                </div>
-                {guests.length === 0 && (
-                  <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              EVENT DETAILS TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="event" className="mt-0">
-            {event && (
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🎊</span>
-                    <div>
-                      <CardTitle>Event Details</CardTitle>
-                      <CardDescription>
-                        {event.event_template === 'Engagement'
-                          ? 'Update your engagement ceremony information'
-                          : 'Update your wedding information'}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-
-                  {/* ── Event Type selector ───────────────────────────────── */}
-                  <div>
-                    <Label htmlFor="event-type">Event Type</Label>
-                    <Select
-                      value={event.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateEvent({ event_template: val as 'Wedding' | 'Engagement' })}
-                    >
-                      <SelectTrigger id="event-type" className="mt-2 rounded-xl">
-                        <SelectValue placeholder="Select event type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* ── Add new event types here ── */}
-                        <SelectItem value="Wedding">💍 Wedding</SelectItem>
-                        <SelectItem value="Engagement">💑 Engagement</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      Changes all wording on the invitation cards automatically.
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Partner 1</Label>
-                      <Input
-                        defaultValue={event.couple_1}
-                        onChange={(e) => updateEvent({ couple_1: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Partner 2</Label>
-                      <Input
-                        defaultValue={event.couple_2}
-                        onChange={(e) => updateEvent({ couple_2: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Date</Label>
-                      <Input
-                        type="date"
-                        min={new Date().toISOString().split('T')[0]}
-                        defaultValue={event.date}
-                        onChange={(e) => updateEvent({ date: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Time</Label>
-                      <Input
-                        type="time"
-                        defaultValue={event.time}
-                        onChange={(e) => updateEvent({ time: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Venue</Label>
-                    <Input
-                      defaultValue={event.venue}
-                      onChange={(e) => updateEvent({ venue: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Location / City</Label>
-                    <Input
-                      defaultValue={event.location}
-                      onChange={(e) => updateEvent({ location: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Contact Number</Label>
-                    <Input
-                      defaultValue={event.contact}
-                      onChange={(e) => updateEvent({ contact: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Google Maps URL</Label>
-                    <Input
-                      defaultValue={event.maps_url || ''}
-                      onChange={(e) => updateEvent({ maps_url: e.target.value })}
-                      placeholder="https://maps.google.com/…"
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5">
-                    <span>✓</span> Changes are saved automatically
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-    </main>
+      {/* New project modal */}
+      {showNewModal && (
+        <NewProjectModal
+          onClose={() => setShowNewModal(false)}
+          onCreate={(project) => setProjects((prev) => [project, ...prev])}
+        />
+      )}
+    </>
   )
 }
