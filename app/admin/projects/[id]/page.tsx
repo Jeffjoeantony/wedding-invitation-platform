@@ -36,7 +36,8 @@ interface Project {
   location: string
   contact: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement'
+  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' |
+    'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
   status: string
 }
 
@@ -363,7 +364,12 @@ export default function ProjectDashboardPage() {
               <div className="w-px h-5 bg-gray-200" />
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0">
-                  {project?.event_template === 'Engagement' ? '💑' : '💍'}
+                  {({
+                    'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
+                    'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
+                    'Birthday': '🎂', 'Housewarming': '🏡',
+                    'Corporate Event': '🏢', 'Custom Event': '✨',
+                  } as Record<string, string>)[project?.event_template ?? 'Wedding'] ?? '💍'}
                 </div>
                 <div>
                   <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
@@ -881,9 +887,7 @@ export default function ProjectDashboardPage() {
                     <div>
                       <CardTitle>Event Details</CardTitle>
                       <CardDescription>
-                        {project.event_template === 'Engagement'
-                          ? 'Update your engagement ceremony information'
-                          : 'Update your wedding information'}
+                        Update your {project.event_template ?? 'event'} information
                       </CardDescription>
                     </div>
                   </div>
@@ -903,7 +907,7 @@ export default function ProjectDashboardPage() {
                     <Label htmlFor="event-type">Event Type</Label>
                     <Select
                       value={project.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateProject({ event_template: val as 'Wedding' | 'Engagement' })}
+                      onValueChange={(val) => updateProject({ event_template: val as Project['event_template'] })}
                     >
                       <SelectTrigger id="event-type" className="mt-2 rounded-xl">
                         <SelectValue placeholder="Select event type" />
@@ -911,6 +915,14 @@ export default function ProjectDashboardPage() {
                       <SelectContent>
                         <SelectItem value="Wedding">💍 Wedding</SelectItem>
                         <SelectItem value="Engagement">💑 Engagement</SelectItem>
+                        <SelectItem value="Reception">🥂 Reception</SelectItem>
+                        <SelectItem value="Mehendi">🌿 Mehendi</SelectItem>
+                        <SelectItem value="Haldi">🌼 Haldi</SelectItem>
+                        <SelectItem value="Save The Date">📅 Save The Date</SelectItem>
+                        <SelectItem value="Birthday">🎂 Birthday</SelectItem>
+                        <SelectItem value="Housewarming">🏡 Housewarming</SelectItem>
+                        <SelectItem value="Corporate Event">🏢 Corporate Event</SelectItem>
+                        <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-400 mt-1.5">Changes all wording on the invitation cards automatically.</p>

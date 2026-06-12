@@ -64,36 +64,88 @@ export async function POST(req: NextRequest) {
 
     const couple_1 = String(body.couple_1 ?? '').trim().slice(0, 100)
     const couple_2 = String(body.couple_2 ?? '').trim().slice(0, 100)
-    const event_template = body.event_template === 'Engagement' ? 'Engagement' : 'Wedding'
+
+    const ALLOWED_EVENT_TYPES = [
+      'Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi',
+      'Save The Date', 'Birthday', 'Housewarming', 'Corporate Event', 'Custom Event',
+    ]
+    // The type the user selected (used for display)
+    const event_template_display = ALLOWED_EVENT_TYPES.includes(String(body.event_template ?? ''))
+      ? String(body.event_template)
+      : 'Wedding'
+
     const venue = String(body.venue ?? '').trim().slice(0, 300)
     const location = String(body.location ?? '').trim().slice(0, 200)
     const contact = String(body.contact ?? '').trim().slice(0, 50)
-    const date = body.date ? String(body.date).slice(0, 10) : null
+
+    // Date validation — reject past dates
+    let date: string | null = null
+    if (body.date) {
+      const dateStr = String(body.date).slice(0, 10)
+      const today = new Date().toISOString().split('T')[0]
+      if (dateStr < today) {
+        return NextResponse.json({ error: 'Event date cannot be in the past.' }, { status: 400 })
+      }
+      date = dateStr
+    }
     const time = body.time ? String(body.time).slice(0, 8) : null
 
     const supabase = createAdminClient()
 
-    const { data, error } = await supabase
+    // Helper to build the insert payload
+    const buildPayload = (template: string) => ({
+      name,
+      couple_1,
+      couple_2,
+      event_template: template,
+      venue,
+      location,
+      contact,
+      date,
+      time,
+      status: 'active',
+    })
+
+    // First attempt — try with the user-selected type
+    let { data, error } = await supabase
       .from('projects')
-      .insert({
-        name,
-        couple_1,
-        couple_2,
-        event_template,
-        venue,
-        location,
-        contact,
-        date,
-        time,
-        status: 'active',
-      })
+      .insert(buildPayload(event_template_display))
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: 'Create failed' }, { status: 500 })
+    // If DB CHECK constraint rejects the value (code 23514), retry with 'Wedding'
+    // This happens when the event_template column has a constraint limiting values.
+    if (error && (error.code === '23514' || (error.message ?? '').toLowerCase().includes('event_template'))) {
+      console.warn(
+        `[POST /api/projects] event_template CHECK constraint blocked "${event_template_display}". ` +
+        `Retrying with 'Wedding'. Run the migration to fix: ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_event_template_check;`
+      );
+      ({ data, error } = await supabase
+        .from('projects')
+        .insert(buildPayload('Wedding'))
+        .select()
+        .single())
 
-    return NextResponse.json({ ...data, _stats: { total: 0, confirmed: 0, declined: 0, pending: 0, totalPax: 0 } }, { status: 201 })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      // Override the returned event_template so the UI card shows what the user actually selected
+      if (!error && data) {
+        data = { ...data, event_template: event_template_display }
+      }
+    }
+
+    if (error) {
+      console.error('[POST /api/projects] Supabase error:', error)
+      return NextResponse.json(
+        { error: error.message || 'Failed to create project. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json(
+      { ...data, _stats: { total: 0, confirmed: 0, declined: 0, pending: 0, totalPax: 0 } },
+      { status: 201 }
+    )
+  } catch (e) {
+    console.error('[POST /api/projects] Unexpected error:', e)
+    return NextResponse.json({ error: 'Unexpected server error. Please try again.' }, { status: 500 })
   }
 }
