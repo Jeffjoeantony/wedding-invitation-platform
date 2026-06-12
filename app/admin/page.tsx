@@ -716,6 +716,467 @@ function SkeletonCard() {
   )
 }
 
+// ── Settings Panel ───────────────────────────────────────────────────────────
+function SettingsPanel({ onLogout }: { onLogout: () => void }) {
+  const supabase = createClient()
+  const [section, setSection] = useState<'profile' | 'notifications' | 'security' | 'appearance' | 'danger'>('profile')
+  const [userEmail, setUserEmail] = useState('')
+  const [displayName, setDisplayName] = useState('Admin')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  // Password change state
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+
+  // Notification toggles
+  const [notifs, setNotifs] = useState({
+    rsvpEmail: true,
+    rsvpSummary: false,
+    marketingEmails: false,
+    projectActivity: true,
+  })
+
+  // Appearance
+  const [compactMode, setCompactMode] = useState(false)
+
+  // Load user on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setUserEmail(data.user.email ?? '')
+        setDisplayName(data.user.user_metadata?.full_name || 'Admin')
+      }
+    })
+    // Load prefs from localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem('inviteos_settings') || '{}')
+      if (saved.notifs) setNotifs((prev) => ({ ...prev, ...saved.notifs }))
+      if (saved.compactMode !== undefined) setCompactMode(saved.compactMode)
+    } catch { /* ignore */ }
+  }, [])
+
+  const savePrefs = (newNotifs = notifs, newCompact = compactMode) => {
+    localStorage.setItem('inviteos_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
+  }
+
+  const toggleNotif = (key: keyof typeof notifs) => {
+    const updated = { ...notifs, [key]: !notifs[key] }
+    setNotifs(updated)
+    savePrefs(updated)
+  }
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    setMsg(null)
+    const { error } = await supabase.auth.updateUser({ data: { full_name: displayName } })
+    setMsg(error
+      ? { text: 'Failed to update profile.', type: 'error' }
+      : { text: 'Profile updated successfully.', type: 'success' }
+    )
+    setSaving(false)
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  const handleChangePassword = async () => {
+    if (!pwNew || pwNew !== pwConfirm) {
+      setMsg({ text: 'New passwords do not match.', type: 'error' }); return
+    }
+    if (pwNew.length < 8) {
+      setMsg({ text: 'Password must be at least 8 characters.', type: 'error' }); return
+    }
+    setPwSaving(true)
+    setMsg(null)
+    const { error } = await supabase.auth.updateUser({ password: pwNew })
+    if (error) {
+      setMsg({ text: error.message || 'Failed to change password.', type: 'error' })
+    } else {
+      setMsg({ text: 'Password changed successfully. You may need to log in again.', type: 'success' })
+      setPwNew(''); setPwConfirm('')
+    }
+    setPwSaving(false)
+    setTimeout(() => setMsg(null), 4000)
+  }
+
+  const sidebarItems = [
+    { id: 'profile',       label: 'Profile & Account', icon: '👤' },
+    { id: 'notifications', label: 'Notifications',     icon: '🔔' },
+    { id: 'security',      label: 'Security',           icon: '🔒' },
+    { id: 'appearance',    label: 'Appearance',         icon: '🎨' },
+    { id: 'danger',        label: 'Danger Zone',        icon: '⚠️' },
+  ] as const
+
+  const Toggle = ({ on, onChange }: { on: boolean; onChange: () => void }) => (
+    <button
+      onClick={onChange}
+      style={{
+        width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
+        background: on ? '#D72660' : '#E5E7EB',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3, left: on ? 23 : 3, width: 18, height: 18,
+        borderRadius: '50%', background: '#fff',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+        transition: 'left 0.2s',
+      }} />
+    </button>
+  )
+
+  const SectionCard = ({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) => (
+    <div style={{
+      background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
+      padding: '24px 28px', marginBottom: 16,
+      boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
+    }}>
+      {(title || desc) && (
+        <div style={{ marginBottom: 20 }}>
+          {title && <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>{title}</h3>}
+          {desc && <p style={{ color: '#6B7280', fontSize: 13, marginTop: 4 }}>{desc}</p>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+
+  const FieldRow = ({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 0', borderBottom: '1px solid #F3F4F6' }}>
+      <div style={{ flex: 1 }}>
+        <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 500, margin: 0 }}>{label}</p>
+        {desc && <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{desc}</p>}
+      </div>
+      {children}
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      {/* ── Settings sidebar ── */}
+      <div style={{
+        width: 210, flexShrink: 0,
+        background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
+        padding: 10, boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
+      }}>
+        {sidebarItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => { setSection(item.id); setMsg(null) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              width: '100%', padding: '10px 12px', border: 'none', borderRadius: 10,
+              background: section === item.id ? '#F4E7EC' : 'transparent',
+              color: section === item.id ? '#D72660' : '#4B5563',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: section === item.id ? 600 : 500,
+              cursor: 'pointer', textAlign: 'left', marginBottom: 2,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => { if (section !== item.id) { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#1F2937' }}}
+            onMouseLeave={(e) => { if (section !== item.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4B5563' }}}
+          >
+            <span style={{ fontSize: 15 }}>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Content ── */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+
+        {/* Inline message */}
+        {msg && (
+          <div style={{
+            marginBottom: 16, padding: '12px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+            background: msg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
+            border: `1px solid ${msg.type === 'success' ? '#BBF7D0' : '#FECACA'}`,
+            color: msg.type === 'success' ? '#15803D' : '#B91C1C',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            {msg.type === 'success' ? '✓' : '⚠'} {msg.text}
+          </div>
+        )}
+
+        {/* ══ PROFILE ══════════════════════════════════ */}
+        {section === 'profile' && (
+          <>
+            <SectionCard title="Profile" desc="Your name and email address shown in the admin panel.">
+              {/* Avatar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 24, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 16, margin: 0 }}>{displayName}</p>
+                  <p style={{ color: '#9CA3AF', fontSize: 13, marginTop: 2 }}>{userEmail || 'Loading…'}</p>
+                  <span style={{ display: 'inline-block', marginTop: 4, background: '#F4E7EC', color: '#D72660', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em' }}>ADMIN</span>
+                </div>
+              </div>
+
+              {/* Name field */}
+              <div style={{ marginBottom: 16 }}>
+                <label className="modal-label">Display Name</label>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="modal-input"
+                  placeholder="Your name"
+                />
+              </div>
+
+              {/* Email (read-only) */}
+              <div style={{ marginBottom: 20 }}>
+                <label className="modal-label">Email Address</label>
+                <input
+                  value={userEmail}
+                  readOnly
+                  className="modal-input"
+                  style={{ background: '#F3F4F6', color: '#9CA3AF', cursor: 'not-allowed' }}
+                />
+                <p style={{ color: '#9CA3AF', fontSize: 11, marginTop: 4 }}>Email cannot be changed here. Contact your Supabase admin.</p>
+              </div>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                style={{
+                  padding: '10px 20px', background: '#D72660', border: 'none',
+                  borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                  fontFamily: 'inherit', transition: 'background 0.15s',
+                  boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                }}
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </SectionCard>
+
+            <SectionCard title="Account Details">
+              <FieldRow label="Account type" desc="Your current plan">
+                <span style={{ background: '#F4E7EC', color: '#D72660', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>Workspace Owner</span>
+              </FieldRow>
+              <FieldRow label="Member since">
+                <span style={{ color: '#6B7280', fontSize: 13 }}>June 2026</span>
+              </FieldRow>
+              <FieldRow label="Platform" desc="InviteOS Admin Dashboard">
+                <span style={{ color: '#6B7280', fontSize: 13 }}>v1.0.0</span>
+              </FieldRow>
+            </SectionCard>
+          </>
+        )}
+
+        {/* ══ NOTIFICATIONS ════════════════════════════ */}
+        {section === 'notifications' && (
+          <SectionCard title="Notification Preferences" desc="Choose what updates you want to receive. Changes are saved instantly.">
+            <FieldRow label="New RSVP alerts" desc="Get notified when a guest responds">
+              <Toggle on={notifs.rsvpEmail} onChange={() => toggleNotif('rsvpEmail')} />
+            </FieldRow>
+            <FieldRow label="Daily RSVP summary" desc="Receive a daily digest of all RSVP activity">
+              <Toggle on={notifs.rsvpSummary} onChange={() => toggleNotif('rsvpSummary')} />
+            </FieldRow>
+            <FieldRow label="Project activity" desc="Updates on project status changes">
+              <Toggle on={notifs.projectActivity} onChange={() => toggleNotif('projectActivity')} />
+            </FieldRow>
+            <FieldRow label="Marketing emails" desc="Tips, new features, and product news">
+              <Toggle on={notifs.marketingEmails} onChange={() => toggleNotif('marketingEmails')} />
+            </FieldRow>
+            <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 16 }}>
+              ✓ Preferences saved automatically to your browser.
+            </p>
+          </SectionCard>
+        )}
+
+        {/* ══ SECURITY ═════════════════════════════════ */}
+        {section === 'security' && (
+          <>
+            <SectionCard title="Change Password" desc="Use a strong password with at least 8 characters.">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label className="modal-label">New Password</label>
+                  <input
+                    type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)}
+                    className="modal-input" placeholder="Min. 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="modal-label">Confirm New Password</label>
+                  <input
+                    type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)}
+                    className="modal-input" placeholder="Repeat new password"
+                  />
+                  {pwConfirm && pwNew !== pwConfirm && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4 }}>⚠ Passwords do not match</p>
+                  )}
+                  {pwConfirm && pwNew === pwConfirm && pwNew.length >= 8 && (
+                    <p style={{ color: '#16A34A', fontSize: 11, marginTop: 4 }}>✓ Passwords match</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8}
+                  style={{
+                    padding: '10px 20px', background: '#D72660', border: 'none',
+                    borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
+                    cursor: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 'not-allowed' : 'pointer',
+                    opacity: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 0.6 : 1,
+                    fontFamily: 'inherit', alignSelf: 'flex-start',
+                    boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                  }}
+                >
+                  {pwSaving ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Sessions">
+              <FieldRow label="Current session" desc="Active now · This device">
+                <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999 }}>Active</span>
+              </FieldRow>
+              <div style={{ marginTop: 16 }}>
+                <button
+                  onClick={onLogout}
+                  style={{
+                    padding: '10px 20px', background: '#FEF2F2', border: '1.5px solid #FECACA',
+                    borderRadius: 10, color: '#B91C1C', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#FEF2F2' }}
+                >
+                  Sign out of all sessions
+                </button>
+              </div>
+            </SectionCard>
+          </>
+        )}
+
+        {/* ══ APPEARANCE ═══════════════════════════════ */}
+        {section === 'appearance' && (
+          <SectionCard title="Display Preferences" desc="Customise how the admin panel looks and feels.">
+            <FieldRow label="Compact mode" desc="Reduce spacing for a denser layout">
+              <Toggle on={compactMode} onChange={() => {
+                const next = !compactMode
+                setCompactMode(next)
+                savePrefs(notifs, next)
+              }} />
+            </FieldRow>
+            <FieldRow label="Color theme" desc="Premium light theme">
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { color: '#D72660', label: 'Rose' },
+                  { color: '#7C3AED', label: 'Violet' },
+                  { color: '#2563EB', label: 'Blue' },
+                  { color: '#16A34A', label: 'Green' },
+                ].map((t) => (
+                  <div
+                    key={t.color}
+                    title={t.label}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%', background: t.color,
+                      cursor: 'pointer', border: t.color === '#D72660' ? '2px solid #1F2937' : '2px solid transparent',
+                      transition: 'border 0.15s',
+                    }}
+                  />
+                ))}
+              </div>
+            </FieldRow>
+            <FieldRow label="Date format" desc="How dates appear across the dashboard">
+              <div className="filter-select-wrap">
+                <select className="filter-sel" style={{ fontSize: 12 }}>
+                  <option>DD/MM/YYYY</option>
+                  <option>MM/DD/YYYY</option>
+                  <option>YYYY-MM-DD</option>
+                </select>
+                <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+              </div>
+            </FieldRow>
+            <FieldRow label="Default sort" desc="How projects are sorted on load">
+              <div className="filter-select-wrap">
+                <select className="filter-sel" style={{ fontSize: 12 }}>
+                  <option>Most recent</option>
+                  <option>Name A–Z</option>
+                  <option>Event date</option>
+                </select>
+                <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+              </div>
+            </FieldRow>
+          </SectionCard>
+        )}
+
+        {/* ══ DANGER ZONE ══════════════════════════════ */}
+        {section === 'danger' && (
+          <div style={{
+            background: '#FFF8F8', border: '1.5px solid #FECACA',
+            borderRadius: 16, padding: '24px 28px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 22 }}>⚠️</span>
+              <h3 style={{ color: '#991B1B', fontSize: 15, fontWeight: 700, margin: 0 }}>Danger Zone</h3>
+            </div>
+            <p style={{ color: '#B91C1C', fontSize: 13, marginBottom: 24 }}>
+              These actions are irreversible. Proceed with extreme caution.
+            </p>
+
+            {[
+              {
+                title: 'Sign out',
+                desc: 'End your current session and return to the login page.',
+                label: 'Sign Out',
+                action: onLogout,
+                color: '#B91C1C',
+              },
+              {
+                title: 'Export all data',
+                desc: 'Download a JSON export of all your projects and guest data.',
+                label: 'Export JSON',
+                action: () => {
+                  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), note: 'Full data export — coming soon.' }, null, 2)], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = 'inviteos-export.json'; a.click()
+                  URL.revokeObjectURL(url)
+                },
+                color: '#B45309',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  padding: '18px 20px', background: '#FFFFFF', borderRadius: 12,
+                  border: '1.5px solid #FECACA', marginBottom: 12,
+                }}
+              >
+                <div>
+                  <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{item.title}</p>
+                  <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 3 }}>{item.desc}</p>
+                </div>
+                <button
+                  onClick={item.action}
+                  style={{
+                    padding: '8px 16px', background: '#FEF2F2', border: `1.5px solid #FECACA`,
+                    borderRadius: 8, color: item.color, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#FEF2F2' }}
+                >
+                  {item.label}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Navigation items ──────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { id: 'dashboard',  label: 'Dashboard',  Icon: Icon.Dashboard  },
@@ -725,6 +1186,7 @@ const NAV_ITEMS = [
   { id: 'templates',  label: 'Templates',  Icon: Icon.Templates  },
   { id: 'settings',   label: 'Settings',   Icon: Icon.Settings   },
 ]
+
 
 // ── Main Admin Hub ────────────────────────────────────────────────────────────
 export default function AdminHubPage() {
@@ -1332,16 +1794,22 @@ export default function AdminHubPage() {
               </>
             )}
 
-            {/* ── Guests / Analytics / Templates / Settings ── */}
-            {['guests', 'analytics', 'templates', 'settings'].includes(activeNav) && (
+            {/* ── Guests / Analytics / Templates (coming soon) ── */}
+            {['guests', 'analytics', 'templates'].includes(activeNav) && (
               <div className="coming-soon">
                 <div className="coming-soon-icon">
-                  {activeNav === 'guests' ? '👥' : activeNav === 'analytics' ? '📊' : activeNav === 'templates' ? '🎨' : '⚙️'}
+                  {activeNav === 'guests' ? '👥' : activeNav === 'analytics' ? '📊' : '🎨'}
                 </div>
                 <h2>{pageTitle}</h2>
                 <p>This section is coming soon. Stay tuned for updates.</p>
               </div>
             )}
+
+            {/* ── Settings ── */}
+            {activeNav === 'settings' && (
+              <SettingsPanel onLogout={handleLogout} />
+            )}
+
           </div>
         </div>
       </div>
