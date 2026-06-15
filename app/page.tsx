@@ -82,13 +82,14 @@ function FloatingParticles() {
 }
 
 // ── Section Reveal Wrapper ─────────────────────────────────────────────────────
-function Reveal({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
+function Reveal({ children, delay = 0, className = '', style = {} }: { children: React.ReactNode; delay?: number; className?: string; style?: React.CSSProperties }) {
   const { ref, inView } = useInView()
   return (
     <div
       ref={ref}
       className={className}
       style={{
+        ...style,
         opacity: inView ? 1 : 0,
         transform: inView ? 'translateY(0)' : 'translateY(36px)',
         transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ease ${delay}ms`,
@@ -567,21 +568,21 @@ function HeroSection() {
                 { bottom: 60, right: -20, rotate: 6 },
                 { bottom: -20, left: -24, rotate: -8 },
               ]
-              const pos = positions[i]
+              const { rotate, ...posStyles } = positions[i]
               const isActive = activeCard === i
               return (
                 <div
                   key={card.label}
                   style={{
                     position: 'absolute',
-                    ...pos,
+                    ...posStyles,
                     background: card.bg,
                     border: `2px solid ${card.color}30`,
                     borderRadius: 14,
                     padding: '10px 14px',
                     display: 'flex', alignItems: 'center', gap: 8,
                     boxShadow: isActive ? `0 8px 24px ${card.color}30` : '0 4px 12px rgba(0,0,0,0.08)',
-                    transform: `rotate(${(pos as any).rotate}deg) scale(${isActive ? 1.05 : 1})`,
+                    transform: `rotate(${rotate}deg) scale(${isActive ? 1.05 : 1})`,
                     transition: 'all 0.4s ease',
                     zIndex: isActive ? 10 : 5,
                     minWidth: 160,
