@@ -39,6 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         guest_category: String(g.guest_category || 'Other').trim().slice(0, 100),
         rsvp_status: 'pending' as const,
         project_id: id,
+        // Generate a unique invite token (required NOT NULL in guests table)
         unique_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
       }))
       .filter((g) => g.name.length > 0)
@@ -66,19 +67,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const incomingNames = dedupedRecords.map((g) => g.name.toLowerCase())
     const incomingPhones = dedupedRecords.map((g) => g.phone).filter(Boolean) as string[]
 
-    const { data: existing } = await supabase
-      .from('guests')
-      .select('name, phone')
-      .eq('project_id', id)
-      .or(
-        [
-          incomingNames.map((n) => `name.ilike.${n}`).join(','),
-          ...(incomingPhones.length > 0 ? [`phone.in.(${incomingPhones.join(',')})`] : []),
-        ].join(',')
-      )
+    // Build the OR filter safely — only include conditions if we have values
+    const orConditions: string[] = [
+      ...incomingNames.map((n) => `name.ilike.${n}`),
+      ...(incomingPhones.length > 0 ? [`phone.in.(${incomingPhones.join(',')})`] : []),
+    ]
 
-    const existingNames = new Set((existing ?? []).map((g) => g.name.toLowerCase()))
-    const existingPhones = new Set((existing ?? []).map((g) => g.phone).filter(Boolean))
+    let existingNames = new Set<string>()
+    let existingPhones = new Set<string>()
+
+    if (orConditions.length > 0) {
+      const { data: existing, error: existingError } = await supabase
+        .from('guests')
+        .select('name, phone')
+        .eq('project_id', id)
+        .or(orConditions.join(','))
+
+      if (existingError) {
+        console.error('[POST /api/projects/[id]/guests/bulk] Duplicate check error:', existingError)
+        // Non-fatal: proceed without dedup against existing
+      } else {
+        existingNames = new Set((existing ?? []).map((g) => g.name.toLowerCase()))
+        existingPhones = new Set((existing ?? []).map((g) => g.phone).filter(Boolean) as string[])
+      }
+    }
 
     const newRecords = dedupedRecords.filter(
       (g) =>
@@ -99,7 +111,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // ── Step 4: Insert new records ────────────────────────────────────────────
     const { data, error } = await supabase.from('guests').insert(newRecords).select()
 
-    if (error) return NextResponse.json({ error: 'Import failed' }, { status: 500 })
+    if (error) {
+      console.error('[POST /api/projects/[id]/guests/bulk] Insert error:', error)
+      return NextResponse.json({ error: error.message || 'Import failed' }, { status: 500 })
+    }
 
     return NextResponse.json(
       {
@@ -112,7 +127,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       { status: 201 }
     )
-  } catch {
+  } catch (e) {
+    console.error('[POST /api/projects/[id]/guests/bulk] Unexpected error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

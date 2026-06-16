@@ -26,10 +26,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .eq('project_id', id)
       .order('created_at', { ascending: false })
 
-    if (error) return NextResponse.json({ error: 'Fetch failed' }, { status: 500 })
+    if (error) {
+      console.error('[GET /api/projects/[id]/guests] Supabase error:', error)
+      return NextResponse.json({ error: error.message || 'Fetch failed' }, { status: 500 })
+    }
 
     return NextResponse.json(data)
-  } catch {
+  } catch (e) {
+    console.error('[GET /api/projects/[id]/guests] Unexpected error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -77,16 +81,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: reason, duplicate: true }, { status: 409 })
     }
 
+    // Generate a unique invite token (required NOT NULL in the guests table)
+    const unique_token = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
+
     const { data, error } = await supabase
       .from('guests')
-      .insert({ name, phone, email, guest_category, rsvp_status: 'pending', project_id: id })
+      .insert({ name, phone, email, guest_category, rsvp_status: 'pending', project_id: id, unique_token })
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: 'Insert failed' }, { status: 500 })
+    if (error) {
+      console.error('[POST /api/projects/[id]/guests] Supabase error:', error)
+      return NextResponse.json({ error: error.message || 'Insert failed' }, { status: 500 })
+    }
 
     return NextResponse.json(data, { status: 201 })
-  } catch {
+  } catch (e) {
+    console.error('[POST /api/projects/[id]/guests] Unexpected error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -117,10 +128,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .eq('id', guestId)
       .eq('project_id', id)
 
-    if (error) return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
+    if (error) {
+      console.error('[DELETE /api/projects/[id]/guests] Supabase error:', error)
+      return NextResponse.json({ error: error.message || 'Delete failed' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
-  } catch {
+  } catch (e) {
+    console.error('[DELETE /api/projects/[id]/guests] Unexpected error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
