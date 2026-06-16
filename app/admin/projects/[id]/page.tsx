@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import NotificationSystem from '@/components/NotificationSystem'
+import { addNotification, playNotificationSound } from '@/lib/notifications'
 
 interface Guest {
   id: string
@@ -98,6 +100,8 @@ export default function ProjectDashboardPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevGuestsRef = useRef<Record<string, string>>({})
+  const projectNameRef = useRef<string>('')
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreview, setImportPreview] = useState<any[]>([])
   const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
@@ -115,8 +119,44 @@ export default function ProjectDashboardPage() {
       fetch(`/api/projects/${projectId}/guests`),
       fetch(`/api/projects/${projectId}/event`),
     ])
-    if (guestRes.ok) setGuests(await guestRes.json())
-    if (projectRes.ok) setProject(await projectRes.json())
+
+    if (guestRes.ok) {
+      const newGuests: Guest[] = await guestRes.json()
+
+      // ── Detect RSVP status changes since last poll ──────────────────────
+      const prev = prevGuestsRef.current
+      if (Object.keys(prev).length > 0) {
+        newGuests.forEach((g) => {
+          if (prev[g.id] === 'pending' && g.rsvp_status !== 'pending') {
+            const isYes = g.rsvp_status === 'yes'
+            addNotification({
+              type: isYes ? 'rsvp_yes' : 'rsvp_no',
+              title: isYes ? 'Guest Confirmed! 🎉' : 'Guest Declined',
+              message: `${g.name} has ${isYes ? 'confirmed attendance' : 'declined the invitation'}${
+                projectNameRef.current ? ` for ${projectNameRef.current}` : ''
+              }.`,
+              projectName: projectNameRef.current || undefined,
+              guestName: g.name,
+              projectId,
+            })
+            playNotificationSound(isYes ? 'success' : 'warning')
+          }
+        })
+      }
+      // Update snapshot for next comparison
+      const snap: Record<string, string> = {}
+      newGuests.forEach((g) => { snap[g.id] = g.rsvp_status })
+      prevGuestsRef.current = snap
+
+      setGuests(newGuests)
+    }
+
+    if (projectRes.ok) {
+      const proj = await projectRes.json()
+      projectNameRef.current = proj.name || ''
+      setProject(proj)
+    }
+
     setLoading(false)
     setRefreshing(false)
     setLastUpdated(new Date())
@@ -152,6 +192,17 @@ export default function ProjectDashboardPage() {
     } else {
       const data = await res.json()
       setGuests([data, ...guests])
+      // Update snapshot so this guest isn't treated as new on next poll
+      prevGuestsRef.current[data.id] = 'pending'
+      addNotification({
+        type: 'guest_added',
+        title: 'Guest Added ✓',
+        message: `${newGuestName} has been added to the guest list.`,
+        projectName: projectNameRef.current || undefined,
+        guestName: newGuestName,
+        projectId,
+      })
+      playNotificationSound('success')
       setNewGuestName('')
       setNewGuestPhone('')
       setAddGuestError('')
@@ -242,6 +293,14 @@ export default function ProjectDashboardPage() {
         if (res.ok) {
           const result = await res.json()
           setImportResult(result.skipped > 0 ? `✓ ${result.message}` : `✓ Successfully imported ${result.count} guests`)
+          addNotification({
+            type: 'bulk_import',
+            title: `Import Complete 📥`,
+            message: result.message || `Successfully imported ${result.count} guest${result.count !== 1 ? 's' : ''}.`,
+            projectName: projectNameRef.current || undefined,
+            projectId,
+          })
+          playNotificationSound('info')
           setImportFile(null)
           setImportPreview([])
           setImportPreviewCols([])
@@ -400,6 +459,7 @@ export default function ProjectDashboardPage() {
                 <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
                 {refreshing ? 'Refreshing…' : 'Refresh'}
               </button>
+              <NotificationSystem />
               <button
                 onClick={handleLogout}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"

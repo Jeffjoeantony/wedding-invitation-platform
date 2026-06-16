@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import NotificationSystem from '@/components/NotificationSystem'
+import { addNotification, playNotificationSound } from '@/lib/notifications'
 
 interface ProjectStats {
   total: number
@@ -1611,9 +1613,7 @@ export default function AdminHubPage() {
               <span className="topbar-title">{pageTitle}</span>
             </div>
             <div className="topbar-spacer" />
-            <button className="topbar-icon-btn" title="Notifications">
-              <Icon.Bell />
-            </button>
+            <NotificationSystem />
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
               background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
@@ -1815,7 +1815,17 @@ export default function AdminHubPage() {
       {showNewModal && (
         <NewProjectModal
           onClose={() => setShowNewModal(false)}
-          onCreate={(project) => setProjects((prev) => [project, ...prev])}
+          onCreate={(project) => {
+            setProjects((prev) => [project, ...prev])
+            addNotification({
+              type: 'project_created',
+              title: 'Project Created! 🎉',
+              message: `${project.name} has been set up and is ready to use.`,
+              projectName: project.name,
+              projectId: project.id,
+            })
+            playNotificationSound('success')
+          }}
         />
       )}
     </>
