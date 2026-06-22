@@ -13,6 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
+import { getDashboardTheme } from '@/lib/dashboardTheme'
+import {
+  formatBirthdayPersonsDisplay,
+  parseAdditionalBirthdayPersons,
+  serializeAdditionalBirthdayPersons,
+} from '@/lib/birthdayPersons'
 
 interface Guest {
   id: string
@@ -42,6 +48,76 @@ interface Project {
     'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
   status: string
 }
+
+
+function BirthdayPersonsFields({
+  couple1,
+  couple2,
+  onUpdatePrimary,
+  onUpdateAdditional,
+}: {
+  couple1: string
+  couple2: string
+  onUpdatePrimary: (name: string) => void
+  onUpdateAdditional: (names: string[]) => void
+}) {
+  const [additional, setAdditional] = useState<string[]>(() => parseAdditionalBirthdayPersons(couple2))
+
+  useEffect(() => {
+    setAdditional(parseAdditionalBirthdayPersons(couple2))
+  }, [couple2])
+
+  const persistAdditional = (names: string[]) => {
+    setAdditional(names)
+    onUpdateAdditional(names)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label htmlFor="birthday-person-1">🎂 Birthday Person</Label>
+        <Input
+          id="birthday-person-1"
+          defaultValue={couple1}
+          onChange={(e) => onUpdatePrimary(e.target.value)}
+          placeholder="Name of the birthday person"
+          className="mt-2 rounded-xl"
+        />
+      </div>
+      {additional.map((name, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-500 shrink-0">&</span>
+          <Input
+            value={name}
+            onChange={(e) => {
+              const next = [...additional]
+              next[index] = e.target.value
+              persistAdditional(next)
+            }}
+            placeholder="Person name"
+            className="rounded-xl flex-1"
+          />
+          <button
+            type="button"
+            title="Remove"
+            onClick={() => persistAdditional(additional.filter((_, i) => i !== index))}
+            className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-all text-base"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => setAdditional((prev) => [...prev, ''])}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-violet-200 text-violet-600 text-sm font-medium hover:bg-violet-50 hover:border-violet-300 transition-all"
+      >
+        More
+      </button>
+    </div>
+  )
+}
+
 
 // ── Avatar component ─────────────────────────────────────────────────────────
 function GuestAvatar({ name }: { name: string }) {
@@ -393,11 +469,13 @@ export default function ProjectDashboardPage() {
       })
     : ''
 
+  const theme = getDashboardTheme(project?.event_template)
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-rose-50 via-amber-50/20 to-rose-50 flex items-center justify-center">
+      <main className={`${theme.pageBg} flex items-center justify-center`}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-4 border-rose-200 border-t-rose-600 animate-spin" />
+          <div className={`w-10 h-10 rounded-full border-4 animate-spin ${theme.loadingSpinner}`} />
           <p className="text-sm text-gray-400">Loading project…</p>
         </div>
       </main>
@@ -405,10 +483,10 @@ export default function ProjectDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-rose-50 via-amber-50/20 to-rose-50">
+    <main className={theme.pageBg}>
 
       {/* ── Sticky header ── */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-rose-100/80 sticky top-0 z-20 shadow-sm">
+      <div className={`bg-white/80 backdrop-blur-md border-b sticky top-0 z-20 shadow-sm ${theme.headerBorder}`}>
         <div className="max-w-7xl mx-auto px-4 py-2.5 md:px-6 md:py-3.5">
           <div className="flex items-center justify-between gap-4">
 
@@ -416,13 +494,13 @@ export default function ProjectDashboardPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/admin')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-500 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-500 transition-all ${theme.navBtnHover}`}
               >
                 ← Projects
               </button>
               <div className="w-px h-5 bg-gray-200" />
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0">
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0 ${theme.iconGradient}`}>
                   {({
                     'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
                     'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
@@ -435,9 +513,11 @@ export default function ProjectDashboardPage() {
                     {project?.name || 'Project Dashboard'}
                   </h1>
                   <p className="text-[11px] text-gray-400 leading-tight">
-                    {project?.couple_1 && project?.couple_2
-                      ? `${project.couple_1} & ${project.couple_2}`
-                      : 'Invitation & RSVP Management'}
+                    {project?.event_template === 'Birthday' && project?.couple_1
+                      ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
+                      : project?.couple_1 && project?.couple_2
+                        ? `${project.couple_1} & ${project.couple_2}`
+                        : project?.couple_1 || 'Invitation & RSVP Management'}
                     {projectDateStr && ` · ${projectDateStr}`}
                   </p>
                 </div>
@@ -454,7 +534,7 @@ export default function ProjectDashboardPage() {
               <button
                 onClick={fetchData}
                 disabled={refreshing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all disabled:opacity-50"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 transition-all disabled:opacity-50 ${theme.navBtnHover}`}
               >
                 <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
                 {refreshing ? 'Refreshing…' : 'Refresh'}
@@ -476,7 +556,7 @@ export default function ProjectDashboardPage() {
         <Tabs defaultValue="overview" className="w-full">
 
           {/* Tab bar */}
-          <TabsList className="flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border border-rose-100 rounded-2xl p-1 mb-6">
+          <TabsList className={`flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border rounded-2xl p-1 mb-6 ${theme.tabsListBorder}`}>
             {[
               { value: 'overview', label: 'Overview' },
               { value: 'guests', label: `Guest List${stats.total > 0 ? ` (${stats.total})` : ''}` },
@@ -487,7 +567,7 @@ export default function ProjectDashboardPage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
+                className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all ${theme.tabActive}`}
               >
                 {tab.label}
               </TabsTrigger>
@@ -498,15 +578,15 @@ export default function ProjectDashboardPage() {
           <TabsContent value="overview" className="space-y-6">
 
             {/* Hero — Response Rate */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-700 via-rose-800 to-rose-900 text-white shadow-xl p-6">
+            <div className={theme.heroClassName} style={theme.heroStyle}>
               <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
               <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5" />
               <div className="relative flex flex-col md:flex-row md:items-center gap-6">
                 <div className="flex-1">
-                  <p className="text-rose-300 text-xs font-semibold uppercase tracking-widest mb-1">Overall Response Rate</p>
+                  <p className={`${theme.heroMutedText} text-xs font-semibold uppercase tracking-widest mb-1`}>Overall Response Rate</p>
                   <div className="flex items-end gap-3 mb-4">
                     <span className="text-6xl font-bold tabular-nums">{stats.responseRate}%</span>
-                    <span className="text-rose-300 text-sm mb-2">{responded} of {stats.total} guests responded</span>
+                    <span className={`${theme.heroMutedText} text-sm mb-2`}>{responded} of {stats.total} guests responded</span>
                   </div>
                   <div className="h-3 bg-white/10 rounded-full overflow-hidden flex gap-0.5">
                     {stats.confirmed > 0 && <div className="bg-emerald-400 rounded-l-full transition-all duration-700" style={{ width: `${stats.confirmedRate}%` }} />}
@@ -514,9 +594,9 @@ export default function ProjectDashboardPage() {
                     {stats.pending > 0 && <div className="bg-amber-300 rounded-r-full transition-all duration-700" style={{ width: `${stats.pendingRate}%` }} />}
                   </div>
                   <div className="flex gap-4 mt-2">
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
+                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
+                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
+                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
                   </div>
                 </div>
                 <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
@@ -528,7 +608,7 @@ export default function ProjectDashboardPage() {
                   ].map((item) => (
                     <div key={item.label} className={`${item.bg} px-6 py-3 text-center flex md:flex-row items-center gap-3`}>
                       <span className={`text-2xl font-bold tabular-nums ${item.color}`}>{item.value}</span>
-                      <span className="text-rose-300 text-xs">{item.label}</span>
+                      <span className={`${theme.heroMutedText} text-xs`}>{item.label}</span>
                     </div>
                   ))}
                 </div>
@@ -542,7 +622,7 @@ export default function ProjectDashboardPage() {
               <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
               <StatCard label="Declined" value={stats.declined} sub="Sent their regrets" icon="❌" accent="border-red-400" textColor="text-red-600" iconBg="bg-red-50" />
               <StatCard label="Awaiting Reply" value={stats.pending} sub="Haven't responded yet" icon="⏳" accent="border-amber-400" textColor="text-amber-600" iconBg="bg-amber-50" />
-              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent="border-rose-400" textColor="text-rose-700" iconBg="bg-rose-50" />
+              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent={theme.attendeesAccent} textColor={theme.attendeesText} iconBg={theme.attendeesIconBg} />
             </div>
 
             {/* Category breakdown + Recent activity */}
@@ -647,7 +727,7 @@ export default function ProjectDashboardPage() {
                       placeholder="Search name, phone, category…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 w-64 h-9 text-sm border-gray-200 focus:border-rose-300 rounded-xl"
+                      className={`pl-8 w-64 h-9 text-sm border-gray-200 rounded-xl ${theme.searchFocus}`}
                     />
                   </div>
                 </div>
@@ -665,12 +745,12 @@ export default function ProjectDashboardPage() {
                       key={f.key}
                       onClick={() => setFilter(f.key)}
                       className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        filter === f.key ? 'bg-rose-700 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        filter === f.key ? theme.filterActive : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
                       {f.label}
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        filter === f.key ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-500'
+                        filter === f.key ? theme.filterActiveBadge : 'bg-gray-200 text-gray-500'
                       }`}>{f.count}</span>
                     </button>
                   ))}
@@ -702,7 +782,7 @@ export default function ProjectDashboardPage() {
                         </TableRow>
                       )}
                       {filteredGuests.map((guest) => (
-                        <TableRow key={guest.id} className="hover:bg-rose-50/40 transition-colors group border-gray-50">
+                        <TableRow key={guest.id} className={`transition-colors group border-gray-50 ${theme.tableRowHover}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <GuestAvatar name={guest.name} />
@@ -753,7 +833,7 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline" size="sm"
                                 className={`text-xs h-7 px-3 rounded-lg transition-all ${
-                                  copiedId === guest.id ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-rose-200 text-rose-700 hover:bg-rose-50'
+                                  copiedId === guest.id ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : theme.copyLinkBtn
                                 }`}
                                 onClick={() => {
                                   navigator.clipboard.writeText(`${window.location.origin}/invite/${guest.unique_token}`)
@@ -843,7 +923,7 @@ export default function ProjectDashboardPage() {
                     <Button
                       type="submit"
                       disabled={!newGuestName || adding || !!phoneError || (newGuestPhone.length > 0 && newGuestPhone.length < 10)}
-                      className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
+                      className={`w-full rounded-xl ${theme.primaryBtn}`}
                     >
                       {adding ? 'Adding…' : '+ Add Guest'}
                     </Button>
@@ -866,7 +946,7 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <label htmlFor="import-file" className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-rose-200 rounded-2xl p-10 cursor-pointer hover:bg-rose-50/40 transition-colors">
+                <label htmlFor="import-file" className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl p-10 cursor-pointer transition-colors ${theme.importDropzone}`}>
                   <span className="text-4xl">📂</span>
                   <p className="text-gray-700 font-light text-sm">{importFile ? importFile.name : 'Click to upload or drag & drop'}</p>
                   <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
@@ -901,7 +981,7 @@ export default function ProjectDashboardPage() {
                     {importResult}
                   </p>
                 )}
-                <Button onClick={handleBulkImport} disabled={!importFile || importing} className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl">
+                <Button onClick={handleBulkImport} disabled={!importFile || importing} className={`w-full rounded-xl ${theme.primaryBtn}`}>
                   {importing ? 'Importing…' : importFile ? `Import "${importFile.name}"` : 'Select a file first'}
                 </Button>
               </CardContent>
@@ -988,16 +1068,26 @@ export default function ProjectDashboardPage() {
                     <p className="text-xs text-gray-400 mt-1.5">Changes all wording on the invitation cards automatically.</p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Partner 1</Label>
-                      <Input defaultValue={project.couple_1} onChange={(e) => updateProject({ couple_1: e.target.value })} className="mt-2 rounded-xl" />
+                  {project.event_template === 'Birthday' ? (
+                    <BirthdayPersonsFields
+                      couple1={project.couple_1}
+                      couple2={project.couple_2}
+                      onUpdatePrimary={(name) => updateProject({ couple_1: name })}
+                      onUpdateAdditional={(names) => updateProject({ couple_2: serializeAdditionalBirthdayPersons(names) })}
+                    />
+                  ) : (
+                    /* ── Wedding / all other events: Partner 1 + Partner 2 ── */
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Partner 1</Label>
+                        <Input defaultValue={project.couple_1} onChange={(e) => updateProject({ couple_1: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
+                      <div>
+                        <Label>Partner 2</Label>
+                        <Input defaultValue={project.couple_2} onChange={(e) => updateProject({ couple_2: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
                     </div>
-                    <div>
-                      <Label>Partner 2</Label>
-                      <Input defaultValue={project.couple_2} onChange={(e) => updateProject({ couple_2: e.target.value })} className="mt-2 rounded-xl" />
-                    </div>
-                  </div>
+                  )}
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <Label>Date</Label>

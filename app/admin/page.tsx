@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
+import { formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
 
 interface ProjectStats {
   total: number
@@ -239,7 +240,9 @@ function ProjectCard({ project, onOpen, onToggleStatus, onDelete }: {
             <p style={{ color: '#1F2937', fontWeight: 700, fontSize: '15px', margin: 0 }} className="truncate">{project.name}</p>
             {(project.couple_1 || project.couple_2) && (
               <p style={{ color: '#6B7280', fontSize: '12px', marginTop: 2 }} className="truncate">
-                {project.couple_1}{project.couple_1 && project.couple_2 ? ' & ' : ''}{project.couple_2}
+                {project.event_template === 'Birthday'
+                  ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
+                  : `${project.couple_1}${project.couple_1 && project.couple_2 ? ' & ' : ''}${project.couple_2}`}
               </p>
             )}
           </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getEventCopy } from '@/lib/eventCopy'
+import { allBirthdayPersons, formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
 
 // ─────────────────────────────────────────────────────────────
 //  SHARED UTILITIES
@@ -421,33 +422,27 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
               <p className="text-[10px] uppercase tracking-[0.3em] text-yellow-300/60 mb-2">{copy.preHeading}</p>
               <h1
                 className="font-extrabold leading-tight mb-1"
-                style={{
-                  fontSize: 'clamp(2.4rem, 9vw, 4rem)',
-                  background: 'linear-gradient(135deg, #fde68a 10%, #a78bfa 50%, #f472b6 80%, #fde68a 100%)',
-                  backgroundSize: '300% auto',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  filter: 'drop-shadow(0 0 20px rgba(167,139,250,0.4))',
-                  animation: 'shimmer 5s linear infinite',
-                }}
+                style={{ fontSize: 'clamp(2.4rem, 9vw, 4rem)' }}
               >
-                {event?.couple_1}
+                {allBirthdayPersons(event?.couple_1, event?.couple_2).map((name, index) => (
+                  <span key={`${name}-${index}`}>
+                    {index > 0 && <span className="text-yellow-300/80 font-semibold"> & </span>}
+                    <span
+                      style={{
+                        background: 'linear-gradient(135deg, #fde68a 10%, #a78bfa 50%, #f472b6 80%, #fde68a 100%)',
+                        backgroundSize: '300% auto',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        filter: 'drop-shadow(0 0 20px rgba(167,139,250,0.4))',
+                        animation: 'shimmer 5s linear infinite',
+                      }}
+                    >
+                      {name}
+                    </span>
+                  </span>
+                ))}
               </h1>
-              {event?.couple_2 && (
-                <p
-                  className="font-semibold"
-                  style={{
-                    fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
-                    background: 'linear-gradient(135deg, #c4b5fd, #f9a8d4)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  {event.couple_2}
-                </p>
-              )}
             </div>
 
             <p className="text-white/50 text-sm font-light text-center leading-relaxed mb-6">
@@ -717,7 +712,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
 
         {/* Footer */}
         <p className="mt-10 text-white/15 text-xs tracking-widest">
-          {event?.couple_1}{event?.couple_2 ? ` & ${event.couple_2}` : ''}
+          {formatBirthdayPersonsDisplay(event?.couple_1, event?.couple_2)}
         </p>
       </div>
     </main>
