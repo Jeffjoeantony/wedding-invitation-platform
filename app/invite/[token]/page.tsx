@@ -28,27 +28,34 @@ export default function InvitePage() {
     if (token) fetchData()
   }, [token])
 
-  const bg = {
-    background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)',
-  }
+  const isBirthday = event?.event_template === 'Birthday'
+
+  // Background and accent adapt to the event type once loaded
+  const bg = isBirthday
+    ? { background: 'linear-gradient(160deg, #0f0520 0%, #1e0938 30%, #2d1060 60%, #1a0530 100%)' }
+    : { background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)' }
+
+  const loadingEmoji = isBirthday ? '🎂' : '💍'
+  const loadingColor = isBirthday ? 'rgba(251,191,36,0.5)' : 'rgba(255,100,130,0.5)'
+  const loadingText = isBirthday ? 'text-yellow-300/70' : 'text-rose-300/70'
 
   if (loading) {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center gap-6"
-        style={bg}
+        style={{ background: 'linear-gradient(160deg, #0f0318 0%, #1e0530 50%, #0f0318 100%)' }}
       >
         {/* Pulsing ring */}
         <div className="relative w-20 h-20">
           <div
             className="absolute inset-0 rounded-full animate-pulse-ring"
-            style={{ border: '2px solid rgba(255,100,130,0.5)' }}
+            style={{ border: '2px solid rgba(167,139,250,0.4)' }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-3xl animate-heart-beat">
-            💍
+            🎉
           </div>
         </div>
-        <p className="text-rose-300/70 text-sm tracking-widest animate-pulse">
+        <p className="text-purple-300/60 text-sm tracking-widest animate-pulse">
           Loading your invitation…
         </p>
       </div>
@@ -73,13 +80,13 @@ export default function InvitePage() {
           <h1 className="text-2xl font-serif italic text-white mb-3">
             Invitation Not Found
           </h1>
-          <p className="text-rose-200/60 text-sm font-light mb-6">
+          <p className="text-white/50 text-sm font-light mb-6">
             We couldn&apos;t find your invitation. Please check your link and try again.
           </p>
           <a
             href="/"
             className="inline-block px-6 py-2.5 rounded-full text-sm text-white font-medium transition-all hover:scale-105"
-            style={{ background: 'linear-gradient(135deg, #be123c, #9f1239)' }}
+            style={{ background: isBirthday ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'linear-gradient(135deg, #be123c, #9f1239)' }}
           >
             Return Home
           </a>

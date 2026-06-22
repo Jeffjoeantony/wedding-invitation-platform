@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const supabase = createAdminClient()
 
-    // Duplicate check within this project
+    // Duplicate check — within this project only (name OR phone)
     const orParts = [`name.ilike.${name}`]
     if (phone) orParts.push(`phone.eq.${phone}`)
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const reason =
         dup.name.toLowerCase() === name.toLowerCase()
           ? `A guest named "${dup.name}" already exists in this project`
-          : `Phone number ${phone} is already registered to "${dup.name}"`
+          : `Phone number ${phone} is already registered to "${dup.name}" in this project`
       return NextResponse.json({ error: reason, duplicate: true }, { status: 409 })
     }
 
@@ -91,6 +91,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single()
 
     if (error) {
+      if (error.code === '23505') {
+        const isGlobalConstraint = error.message?.includes('guests_phone_unique')
+        const isPerProjectConstraint = error.message?.includes('guests_project_phone_unique')
+
+        if (isPerProjectConstraint) {
+          // Same phone already in this project
+          return NextResponse.json(
+            { error: `Phone number ${phone} is already registered to a guest in this project`, duplicate: true },
+            { status: 409 }
+          )
+        }
+
+        if (isGlobalConstraint && phone) {
+          // Old global constraint still active — retry without phone so guest is still added
+          // (DB migration to drop guests_phone_unique is pending)
+          const { data: retryData, error: retryError } = await supabase
+            .from('guests')
+            .insert({ name, phone: null, email, guest_category, rsvp_status: 'pending', project_id: id, unique_token })
+            .select()
+            .single()
+
+          if (retryError) {
+            console.error('[POST /api/projects/[id]/guests] Retry error:', retryError)
+            return NextResponse.json({ error: retryError.message || 'Insert failed' }, { status: 500 })
+          }
+
+          // Guest added without phone — return success with a note
+          return NextResponse.json(
+            { ...retryData, _warning: 'Phone was not saved — it is used by another guest across projects. Run the DB migration to allow cross-project phone reuse.' },
+            { status: 201 }
+          )
+        }
+
+        // Some other unique constraint
+        return NextResponse.json({ error: 'A guest with the same details already exists' }, { status: 409 })
+      }
+
       console.error('[POST /api/projects/[id]/guests] Supabase error:', error)
       return NextResponse.json({ error: error.message || 'Insert failed' }, { status: 500 })
     }
@@ -101,6 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
 
 // Admin only: delete a guest by id (must belong to this project)
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

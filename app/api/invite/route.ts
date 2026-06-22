@@ -18,9 +18,10 @@ export async function GET(req: NextRequest) {
 
     const supabase = createAdminClient()
 
+    // Fetch guest — include project_id so we can get per-project event data
     const { data: guest, error: guestError } = await supabase
       .from('guests')
-      .select('id,name,phone,unique_token,rsvp_status,pax_count,guest_category,opened_at,responded_at')
+      .select('id,name,phone,unique_token,rsvp_status,pax_count,guest_category,opened_at,responded_at,project_id')
       .eq('unique_token', token)
       .single()
 
@@ -36,9 +37,12 @@ export async function GET(req: NextRequest) {
         .eq('id', guest.id)
     }
 
+    // Fetch event data from the PROJECT — each project has its own event_template,
+    // couple names, date, venue etc. (not from the legacy global `event` table)
     const { data: event } = await supabase
-      .from('event')
-      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url')
+      .from('projects')
+      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+      .eq('id', guest.project_id)
       .single()
 
     return NextResponse.json({ guest, event })
