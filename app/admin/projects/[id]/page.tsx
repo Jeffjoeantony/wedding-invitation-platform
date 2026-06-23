@@ -157,6 +157,530 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
   )
 }
 
+// ── Send Invitations Panel ────────────────────────────────────────────────────
+function SendInvitationsPanel({
+  guests, project,
+  step, setStep,
+  selectedCategories, setSelectedCategories,
+  sendChannel, setSendChannel,
+  sendPreviewGuest, setSendPreviewGuest,
+  sendingIndex, setSendingIndex,
+  sendSessionActive, setSendSessionActive,
+  theme,
+}: {
+  guests: Guest[]
+  project: Project | null
+  step: 1 | 2 | 3
+  setStep: (s: 1 | 2 | 3) => void
+  selectedCategories: Set<string>
+  setSelectedCategories: (s: Set<string>) => void
+  sendChannel: 'whatsapp' | 'sms' | 'email'
+  setSendChannel: (c: 'whatsapp' | 'sms' | 'email') => void
+  sendPreviewGuest: Guest | null
+  setSendPreviewGuest: (g: Guest | null) => void
+  sendingIndex: number
+  setSendingIndex: (i: number) => void
+  sendSessionActive: boolean
+  setSendSessionActive: (b: boolean) => void
+  theme: any
+}) {
+  // Build category → guests map
+  const categoryMap: Record<string, Guest[]> = {}
+  guests.forEach((g) => {
+    const cat = g.guest_category || 'Other'
+    if (!categoryMap[cat]) categoryMap[cat] = []
+    categoryMap[cat].push(g)
+  })
+  const allCategories = Object.keys(categoryMap).sort()
+
+  const selectedGuests = guests.filter((g) => {
+    const cat = g.guest_category || 'Other'
+    return selectedCategories.has(cat)
+  })
+  const totalSelected = selectedGuests.length
+
+  // Build personalised message for a guest
+  const buildMessage = (guest: Guest) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const link = `${origin}/invite/${guest.unique_token}`
+    return `Hi ${guest.name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n${link}\n\nWe look forward to celebrating with you.`
+  }
+
+  const handleSend = (guest: Guest) => {
+    const msg = buildMessage(guest)
+    const encoded = encodeURIComponent(msg)
+    if (sendChannel === 'whatsapp') {
+      const phone = guest.phone ? guest.phone.replace(/\D/g, '') : ''
+      const url = phone
+        ? `https://wa.me/${phone.startsWith('91') ? '' : '91'}${phone}?text=${encoded}`
+        : `https://wa.me/?text=${encoded}`
+      window.open(url, '_blank')
+    } else if (sendChannel === 'sms') {
+      const phone = guest.phone ? guest.phone.replace(/\D/g, '') : ''
+      window.open(`sms:${phone}?&body=${encoded}`, '_blank')
+    } else if (sendChannel === 'email') {
+      const email = guest.email || ''
+      const subject = encodeURIComponent(`You're invited to our ${project?.event_template ?? 'Wedding'}!`)
+      window.open(`mailto:${email}?subject=${subject}&body=${encoded}`, '_blank')
+    }
+  }
+
+  const channelIcon = { whatsapp: '💬', sms: '📱', email: '📧' }
+  const channelLabel = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' }
+  const channelColor = { whatsapp: '#25D366', sms: '#3B82F6', email: '#D72660' }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+
+      {/* ── Header ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #D72660 0%, #9B1C4C 100%)',
+        borderRadius: 20, padding: '24px 28px', position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', top: -24, right: -24, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+        <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <span style={{ fontSize: 28 }}>📨</span>
+            <div>
+              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.3px' }}>Send Invitations</h2>
+              <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '2px 0 0' }}>
+                Bulk queue — send personalised invites via WhatsApp, SMS, or Email
+              </p>
+            </div>
+          </div>
+          {/* Step indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
+            {([1, 2, 3] as const).map((s) => (
+              <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: step >= s ? '#fff' : 'rgba(255,255,255,0.2)',
+                  color: step >= s ? '#D72660' : 'rgba(255,255,255,0.6)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 800, transition: 'all 0.25s',
+                }}>
+                  {step > s ? '✓' : s}
+                </div>
+                <span style={{ color: step >= s ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: step >= s ? 600 : 400 }}>
+                  {s === 1 ? 'Select Guests' : s === 2 ? 'Choose Channel' : 'Preview & Send'}
+                </span>
+                {s < 3 && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>›</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── STEP 1: Select Categories ── */}
+      {step === 1 && (
+        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F4E7EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👥</div>
+            <div>
+              <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Select Guest Groups</h3>
+              <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>Choose which categories to include in this send</p>
+            </div>
+          </div>
+
+          {guests.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
+              <p style={{ fontSize: 14 }}>No guests yet. Add guests first to send invitations.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {allCategories.map((cat) => {
+                const catGuests = categoryMap[cat]
+                const isSelected = selectedCategories.has(cat)
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      const next = new Set(selectedCategories)
+                      if (isSelected) next.delete(cat)
+                      else next.add(cat)
+                      setSelectedCategories(next)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '14px 18px', borderRadius: 14,
+                      border: isSelected ? '2px solid #D72660' : '1.5px solid #E5E7EB',
+                      background: isSelected ? '#FFF0F5' : '#FAFAFA',
+                      cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
+                      boxShadow: isSelected ? '0 2px 12px rgba(215,38,96,0.12)' : 'none',
+                    }}
+                  >
+                    <div style={{
+                      width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                      border: isSelected ? '2px solid #D72660' : '2px solid #D1D5DB',
+                      background: isSelected ? '#D72660' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.2s',
+                    }}>
+                      {isSelected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>✓</span>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{cat}</p>
+                      <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{catGuests.length} guest{catGuests.length !== 1 ? 's' : ''}</p>
+                    </div>
+                    <span style={{
+                      background: isSelected ? '#D72660' : '#F3F4F6',
+                      color: isSelected ? '#fff' : '#6B7280',
+                      fontSize: 13, fontWeight: 700,
+                      padding: '4px 12px', borderRadius: 999,
+                      transition: 'all 0.2s',
+                    }}>
+                      {catGuests.length}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Total + Continue */}
+          {totalSelected > 0 && (
+            <div style={{
+              marginTop: 20, padding: '16px 20px',
+              background: 'linear-gradient(135deg, #FFF0F5 0%, #FDE7EF 100%)',
+              borderRadius: 14, border: '1px solid #F9D0DC',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <p style={{ color: '#9B1C4C', fontWeight: 700, fontSize: 15, margin: 0 }}>
+                  {totalSelected} Guest{totalSelected !== 1 ? 's' : ''} Selected
+                </p>
+                <p style={{ color: '#D72660', fontSize: 12, marginTop: 2 }}>
+                  from {selectedCategories.size} group{selectedCategories.size !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setStep(2)}
+                style={{
+                  padding: '10px 24px', background: '#D72660', border: 'none',
+                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660'; e.currentTarget.style.transform = 'translateY(0)' }}
+              >
+                Continue →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── STEP 2: Choose Channel ── */}
+      {step === 2 && (
+        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📡</div>
+            <div>
+              <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Send via</h3>
+              <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                {totalSelected} guest{totalSelected !== 1 ? 's' : ''} will be notified
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {(['whatsapp', 'sms', 'email'] as const).map((ch) => {
+              const isSelected = sendChannel === ch
+              const icons = { whatsapp: '💬', sms: '📱', email: '📧' }
+              const labels = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' }
+              const descs = {
+                whatsapp: 'Opens WhatsApp with a personalised message for each guest',
+                sms: 'Opens your SMS app with a pre-filled message',
+                email: 'Opens your email client with personalised subject & body',
+              }
+              const colors = { whatsapp: '#25D366', sms: '#3B82F6', email: '#D72660' }
+              return (
+                <button
+                  key={ch}
+                  onClick={() => setSendChannel(ch)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 16,
+                    padding: '16px 20px', borderRadius: 14,
+                    border: isSelected ? `2px solid ${colors[ch]}` : '1.5px solid #E5E7EB',
+                    background: isSelected ? `${colors[ch]}08` : '#FAFAFA',
+                    cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
+                    boxShadow: isSelected ? `0 2px 12px ${colors[ch]}20` : 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                    background: isSelected ? `${colors[ch]}15` : '#F3F4F6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                    transition: 'all 0.2s',
+                  }}>
+                    {icons[ch]}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{labels[ch]}</p>
+                    <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{descs[ch]}</p>
+                  </div>
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%',
+                    border: isSelected ? `6px solid ${colors[ch]}` : '2px solid #D1D5DB',
+                    background: isSelected ? '#fff' : 'transparent',
+                    transition: 'all 0.2s', flexShrink: 0,
+                  }} />
+                </button>
+              )
+            })}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+            <button
+              onClick={() => setStep(1)}
+              style={{
+                flex: 1, padding: '11px', background: '#F3F4F6',
+                border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#E5E7EB' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#F3F4F6' }}
+            >
+              ← Back
+            </button>
+            <button
+              onClick={() => {
+                setSendingIndex(0)
+                setSendPreviewGuest(selectedGuests[0] || null)
+                setSendSessionActive(true)
+                setStep(3)
+              }}
+              style={{
+                flex: 2, padding: '11px', background: '#D72660', border: 'none',
+                borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
+                cursor: 'pointer', boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660' }}
+            >
+              Preview Messages →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP 3: Preview & Send ── */}
+      {step === 3 && sendSessionActive && (
+        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
+          {/* Progress */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>{channelIcon[sendChannel]}</span>
+                <div>
+                  <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>
+                    Sending via {channelLabel[sendChannel]}
+                  </h3>
+                  <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                    Guest {sendingIndex + 1} of {selectedGuests.length}
+                  </p>
+                </div>
+              </div>
+              <span style={{
+                background: '#F4E7EC', color: '#D72660',
+                fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 999,
+              }}>
+                {selectedGuests.length - sendingIndex} remaining
+              </span>
+            </div>
+            {/* Progress bar */}
+            <div style={{ height: 6, background: '#F3F4F6', borderRadius: 999, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', background: 'linear-gradient(90deg, #D72660, #9B1C4C)',
+                borderRadius: 999, transition: 'width 0.4s ease',
+                width: `${(sendingIndex / selectedGuests.length) * 100}%`,
+              }} />
+            </div>
+          </div>
+
+          {sendingIndex < selectedGuests.length ? (() => {
+            const guest = selectedGuests[sendingIndex]
+            const msg = buildMessage(guest)
+            return (
+              <div>
+                {/* Guest info */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '14px 18px', background: '#FAFAFA', borderRadius: 14,
+                  border: '1px solid #F3F4F6', marginBottom: 16,
+                }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                    background: `linear-gradient(135deg, ${channelColor[sendChannel]}20, ${channelColor[sendChannel]}10)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 18, fontWeight: 700, color: channelColor[sendChannel],
+                    border: `2px solid ${channelColor[sendChannel]}30`,
+                  }}>
+                    {guest.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: '#1F2937', fontWeight: 700, fontSize: 15, margin: 0 }}>{guest.name}</p>
+                    <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                      {guest.guest_category || 'Other'}
+                      {guest.phone ? ` · ${guest.phone}` : ''}
+                      {guest.email ? ` · ${guest.email}` : ''}
+                    </p>
+                  </div>
+                  <span style={{
+                    background: '#F3F4F6', color: '#6B7280',
+                    fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999,
+                  }}>
+                    #{sendingIndex + 1}
+                  </span>
+                </div>
+
+                {/* Message preview */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #F8F9FF 0%, #F0F4FF 100%)',
+                  border: '1px solid #E0E7FF', borderRadius: 14, padding: '16px 20px',
+                  marginBottom: 20, position: 'relative',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 12, right: 14,
+                    background: '#EEF2FF', color: '#6366F1',
+                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+                    letterSpacing: '0.04em',
+                  }}>
+                    MESSAGE PREVIEW
+                  </div>
+                  <pre style={{
+                    margin: 0, fontFamily: 'inherit', fontSize: 13, lineHeight: 1.7,
+                    color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    paddingTop: 4,
+                  }}>
+                    {msg}
+                  </pre>
+                </div>
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => {
+                      if (sendingIndex > 0) setSendingIndex(sendingIndex - 1)
+                    }}
+                    disabled={sendingIndex === 0}
+                    style={{
+                      padding: '11px 20px', background: '#F3F4F6',
+                      border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
+                      fontWeight: 600, fontSize: 13, cursor: sendingIndex === 0 ? 'not-allowed' : 'pointer',
+                      opacity: sendingIndex === 0 ? 0.4 : 1, transition: 'all 0.15s',
+                    }}
+                  >
+                    ← Prev
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleSend(guest)
+                      if (sendingIndex < selectedGuests.length - 1) {
+                        setTimeout(() => setSendingIndex(sendingIndex + 1), 600)
+                      } else {
+                        // Done!
+                        setTimeout(() => {
+                          setSendSessionActive(false)
+                          setSendingIndex(selectedGuests.length)
+                        }, 400)
+                      }
+                    }}
+                    style={{
+                      flex: 1, padding: '11px',
+                      background: channelColor[sendChannel],
+                      border: 'none', borderRadius: 12, color: '#fff',
+                      fontWeight: 700, fontSize: 14, cursor: 'pointer',
+                      boxShadow: `0 4px 14px ${channelColor[sendChannel]}40`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)' }}
+                  >
+                    <span>{channelIcon[sendChannel]}</span>
+                    Send via {channelLabel[sendChannel]}
+                    {sendingIndex < selectedGuests.length - 1 ? ' & Next →' : ' ✓'}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (sendingIndex < selectedGuests.length - 1) {
+                        setSendingIndex(sendingIndex + 1)
+                      }
+                    }}
+                    disabled={sendingIndex >= selectedGuests.length - 1}
+                    style={{
+                      padding: '11px 20px', background: '#F3F4F6',
+                      border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
+                      fontWeight: 600, fontSize: 13,
+                      cursor: sendingIndex >= selectedGuests.length - 1 ? 'not-allowed' : 'pointer',
+                      opacity: sendingIndex >= selectedGuests.length - 1 ? 0.4 : 1,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    Skip →
+                  </button>
+                </div>
+              </div>
+            )
+          })() : (
+            /* All done! */
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
+              <h3 style={{ color: '#1F2937', fontSize: 18, fontWeight: 800, margin: '0 0 8px' }}>
+                All invitations sent!
+              </h3>
+              <p style={{ color: '#9CA3AF', fontSize: 14, marginBottom: 24 }}>
+                {selectedGuests.length} personalised invitation{selectedGuests.length !== 1 ? 's' : ''} sent via {channelLabel[sendChannel]}
+              </p>
+              <button
+                onClick={() => {
+                  setSelectedCategories(new Set())
+                  setSendingIndex(0)
+                  setSendSessionActive(false)
+                  setStep(1)
+                }}
+                style={{
+                  padding: '12px 28px', background: '#D72660', border: 'none',
+                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
+                  cursor: 'pointer', boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660' }}
+              >
+                Send Another Batch
+              </button>
+            </div>
+          )}
+
+          {/* Back button */}
+          {sendingIndex < selectedGuests.length && (
+            <div style={{ marginTop: 16, textAlign: 'center' }}>
+              <button
+                onClick={() => { setSendSessionActive(false); setStep(2) }}
+                style={{
+                  background: 'none', border: 'none', color: '#9CA3AF',
+                  fontSize: 13, cursor: 'pointer', textDecoration: 'underline',
+                }}
+              >
+                ← Change channel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function ProjectDashboardPage() {
   const router = useRouter()
@@ -188,6 +712,14 @@ export default function ProjectDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [deletingProject, setDeletingProject] = useState(false)
+
+  // ── Send Invitations state ───────────────────────────────────────────────────
+  const [sendStep, setSendStep] = useState<1 | 2 | 3>(1)
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
+  const [sendChannel, setSendChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp')
+  const [sendPreviewGuest, setSendPreviewGuest] = useState<Guest | null>(null)
+  const [sendingIndex, setSendingIndex] = useState<number>(0)
+  const [sendSessionActive, setSendSessionActive] = useState(false)
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -486,70 +1018,181 @@ export default function ProjectDashboardPage() {
     <main className={theme.pageBg}>
 
       {/* ── Sticky header ── */}
-      <div className={`bg-white/80 backdrop-blur-md border-b sticky top-0 z-20 shadow-sm ${theme.headerBorder}`}>
-        <div className="max-w-7xl mx-auto px-4 py-2.5 md:px-6 md:py-3.5">
-          <div className="flex items-center justify-between gap-4">
+      <div className={`bg-white/95 backdrop-blur-xl border-b-2 sticky top-0 z-20 ${theme.headerBorder}`}
+        style={{ boxShadow: '0 4px 24px rgba(31,41,55,0.08), 0 1px 4px rgba(31,41,55,0.04)' }}>
 
-            {/* Back + Brand */}
-            <div className="flex items-center gap-3">
+        {/* Top accent line */}
+        <div style={{
+          height: 3,
+          background: `linear-gradient(90deg, #D72660 0%, #9B1C4C 40%, #7C3AED 100%)`,
+        }} />
+
+        <div className="max-w-7xl mx-auto px-6 md:px-8" style={{ paddingTop: 14, paddingBottom: 14 }}>
+          <div className="flex items-center justify-between gap-6">
+
+            {/* ── Left: Back + Brand ── */}
+            <div className="flex items-center gap-4 min-w-0">
+
+              {/* Back button */}
               <button
                 onClick={() => router.push('/admin')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-500 transition-all ${theme.navBtnHover}`}
+                className="flex items-center gap-2 transition-all shrink-0"
+                style={{
+                  padding: '8px 14px', borderRadius: 10,
+                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
+                  color: '#6B7280', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#374151' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
               >
-                ← Projects
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Projects
               </button>
-              <div className="w-px h-5 bg-gray-200" />
-              <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0 ${theme.iconGradient}`}>
-                  {({
-                    'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
-                    'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
-                    'Birthday': '🎂', 'Housewarming': '🏡',
-                    'Corporate Event': '🏢', 'Custom Event': '✨',
-                  } as Record<string, string>)[project?.event_template ?? 'Wedding'] ?? '💍'}
-                </div>
-                <div>
-                  <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
+
+              {/* Event icon */}
+              <div
+                className={`shrink-0 ${theme.iconGradient}`}
+                style={{
+                  width: 48, height: 48, borderRadius: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 22,
+                  boxShadow: '0 4px 14px rgba(215,38,96,0.25)',
+                }}
+              >
+                {({
+                  'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
+                  'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
+                  'Birthday': '🎂', 'Housewarming': '🏡',
+                  'Corporate Event': '🏢', 'Custom Event': '✨',
+                } as Record<string, string>)[project?.event_template ?? 'Wedding'] ?? '💍'}
+              </div>
+
+              {/* Title block */}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 style={{ color: '#111827', fontSize: 17, fontWeight: 800, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }} className="truncate">
                     {project?.name || 'Project Dashboard'}
                   </h1>
-                  <p className="text-[11px] text-gray-400 leading-tight">
+                  {/* Event type badge */}
+                  <span style={{
+                    background: '#F4E7EC', color: '#D72660',
+                    fontSize: 10, fontWeight: 700, padding: '2px 8px',
+                    borderRadius: 999, letterSpacing: '0.04em', flexShrink: 0,
+                    border: '1px solid #F9D0DC',
+                  }}>
+                    {project?.event_template?.toUpperCase() ?? 'WEDDING'}
+                  </span>
+                </div>
+                <p style={{ color: '#9CA3AF', fontSize: 12, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>
                     {project?.event_template === 'Birthday' && project?.couple_1
                       ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
                       : project?.couple_1 && project?.couple_2
                         ? `${project.couple_1} & ${project.couple_2}`
                         : project?.couple_1 || 'Invitation & RSVP Management'}
-                    {projectDateStr && ` · ${projectDateStr}`}
-                  </p>
-                </div>
+                  </span>
+                  {projectDateStr && (
+                    <>
+                      <span style={{ color: '#D1D5DB' }}>·</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        {projectDateStr}
+                      </span>
+                    </>
+                  )}
+                </p>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              {lastUpdated && (
-                <span className="text-[11px] text-gray-400 hidden lg:block">
-                  Updated {lastUpdated.toLocaleTimeString()}
+            {/* ── Right: Actions ── */}
+            <div className="flex items-center gap-2.5 shrink-0">
+
+              {/* Live indicator */}
+              <div className="hidden lg:flex items-center gap-2" style={{
+                padding: '6px 12px', borderRadius: 999,
+                background: '#F0FDF4', border: '1px solid #BBF7D0',
+              }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%', background: '#16A34A',
+                  boxShadow: '0 0 0 2px rgba(22,163,74,0.25)',
+                  animation: 'pulse 2s infinite',
+                }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#15803D' }}>
+                  {lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live'}
                 </span>
-              )}
+              </div>
+
+              {/* Refresh button */}
               <button
                 onClick={fetchData}
                 disabled={refreshing}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 transition-all disabled:opacity-50 ${theme.navBtnHover}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 10,
+                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
+                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  opacity: refreshing ? 0.6 : 1, transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { if (!refreshing) { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB' } }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB' }}
               >
-                <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+                  style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.6s linear', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
+                  <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
                 {refreshing ? 'Refreshing…' : 'Refresh'}
               </button>
+
+              {/* Notification bell */}
               <NotificationSystem />
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 28, background: '#E5E7EB' }} />
+
+              {/* Logout */}
               <button
                 onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 10,
+                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
+                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA'; e.currentTarget.style.color = '#DC2626' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
               >
-                Logout
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Sign out
               </button>
             </div>
+
           </div>
         </div>
+
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
+
 
       {/* ── Main content ── */}
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -562,6 +1205,7 @@ export default function ProjectDashboardPage() {
               { value: 'guests', label: `Guest List${stats.total > 0 ? ` (${stats.total})` : ''}` },
               { value: 'add-guest', label: 'Add Guest' },
               { value: 'import-export', label: 'Import / Export' },
+              { value: 'send', label: '📨 Send Invitations' },
               { value: 'event', label: 'Event Details' },
             ].map((tab) => (
               <TabsTrigger
@@ -1015,6 +1659,27 @@ export default function ProjectDashboardPage() {
                 {guests.length === 0 && <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* ══ SEND INVITATIONS ══════════════════════════════════════════════ */}
+          <TabsContent value="send" className="mt-0">
+            <SendInvitationsPanel
+              guests={guests}
+              project={project}
+              step={sendStep}
+              setStep={setSendStep}
+              selectedCategories={selectedCategories}
+              setSelectedCategories={setSelectedCategories}
+              sendChannel={sendChannel}
+              setSendChannel={setSendChannel}
+              sendPreviewGuest={sendPreviewGuest}
+              setSendPreviewGuest={setSendPreviewGuest}
+              sendingIndex={sendingIndex}
+              setSendingIndex={setSendingIndex}
+              sendSessionActive={sendSessionActive}
+              setSendSessionActive={setSendSessionActive}
+              theme={theme}
+            />
           </TabsContent>
 
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}

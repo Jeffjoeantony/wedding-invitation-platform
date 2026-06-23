@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
-import { formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
+import { formatBirthdayPersonsDisplay, serializeAdditionalBirthdayPersons } from '@/lib/birthdayPersons'
 
 interface ProjectStats {
   total: number
@@ -404,20 +404,81 @@ function NewProjectModal({ onClose, onCreate }: {
   })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const selectedType = getEventType(form.event_template)
 
   const today = new Date().toISOString().split('T')[0]
+  const isWeddingLike = ['Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi', 'Save The Date'].includes(form.event_template)
+  const isBirthday = form.event_template === 'Birthday'
+
+  // Additional birthday persons (stored serialised into couple_2)
+  const [additionalBirthdayPersons, setAdditionalBirthdayPersons] = useState<string[]>([])
+
+  // Validates that a text value is not purely numeric (must contain at least one letter)
+  const isTextOnlyValid = (val: string) => val === '' || /[a-zA-Z]/.test(val)
+
+  const validateField = (key: string, value: string): string => {
+    const textFields: Record<string, string> = {
+      name: 'Project name',
+      couple_1: isWeddingLike ? 'Partner 1' : 'Organizer',
+      couple_2: isWeddingLike ? 'Partner 2' : 'Co-host',
+      venue: 'Venue',
+      location: 'City / Location',
+    }
+    if (textFields[key]) {
+      if (value.trim() && !isTextOnlyValid(value.trim())) {
+        return `${textFields[key]} must contain letters, not numbers only`
+      }
+    }
+    if (key === 'contact') {
+      if (value && !/^\d+$/.test(value)) return 'Contact must contain digits only'
+      if (value && value.length > 10) return 'Contact number must be at most 10 digits'
+    }
+    return ''
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name.trim()) { setErr('Project name is required'); return }
+
+    // Run all field validations on submit
+    const newFieldErrors: Record<string, string> = {}
+    // For birthday, couple_1 = primary person, couple_2 is managed separately
+    const textKeys = isBirthday
+      ? ['name', 'venue', 'location']
+      : ['name', 'couple_1', 'couple_2', 'venue', 'location']
+    for (const key of textKeys) {
+      const msg = validateField(key, (form as any)[key])
+      if (msg) newFieldErrors[key] = msg
+    }
+    // Validate birthday primary person name if filled
+    if (isBirthday && form.couple_1.trim() && !isTextOnlyValid(form.couple_1.trim())) {
+      newFieldErrors['couple_1'] = 'Birthday person name must contain letters, not numbers only'
+    }
+    const contactMsg = validateField('contact', form.contact)
+    if (contactMsg) newFieldErrors['contact'] = contactMsg
+    if (form.contact && form.contact.length < 10) newFieldErrors['contact'] = 'Contact number must be exactly 10 digits'
+
+    if (!form.name.trim()) {
+      newFieldErrors['name'] = 'Project name is required'
+    }
+
+    setFieldErrors(newFieldErrors)
+    if (Object.keys(newFieldErrors).length > 0) {
+      setErr('Please fix the errors above before creating the project.')
+      return
+    }
+
     if (form.date && form.date < today) { setErr('Event date cannot be in the past.'); return }
     setSaving(true)
     setErr('')
+    // For birthday, serialise additional persons into couple_2
+    const payload = isBirthday
+      ? { ...form, couple_2: serializeAdditionalBirthdayPersons(additionalBirthdayPersons) }
+      : form
     const res = await fetch('/api/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
     if (res.ok) {
       const data = await res.json()
@@ -430,10 +491,13 @@ function NewProjectModal({ onClose, onCreate }: {
     setSaving(false)
   }
 
-  const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setForm((prev) => ({ ...prev, [k]: e.target.value }))
-
-  const isWeddingLike = ['Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi', 'Save The Date'].includes(form.event_template)
+  const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const val = e.target.value
+    setForm((prev) => ({ ...prev, [k]: val }))
+    // Clear field error on change
+    setFieldErrors((prev) => ({ ...prev, [k]: '' }))
+    setErr('')
+  }
 
   return (
     <div
@@ -490,23 +554,131 @@ function NewProjectModal({ onClose, onCreate }: {
             <div>
               <label className="modal-label">Project name <span style={{ color: '#EF4444' }}>*</span></label>
               <input
-                value={form.name} onChange={f('name')} required
+                value={form.name}
+                onChange={(e) => {
+                  f('name')(e)
+                  const msg = validateField('name', e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, name: msg }))
+                }}
+                required
                 placeholder={isWeddingLike ? 'e.g. Priya & Arjun Wedding' : 'e.g. Annual Tech Summit 2025'}
                 className="modal-input"
+                style={fieldErrors.name ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
               />
+              {fieldErrors.name && (
+                <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.name}</p>
+              )}
             </div>
 
-            {/* Person names (context-aware) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label className="modal-label">{isWeddingLike ? 'Partner 1' : 'Organizer'}</label>
-                <input value={form.couple_1} onChange={f('couple_1')} placeholder="Name" className="modal-input" />
+            {/* Person names — Birthday vs Wedding/other */}
+            {isBirthday ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label className="modal-label">🎂 Birthday Person</label>
+                <input
+                  value={form.couple_1}
+                  onChange={(e) => {
+                    f('couple_1')(e)
+                    const msg = isTextOnlyValid(e.target.value.trim()) ? '' : 'Name must contain letters, not numbers only'
+                    setFieldErrors((prev) => ({ ...prev, couple_1: e.target.value.trim() ? msg : '' }))
+                  }}
+                  placeholder="Name of the birthday person"
+                  className="modal-input"
+                  style={fieldErrors.couple_1 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                />
+                {fieldErrors.couple_1 && (
+                  <p style={{ color: '#EF4444', fontSize: 11, marginTop: -4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_1}</p>
+                )}
+
+                {/* Additional birthday persons */}
+                {additionalBirthdayPersons.map((name, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#9CA3AF', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>&</span>
+                    <input
+                      value={name}
+                      onChange={(e) => {
+                        const next = [...additionalBirthdayPersons]
+                        next[index] = e.target.value
+                        setAdditionalBirthdayPersons(next)
+                      }}
+                      placeholder="Person name"
+                      className="modal-input"
+                      style={{ flex: 1, margin: 0 }}
+                    />
+                    <button
+                      type="button"
+                      title="Remove"
+                      onClick={() => setAdditionalBirthdayPersons(additionalBirthdayPersons.filter((_, i) => i !== index))}
+                      style={{
+                        flexShrink: 0, width: 34, height: 34,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 10, border: '1px solid #FECACA',
+                        background: 'transparent', color: '#F87171',
+                        cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#DC2626' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#F87171' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setAdditionalBirthdayPersons((prev) => [...prev, ''])}
+                  style={{
+                    alignSelf: 'flex-start',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 8,
+                    border: '1.5px dashed #C4B5FD',
+                    background: 'transparent', color: '#7C3AED',
+                    fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F3FF'; e.currentTarget.style.borderColor = '#7C3AED' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#C4B5FD' }}
+                >
+                  + More
+                </button>
               </div>
-              <div>
-                <label className="modal-label">{isWeddingLike ? 'Partner 2' : 'Co-host'}</label>
-                <input value={form.couple_2} onChange={f('couple_2')} placeholder="Name" className="modal-input" />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="modal-label">{isWeddingLike ? 'Partner 1' : 'Organizer'}</label>
+                  <input
+                    value={form.couple_1}
+                    onChange={(e) => {
+                      f('couple_1')(e)
+                      const msg = validateField('couple_1', e.target.value)
+                      setFieldErrors((prev) => ({ ...prev, couple_1: msg }))
+                    }}
+                    placeholder="Name"
+                    className="modal-input"
+                    style={fieldErrors.couple_1 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                  />
+                  {fieldErrors.couple_1 && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_1}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="modal-label">{isWeddingLike ? 'Partner 2' : 'Co-host'}</label>
+                  <input
+                    value={form.couple_2}
+                    onChange={(e) => {
+                      f('couple_2')(e)
+                      const msg = validateField('couple_2', e.target.value)
+                      setFieldErrors((prev) => ({ ...prev, couple_2: msg }))
+                    }}
+                    placeholder="Name"
+                    className="modal-input"
+                    style={fieldErrors.couple_2 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                  />
+                  {fieldErrors.couple_2 && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_2}</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Date & Location */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -536,20 +708,68 @@ function NewProjectModal({ onClose, onCreate }: {
               </div>
               <div>
                 <label className="modal-label">City / Location</label>
-                <input value={form.location} onChange={f('location')} placeholder="Chennai" className="modal-input" />
+                <input
+                  value={form.location}
+                  onChange={(e) => {
+                    f('location')(e)
+                    const msg = validateField('location', e.target.value)
+                    setFieldErrors((prev) => ({ ...prev, location: msg }))
+                  }}
+                  placeholder="Chennai"
+                  className="modal-input"
+                  style={fieldErrors.location ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                />
+                {fieldErrors.location && (
+                  <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.location}</p>
+                )}
               </div>
             </div>
 
             {/* Venue */}
             <div>
               <label className="modal-label">Venue</label>
-              <input value={form.venue} onChange={f('venue')} placeholder="Grand Ballroom, Hotel..." className="modal-input" />
+              <input
+                value={form.venue}
+                onChange={(e) => {
+                  f('venue')(e)
+                  const msg = validateField('venue', e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, venue: msg }))
+                }}
+                placeholder="Grand Ballroom, Hotel..."
+                className="modal-input"
+                style={fieldErrors.venue ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+              />
+              {fieldErrors.venue && (
+                <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.venue}</p>
+              )}
             </div>
 
             {/* Contact */}
             <div>
               <label className="modal-label">Contact number</label>
-              <input value={form.contact} onChange={f('contact')} placeholder="+91 98765 43210" className="modal-input" />
+              <input
+                value={form.contact}
+                inputMode="numeric"
+                maxLength={10}
+                onChange={(e) => {
+                  // Allow only digits, max 10
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setForm((prev) => ({ ...prev, contact: digits }))
+                  setFieldErrors((prev) => ({ ...prev, contact: '' }))
+                  setErr('')
+                }}
+                placeholder="10-digit number"
+                className="modal-input"
+                style={fieldErrors.contact ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                {fieldErrors.contact
+                  ? <p style={{ color: '#EF4444', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.contact}</p>
+                  : <span />}
+                <p style={{ color: form.contact.length === 10 ? '#16A34A' : '#9CA3AF', fontSize: 11, textAlign: 'right' }}>
+                  {form.contact.length}/10
+                </p>
+              </div>
             </div>
 
             {err && (

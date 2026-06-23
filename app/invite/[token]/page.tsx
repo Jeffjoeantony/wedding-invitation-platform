@@ -43,19 +43,19 @@ export default function InvitePage() {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center gap-6"
-        style={{ background: 'linear-gradient(160deg, #0f0318 0%, #1e0530 50%, #0f0318 100%)' }}
+        style={{ background: 'linear-gradient(160deg, #0d0118 0%, #180428 50%, #0d0118 100%)' }}
       >
-        {/* Pulsing ring */}
+        {/* Pulsing ring — neutral, no event-specific emoji since event is not yet loaded */}
         <div className="relative w-20 h-20">
           <div
             className="absolute inset-0 rounded-full animate-pulse-ring"
-            style={{ border: '2px solid rgba(167,139,250,0.4)' }}
+            style={{ border: '2px solid rgba(200,160,255,0.35)' }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-3xl animate-heart-beat">
-            🎉
+            💌
           </div>
         </div>
-        <p className="text-purple-300/60 text-sm tracking-widest animate-pulse">
+        <p className="text-white/40 text-sm tracking-widest animate-pulse">
           Loading your invitation…
         </p>
       </div>
