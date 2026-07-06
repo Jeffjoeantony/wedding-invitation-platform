@@ -157,526 +157,984 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
   )
 }
 
-// ── Send Invitations Panel ────────────────────────────────────────────────────
+// ── Send Invitations – Campaign Builder ───────────────────────────────────────
+type SendStep = 'select' | 'compose' | 'review'
+type SendChannel = 'whatsapp' | 'sms' | 'email'
+
 function SendInvitationsPanel({
-  guests, project,
-  step, setStep,
-  selectedCategories, setSelectedCategories,
-  sendChannel, setSendChannel,
-  sendPreviewGuest, setSendPreviewGuest,
-  sendingIndex, setSendingIndex,
-  sendSessionActive, setSendSessionActive,
+  guests,
+  project,
   theme,
 }: {
   guests: Guest[]
   project: Project | null
-  step: 1 | 2 | 3
-  setStep: (s: 1 | 2 | 3) => void
-  selectedCategories: Set<string>
-  setSelectedCategories: (s: Set<string>) => void
-  sendChannel: 'whatsapp' | 'sms' | 'email'
-  setSendChannel: (c: 'whatsapp' | 'sms' | 'email') => void
-  sendPreviewGuest: Guest | null
-  setSendPreviewGuest: (g: Guest | null) => void
-  sendingIndex: number
-  setSendingIndex: (i: number) => void
-  sendSessionActive: boolean
-  setSendSessionActive: (b: boolean) => void
   theme: any
 }) {
-  // Build category → guests map
-  const categoryMap: Record<string, Guest[]> = {}
-  guests.forEach((g) => {
-    const cat = g.guest_category || 'Other'
-    if (!categoryMap[cat]) categoryMap[cat] = []
-    categoryMap[cat].push(g)
-  })
-  const allCategories = Object.keys(categoryMap).sort()
+  // ── Core state ──────────────────────────────────────────────────────────────
+  const [step, setStep] = useState<SendStep>('select')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-  const selectedGuests = guests.filter((g) => {
-    const cat = g.guest_category || 'Other'
-    return selectedCategories.has(cat)
-  })
-  const totalSelected = selectedGuests.length
+  // Step 1 selection filters
+  const [selSearch, setSelSearch] = useState('')
+  const [selCategory, setSelCategory] = useState('all')
 
-  // Build personalised message for a guest
-  const buildMessage = (guest: Guest) => {
+  // Step 2 compose
+  const [channel, setChannel] = useState<SendChannel>('whatsapp')
+  const [defaultTemplate, setDefaultTemplate] = useState(
+    `Hi {name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n{link}\n\nWe look forward to celebrating with you.`
+  )
+  const [overrides, setOverrides] = useState<Record<string, string>>({}) // guestId → custom msg
+  const [previewGuestId, setPreviewGuestId] = useState<string>('')
+  const [custSearch, setCustSearch] = useState('')
+  const [custOpenId, setCustOpenId] = useState<string | null>(null) // expanded override
+
+  // Step 3 review
+  const [reviewIdx, setReviewIdx] = useState(0)
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set())
+
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const categories = Array.from(new Set(guests.map((g) => g.guest_category || 'Other'))).sort()
+  const selectedGuests = guests.filter((g) => selectedIds.has(g.id))
+
+  const filteredForSelect = guests.filter((g) => {
+    const matchCat = selCategory === 'all' || (g.guest_category || 'Other') === selCategory
+    const term = selSearch.toLowerCase()
+    const matchSearch = !term || g.name.toLowerCase().includes(term) || (g.phone || '').includes(term)
+    return matchCat && matchSearch
+  })
+
+  const reviewGuests = selectedGuests
+  const currentReviewGuest = reviewGuests[reviewIdx] ?? null
+
+  // Sync template when project loads
+  useEffect(() => {
+    setDefaultTemplate(
+      `Hi {name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n{link}\n\nWe look forward to celebrating with you.`
+    )
+  }, [project?.event_template])
+
+  // Set first preview guest when entering compose
+  useEffect(() => {
+    if (step === 'compose' && selectedGuests.length > 0 && !previewGuestId) {
+      setPreviewGuestId(selectedGuests[0].id)
+    }
+  }, [step])
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const buildMsg = (guest: Guest) => {
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     const link = `${origin}/invite/${guest.unique_token}`
-    return `Hi ${guest.name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n${link}\n\nWe look forward to celebrating with you.`
+    const template = overrides[guest.id] ?? defaultTemplate
+    return template.replace(/\{name\}/g, guest.name).replace(/\{link\}/g, link)
   }
 
-  const handleSend = (guest: Guest) => {
-    const msg = buildMessage(guest)
-    const encoded = encodeURIComponent(msg)
-    if (sendChannel === 'whatsapp') {
-      const phone = guest.phone ? guest.phone.replace(/\D/g, '') : ''
-      const url = phone
-        ? `https://wa.me/${phone.startsWith('91') ? '' : '91'}${phone}?text=${encoded}`
-        : `https://wa.me/?text=${encoded}`
-      window.open(url, '_blank')
-    } else if (sendChannel === 'sms') {
-      const phone = guest.phone ? guest.phone.replace(/\D/g, '') : ''
-      window.open(`sms:${phone}?&body=${encoded}`, '_blank')
-    } else if (sendChannel === 'email') {
-      const email = guest.email || ''
-      const subject = encodeURIComponent(`You're invited to our ${project?.event_template ?? 'Wedding'}!`)
-      window.open(`mailto:${email}?subject=${subject}&body=${encoded}`, '_blank')
+  const doSend = (guest: Guest) => {
+    const msg = buildMsg(guest)
+    const enc = encodeURIComponent(msg)
+    if (channel === 'whatsapp') {
+      const ph = (guest.phone || '').replace(/\D/g, '')
+      window.open(ph ? `https://wa.me/${ph.startsWith('91') ? '' : '91'}${ph}?text=${enc}` : `https://wa.me/?text=${enc}`, '_blank')
+    } else if (channel === 'sms') {
+      window.open(`sms:${(guest.phone || '').replace(/\D/g, '')}?&body=${enc}`, '_blank')
+    } else {
+      const sub = encodeURIComponent(`You're invited to our ${project?.event_template ?? 'Wedding'}!`)
+      window.open(`mailto:${guest.email || ''}?subject=${sub}&body=${enc}`, '_blank')
     }
+    setSentIds((prev) => new Set([...prev, guest.id]))
   }
 
-  const channelIcon = { whatsapp: '💬', sms: '📱', email: '📧' }
-  const channelLabel = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' }
-  const channelColor = { whatsapp: '#25D366', sms: '#3B82F6', email: '#D72660' }
+  const channelMeta = {
+    whatsapp: { icon: '💬', label: 'WhatsApp', color: '#25D366', bg: '#F0FFF4', border: '#BBF7D0' },
+    sms:      { icon: '📱', label: 'SMS',       color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
+    email:    { icon: '📧', label: 'Email',     color: '#D72660', bg: '#FFF0F5', border: '#F9D0DC' },
+  }
+  const ch = channelMeta[channel]
 
-  return (
-    <div className="max-w-2xl space-y-6">
+  const stepOrder: SendStep[] = ['select', 'compose', 'review']
+  const stepLabels = ['Select Guests', 'Compose Message', 'Review & Send']
+  const stepIdx = stepOrder.indexOf(step)
 
-      {/* ── Header ── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #D72660 0%, #9B1C4C 100%)',
-        borderRadius: 20, padding: '24px 28px', position: 'relative', overflow: 'hidden',
-      }}>
-        <div style={{ position: 'absolute', top: -24, right: -24, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
-        <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
-        <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-            <span style={{ fontSize: 28 }}>📨</span>
-            <div>
-              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.3px' }}>Send Invitations</h2>
-              <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13, margin: '2px 0 0' }}>
-                Bulk queue — send personalised invites via WhatsApp, SMS, or Email
-              </p>
-            </div>
+  // ── Styles ───────────────────────────────────────────────────────────────────
+  const card = { background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, boxShadow: '0 2px 16px rgba(31,41,55,0.06)' }
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 10,
+    border: '1.5px solid #E5E7EB', background: '#F9FAFB',
+    color: '#1F2937', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+  }
+  const btnPrimary: React.CSSProperties = {
+    padding: '10px 22px', background: '#D72660', border: 'none',
+    borderRadius: 11, color: '#fff', fontWeight: 700, fontSize: 13,
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+    boxShadow: '0 4px 14px rgba(215,38,96,0.30)', transition: 'all 0.2s',
+  }
+  const btnSecondary: React.CSSProperties = {
+    padding: '10px 22px', background: '#F3F4F6', border: '1.5px solid #E5E7EB',
+    borderRadius: 11, color: '#6B7280', fontWeight: 600, fontSize: 13,
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+    transition: 'all 0.15s',
+  }
+
+  // ── Header + Stepper ─────────────────────────────────────────────────────────
+  const Header = () => (
+    <div style={{
+      background: 'linear-gradient(135deg, #D72660 0%, #7C3AED 100%)',
+      borderRadius: 20, padding: '24px 28px', position: 'relative', overflow: 'hidden', marginBottom: 24,
+    }}>
+      <div style={{ position:'absolute', top:-30, right:-30, width:160, height:160, borderRadius:'50%', background:'rgba(255,255,255,0.06)' }} />
+      <div style={{ position:'absolute', bottom:-20, left:-20, width:100, height:100, borderRadius:'50%', background:'rgba(255,255,255,0.04)' }} />
+      <div style={{ position:'relative' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+          <span style={{ fontSize:28 }}>📨</span>
+          <div>
+            <h2 style={{ color:'#fff', fontSize:20, fontWeight:800, margin:0, letterSpacing:'-0.3px' }}>Campaign Builder</h2>
+            <p style={{ color:'rgba(255,255,255,0.72)', fontSize:13, margin:'3px 0 0' }}>
+              Personalised bulk invitations via WhatsApp, SMS or Email
+            </p>
           </div>
-          {/* Step indicator */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
-            {([1, 2, 3] as const).map((s) => (
-              <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: step >= s ? '#fff' : 'rgba(255,255,255,0.2)',
-                  color: step >= s ? '#D72660' : 'rgba(255,255,255,0.6)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 12, fontWeight: 800, transition: 'all 0.25s',
-                }}>
-                  {step > s ? '✓' : s}
+        </div>
+        {/* Stepper */}
+        <div style={{ display:'flex', alignItems:'center', gap:0 }}>
+          {stepLabels.map((label, i) => {
+            const isDone = i < stepIdx
+            const isActive = i === stepIdx
+            return (
+              <div key={i} style={{ display:'flex', alignItems:'center', flex: i < 2 ? 1 : 'none' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <div style={{
+                    width:28, height:28, borderRadius:'50%', flexShrink:0,
+                    background: isDone ? '#fff' : isActive ? '#fff' : 'rgba(255,255,255,0.2)',
+                    color: isDone ? '#16A34A' : isActive ? '#D72660' : 'rgba(255,255,255,0.5)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:12, fontWeight:800, transition:'all 0.3s',
+                  }}>
+                    {isDone ? '✓' : i + 1}
+                  </div>
+                  <span style={{
+                    fontSize:12, fontWeight: isActive ? 700 : 500,
+                    color: isActive || isDone ? '#fff' : 'rgba(255,255,255,0.55)',
+                    whiteSpace:'nowrap',
+                  }}>{label}</span>
                 </div>
-                <span style={{ color: step >= s ? '#fff' : 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: step >= s ? 600 : 400 }}>
-                  {s === 1 ? 'Select Guests' : s === 2 ? 'Choose Channel' : 'Preview & Send'}
-                </span>
-                {s < 3 && <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>›</span>}
+                {i < 2 && (
+                  <div style={{
+                    flex:1, height:2, margin:'0 12px',
+                    background: isDone ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)',
+                    borderRadius:999, transition:'background 0.3s',
+                  }} />
+                )}
               </div>
-            ))}
-          </div>
+            )
+          })}
         </div>
       </div>
+    </div>
+  )
 
-      {/* ── STEP 1: Select Categories ── */}
-      {step === 1 && (
-        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F4E7EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👥</div>
-            <div>
-              <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Select Guest Groups</h3>
-              <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>Choose which categories to include in this send</p>
-            </div>
+  // ── Sticky Selection Summary Bar ──────────────────────────────────────────────
+  const SummaryBar = () => {
+    if (step === 'select') return null
+    return (
+      <div style={{
+        background:'#fff', border:'1.5px solid #E5E7EB', borderRadius:14,
+        padding:'12px 20px', marginBottom:20,
+        display:'flex', alignItems:'center', justifyContent:'space-between', gap:16,
+        boxShadow:'0 2px 8px rgba(31,41,55,0.05)',
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{
+            width:36, height:36, borderRadius:10, background:'#F4E7EC',
+            display:'flex', alignItems:'center', justifyContent:'center', fontSize:16,
+          }}>👥</div>
+          <div>
+            <p style={{ color:'#1F2937', fontWeight:700, fontSize:14, margin:0 }}>
+              {selectedIds.size} guest{selectedIds.size !== 1 ? 's' : ''} selected
+            </p>
+            <p style={{ color:'#9CA3AF', fontSize:12, marginTop:2 }}>
+              {Array.from(new Set(selectedGuests.map(g => g.guest_category || 'Other'))).join(', ') || 'No categories'}
+            </p>
           </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {/* Category chips */}
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {Array.from(new Set(selectedGuests.map(g => g.guest_category || 'Other'))).slice(0, 3).map(cat => (
+              <span key={cat} style={{
+                background:'#F4E7EC', color:'#D72660', fontSize:11, fontWeight:600,
+                padding:'3px 10px', borderRadius:999,
+              }}>{cat}</span>
+            ))}
+          </div>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            style={{
+              padding:'7px 16px', background:'#F4E7EC', border:'1.5px solid #F9D0DC',
+              borderRadius:10, color:'#D72660', fontWeight:700, fontSize:12,
+              cursor:'pointer', display:'flex', alignItems:'center', gap:5,
+              transition:'all 0.15s', flexShrink:0,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F9D0DC' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#F4E7EC' }}
+          >
+            ✏️ Edit Selection
+          </button>
+        </div>
+      </div>
+    )
+  }
 
-          {guests.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
-              <p style={{ fontSize: 14 }}>No guests yet. Add guests first to send invitations.</p>
+  // ── Edit Drawer ───────────────────────────────────────────────────────────────
+  const EditDrawer = () => {
+    if (!drawerOpen) return null
+    return (
+      <>
+        {/* Backdrop */}
+        <div
+          onClick={() => setDrawerOpen(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(17,24,39,0.45)', backdropFilter:'blur(4px)', zIndex:200 }}
+        />
+        {/* Drawer */}
+        <div style={{
+          position:'fixed', top:0, right:0, bottom:0, width:420,
+          background:'#fff', zIndex:201, display:'flex', flexDirection:'column',
+          boxShadow:'-8px 0 40px rgba(31,41,55,0.18)',
+        }}>
+          {/* Drawer header */}
+          <div style={{ padding:'20px 24px', borderBottom:'1.5px solid #F3F4F6', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <h3 style={{ color:'#1F2937', fontSize:16, fontWeight:800, margin:0 }}>Edit Guest Selection</h3>
+              <p style={{ color:'#9CA3AF', fontSize:12, marginTop:3 }}>{selectedIds.size} of {guests.length} selected</p>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {allCategories.map((cat) => {
-                const catGuests = categoryMap[cat]
-                const isSelected = selectedCategories.has(cat)
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      const next = new Set(selectedCategories)
-                      if (isSelected) next.delete(cat)
-                      else next.add(cat)
-                      setSelectedCategories(next)
-                    }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '14px 18px', borderRadius: 14,
-                      border: isSelected ? '2px solid #D72660' : '1.5px solid #E5E7EB',
-                      background: isSelected ? '#FFF0F5' : '#FAFAFA',
-                      cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
-                      boxShadow: isSelected ? '0 2px 12px rgba(215,38,96,0.12)' : 'none',
-                    }}
-                  >
-                    <div style={{
-                      width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                      border: isSelected ? '2px solid #D72660' : '2px solid #D1D5DB',
-                      background: isSelected ? '#D72660' : '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.2s',
-                    }}>
-                      {isSelected && <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>✓</span>}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{cat}</p>
-                      <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{catGuests.length} guest{catGuests.length !== 1 ? 's' : ''}</p>
-                    </div>
-                    <span style={{
-                      background: isSelected ? '#D72660' : '#F3F4F6',
-                      color: isSelected ? '#fff' : '#6B7280',
-                      fontSize: 13, fontWeight: 700,
-                      padding: '4px 12px', borderRadius: 999,
-                      transition: 'all 0.2s',
-                    }}>
-                      {catGuests.length}
-                    </span>
-                  </button>
-                )
-              })}
+            <button onClick={() => setDrawerOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#9CA3AF', fontSize:20, padding:4 }}>✕</button>
+          </div>
+          {/* Search + filter */}
+          <div style={{ padding:'14px 24px', borderBottom:'1px solid #F3F4F6', display:'flex', flexDirection:'column', gap:10 }}>
+            <div style={{ position:'relative' }}>
+              <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'#9CA3AF', fontSize:14 }}>🔍</span>
+              <input
+                value={selSearch} onChange={e => setSelSearch(e.target.value)}
+                placeholder="Search guests…" style={{ ...inputStyle, paddingLeft:32 }}
+              />
             </div>
-          )}
-
-          {/* Total + Continue */}
-          {totalSelected > 0 && (
-            <div style={{
-              marginTop: 20, padding: '16px 20px',
-              background: 'linear-gradient(135deg, #FFF0F5 0%, #FDE7EF 100%)',
-              borderRadius: 14, border: '1px solid #F9D0DC',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div>
-                <p style={{ color: '#9B1C4C', fontWeight: 700, fontSize: 15, margin: 0 }}>
-                  {totalSelected} Guest{totalSelected !== 1 ? 's' : ''} Selected
-                </p>
-                <p style={{ color: '#D72660', fontSize: 12, marginTop: 2 }}>
-                  from {selectedCategories.size} group{selectedCategories.size !== 1 ? 's' : ''}
-                </p>
-              </div>
-              <button
-                onClick={() => setStep(2)}
-                style={{
-                  padding: '10px 24px', background: '#D72660', border: 'none',
-                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                  boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660'; e.currentTarget.style.transform = 'translateY(0)' }}
-              >
-                Continue →
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {['all', ...categories].map(cat => (
+                <button key={cat} onClick={() => setSelCategory(cat)} style={{
+                  padding:'4px 12px', borderRadius:999, fontSize:12, fontWeight:600, cursor:'pointer', border:'1.5px solid',
+                  background: selCategory === cat ? '#D72660' : '#F9FAFB',
+                  color: selCategory === cat ? '#fff' : '#6B7280',
+                  borderColor: selCategory === cat ? '#D72660' : '#E5E7EB',
+                }}>{cat === 'all' ? 'All' : cat}</button>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setSelectedIds(new Set(filteredForSelect.map(g => g.id)))} style={{ ...btnSecondary, flex:1, justifyContent:'center', fontSize:12, padding:'7px' }}>
+                ☑ Select All ({filteredForSelect.length})
+              </button>
+              <button onClick={() => {
+                const next = new Set(selectedIds)
+                filteredForSelect.forEach(g => next.delete(g.id))
+                setSelectedIds(next)
+              }} style={{ ...btnSecondary, flex:1, justifyContent:'center', fontSize:12, padding:'7px' }}>
+                ☐ Deselect All
               </button>
             </div>
-          )}
+          </div>
+          {/* Guest list */}
+          <div style={{ flex:1, overflowY:'auto', padding:'8px 12px' }}>
+            {filteredForSelect.map(g => {
+              const checked = selectedIds.has(g.id)
+              return (
+                <div key={g.id} onClick={() => {
+                  const next = new Set(selectedIds)
+                  if (checked) next.delete(g.id); else next.add(g.id)
+                  setSelectedIds(next)
+                }} style={{
+                  display:'flex', alignItems:'center', gap:12,
+                  padding:'11px 12px', borderRadius:12, cursor:'pointer',
+                  background: checked ? '#FFF0F5' : 'transparent',
+                  border: checked ? '1px solid #F9D0DC' : '1px solid transparent',
+                  marginBottom:4, transition:'all 0.15s',
+                }}>
+                  <div style={{
+                    width:20, height:20, borderRadius:5, flexShrink:0, transition:'all 0.15s',
+                    background: checked ? '#D72660' : '#fff',
+                    border: checked ? '2px solid #D72660' : '2px solid #D1D5DB',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                  }}>
+                    {checked && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div style={{
+                    width:34, height:34, borderRadius:'50%', flexShrink:0,
+                    background:'linear-gradient(135deg, #F4E7EC, #FDE7EF)',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:13, fontWeight:700, color:'#D72660',
+                  }}>
+                    {g.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ color:'#1F2937', fontWeight:600, fontSize:13, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.name}</p>
+                    <p style={{ color:'#9CA3AF', fontSize:11, marginTop:1 }}>{g.guest_category || 'Other'}{g.phone ? ` · ${g.phone}` : ''}</p>
+                  </div>
+                </div>
+              )
+            })}
+            {filteredForSelect.length === 0 && (
+              <div style={{ textAlign:'center', padding:'40px 0', color:'#9CA3AF', fontSize:13 }}>No guests match</div>
+            )}
+          </div>
+          {/* Footer */}
+          <div style={{ padding:'16px 24px', borderTop:'1.5px solid #F3F4F6', display:'flex', gap:10 }}>
+            <button onClick={() => setDrawerOpen(false)} style={{ ...btnPrimary, flex:1, justifyContent:'center' }}>
+              Done — {selectedIds.size} selected
+            </button>
+          </div>
         </div>
-      )}
+      </>
+    )
+  }
 
-      {/* ── STEP 2: Choose Channel ── */}
-      {step === 2 && (
-        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📡</div>
-            <div>
-              <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Send via</h3>
-              <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                {totalSelected} guest{totalSelected !== 1 ? 's' : ''} will be notified
-              </p>
+  // ════════════════════════════════════════════════════════════════════
+  // STEP 1 – SELECT GUESTS
+  // ════════════════════════════════════════════════════════════════════
+  if (step === 'select') {
+    return (
+      <div style={{ fontFamily:'inherit' }}>
+        <Header />
+        <EditDrawer />
+        <div style={{ ...card, padding:'24px 28px' }}>
+          {/* Header row */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:'#F4E7EC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>👥</div>
+              <div>
+                <h3 style={{ color:'#1F2937', fontSize:15, fontWeight:700, margin:0 }}>Select Guests</h3>
+                <p style={{ color:'#9CA3AF', fontSize:12, marginTop:2 }}>{selectedIds.size} selected · {guests.length} total</p>
+              </div>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setSelectedIds(new Set(filteredForSelect.map(g => g.id)))} style={{ ...btnSecondary, fontSize:12, padding:'7px 14px' }}>
+                ☑ Select All
+              </button>
+              <button onClick={() => {
+                const next = new Set(selectedIds)
+                filteredForSelect.forEach(g => next.delete(g.id))
+                setSelectedIds(next)
+              }} style={{ ...btnSecondary, fontSize:12, padding:'7px 14px' }}>
+                ☐ Deselect
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {(['whatsapp', 'sms', 'email'] as const).map((ch) => {
-              const isSelected = sendChannel === ch
-              const icons = { whatsapp: '💬', sms: '📱', email: '📧' }
-              const labels = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' }
-              const descs = {
-                whatsapp: 'Opens WhatsApp with a personalised message for each guest',
-                sms: 'Opens your SMS app with a pre-filled message',
-                email: 'Opens your email client with personalised subject & body',
-              }
-              const colors = { whatsapp: '#25D366', sms: '#3B82F6', email: '#D72660' }
+          {/* Search + Filter */}
+          <div style={{ display:'flex', gap:10, marginBottom:16 }}>
+            <div style={{ position:'relative', flex:1 }}>
+              <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'#9CA3AF', fontSize:14 }}>🔍</span>
+              <input
+                value={selSearch} onChange={e => setSelSearch(e.target.value)}
+                placeholder="Search by name or phone…"
+                style={{ ...inputStyle, paddingLeft:32 }}
+              />
+            </div>
+            <div style={{ position:'relative' }}>
+              <select
+                value={selCategory}
+                onChange={e => setSelCategory(e.target.value)}
+                style={{ ...inputStyle, width:'auto', paddingRight:30, cursor:'pointer', appearance:'none' }}
+              >
+                <option value="all">All Categories</option>
+                {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <span style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', color:'#9CA3AF', pointerEvents:'none' }}>▾</span>
+            </div>
+          </div>
+
+          {/* Category quick-select chips */}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+            {categories.map(cat => {
+              const catGuests = guests.filter(g => (g.guest_category || 'Other') === cat)
+              const allCatSelected = catGuests.every(g => selectedIds.has(g.id))
               return (
-                <button
-                  key={ch}
-                  onClick={() => setSendChannel(ch)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 16,
-                    padding: '16px 20px', borderRadius: 14,
-                    border: isSelected ? `2px solid ${colors[ch]}` : '1.5px solid #E5E7EB',
-                    background: isSelected ? `${colors[ch]}08` : '#FAFAFA',
-                    cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
-                    boxShadow: isSelected ? `0 2px 12px ${colors[ch]}20` : 'none',
-                  }}
-                >
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    background: isSelected ? `${colors[ch]}15` : '#F3F4F6',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-                    transition: 'all 0.2s',
-                  }}>
-                    {icons[ch]}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{labels[ch]}</p>
-                    <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{descs[ch]}</p>
-                  </div>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    border: isSelected ? `6px solid ${colors[ch]}` : '2px solid #D1D5DB',
-                    background: isSelected ? '#fff' : 'transparent',
-                    transition: 'all 0.2s', flexShrink: 0,
-                  }} />
+                <button key={cat} onClick={() => {
+                  const next = new Set(selectedIds)
+                  if (allCatSelected) catGuests.forEach(g => next.delete(g.id))
+                  else catGuests.forEach(g => next.add(g.id))
+                  setSelectedIds(next)
+                }} style={{
+                  padding:'6px 14px', borderRadius:999, fontSize:12, fontWeight:600,
+                  cursor:'pointer', border:'1.5px solid', transition:'all 0.15s',
+                  background: allCatSelected ? '#D72660' : '#F9FAFB',
+                  color: allCatSelected ? '#fff' : '#6B7280',
+                  borderColor: allCatSelected ? '#D72660' : '#E5E7EB',
+                  display:'flex', alignItems:'center', gap:6,
+                }}>
+                  {allCatSelected ? '☑' : '☐'} {cat}
+                  <span style={{
+                    background: allCatSelected ? 'rgba(255,255,255,0.25)' : '#F3F4F6',
+                    color: allCatSelected ? '#fff' : '#9CA3AF',
+                    fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:999,
+                  }}>{catGuests.length}</span>
                 </button>
               )
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-            <button
-              onClick={() => setStep(1)}
-              style={{
-                flex: 1, padding: '11px', background: '#F3F4F6',
-                border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
-                fontWeight: 600, fontSize: 14, cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#E5E7EB' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#F3F4F6' }}
-            >
-              ← Back
-            </button>
-            <button
-              onClick={() => {
-                setSendingIndex(0)
-                setSendPreviewGuest(selectedGuests[0] || null)
-                setSendSessionActive(true)
-                setStep(3)
-              }}
-              style={{
-                flex: 2, padding: '11px', background: '#D72660', border: 'none',
-                borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
-                cursor: 'pointer', boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660' }}
-            >
-              Preview Messages →
-            </button>
-          </div>
-        </div>
-      )}
+          {/* Guest list */}
+          {guests.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'48px 0', color:'#9CA3AF' }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>👤</div>
+              <p style={{ fontSize:14 }}>No guests yet. Add guests first.</p>
+            </div>
+          ) : (
+            <div style={{ maxHeight:380, overflowY:'auto', marginBottom:20, borderRadius:12, border:'1.5px solid #F3F4F6' }}>
+              {filteredForSelect.map((g, idx) => {
+                const checked = selectedIds.has(g.id)
+                return (
+                  <div key={g.id} onClick={() => {
+                    const next = new Set(selectedIds)
+                    if (checked) next.delete(g.id); else next.add(g.id)
+                    setSelectedIds(next)
+                  }} style={{
+                    display:'flex', alignItems:'center', gap:12, padding:'12px 16px',
+                    cursor:'pointer', transition:'background 0.12s',
+                    background: checked ? '#FFF0F5' : idx % 2 === 0 ? '#fff' : '#FAFAFA',
+                    borderBottom: idx < filteredForSelect.length - 1 ? '1px solid #F3F4F6' : 'none',
+                  }}
+                  onMouseEnter={(e) => { if (!checked) e.currentTarget.style.background = '#F9FAFB' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = checked ? '#FFF0F5' : idx % 2 === 0 ? '#fff' : '#FAFAFA' }}
+                  >
+                    <div style={{
+                      width:20, height:20, borderRadius:5, flexShrink:0, transition:'all 0.15s',
+                      background: checked ? '#D72660' : '#fff',
+                      border: checked ? '2px solid #D72660' : '2px solid #D1D5DB',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                    }}>
+                      {checked && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                    </div>
+                    <div style={{
+                      width:36, height:36, borderRadius:'50%', flexShrink:0,
+                      background:'linear-gradient(135deg, #F4E7EC, #FDE7EF)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:14, fontWeight:700, color:'#D72660',
+                    }}>
+                      {g.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ color:'#1F2937', fontWeight:600, fontSize:14, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{g.name}</p>
+                      <p style={{ color:'#9CA3AF', fontSize:12, marginTop:1 }}>{g.guest_category || 'Other'}{g.phone ? ` · ${g.phone}` : ''}</p>
+                    </div>
+                    <span style={{
+                      background: g.rsvp_status === 'yes' ? '#DCFCE7' : g.rsvp_status === 'no' ? '#FEE2E2' : '#FEF3C7',
+                      color: g.rsvp_status === 'yes' ? '#15803D' : g.rsvp_status === 'no' ? '#DC2626' : '#B45309',
+                      fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999,
+                    }}>
+                      {g.rsvp_status === 'yes' ? '✓ Going' : g.rsvp_status === 'no' ? '✗ Declined' : '⏳ Pending'}
+                    </span>
+                  </div>
+                )
+              })}
+              {filteredForSelect.length === 0 && (
+                <div style={{ textAlign:'center', padding:'32px 0', color:'#9CA3AF', fontSize:13 }}>No guests match your search</div>
+              )}
+            </div>
+          )}
 
-      {/* ── STEP 3: Preview & Send ── */}
-      {step === 3 && sendSessionActive && (
-        <div style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 20, padding: '24px 28px', boxShadow: '0 2px 12px rgba(31,41,55,0.06)' }}>
-          {/* Progress */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20 }}>{channelIcon[sendChannel]}</span>
-                <div>
-                  <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>
-                    Sending via {channelLabel[sendChannel]}
-                  </h3>
-                  <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                    Guest {sendingIndex + 1} of {selectedGuests.length}
-                  </p>
+          {/* Footer CTA */}
+          {selectedIds.size > 0 && (
+            <div style={{
+              background:'linear-gradient(135deg, #FFF0F5, #FDE7EF)',
+              border:'1px solid #F9D0DC', borderRadius:14, padding:'16px 20px',
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+            }}>
+              <div>
+                <p style={{ color:'#9B1C4C', fontWeight:800, fontSize:16, margin:0 }}>{selectedIds.size} guests selected</p>
+                <p style={{ color:'#D72660', fontSize:12, marginTop:2 }}>
+                  Ready to compose your message
+                </p>
+              </div>
+              <button onClick={() => { setPreviewGuestId(''); setStep('compose') }} style={btnPrimary}>
+                Compose Message →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // STEP 2 – COMPOSE (Channel + Message Template + Live Preview)
+  // ════════════════════════════════════════════════════════════════════
+  if (step === 'compose') {
+    const previewGuest = guests.find(g => g.id === previewGuestId) ?? selectedGuests[0] ?? null
+
+    return (
+      <div style={{ fontFamily:'inherit' }}>
+        <Header />
+        <EditDrawer />
+        <SummaryBar />
+
+        {/* Two-column layout */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20, alignItems:'start' }}>
+
+          {/* ── Left: Channel + Template ── */}
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+            {/* Channel picker */}
+            <div style={{ ...card, padding:'20px 24px' }}>
+              <h3 style={{ color:'#1F2937', fontSize:14, fontWeight:700, margin:'0 0 14px' }}>📡 Send via</h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {(['whatsapp', 'sms', 'email'] as SendChannel[]).map(ch => {
+                  const m = channelMeta[ch]
+                  const isActive = channel === ch
+                  return (
+                    <button key={ch} onClick={() => setChannel(ch)} style={{
+                      display:'flex', alignItems:'center', gap:14, padding:'13px 16px',
+                      borderRadius:12, cursor:'pointer', textAlign:'left',
+                      border: isActive ? `2px solid ${m.color}` : '1.5px solid #E5E7EB',
+                      background: isActive ? m.bg : '#FAFAFA',
+                      transition:'all 0.2s', boxShadow: isActive ? `0 2px 12px ${m.color}20` : 'none',
+                    }}>
+                      <span style={{ fontSize:20 }}>{m.icon}</span>
+                      <span style={{ flex:1, color:'#1F2937', fontSize:14, fontWeight:600 }}>{m.label}</span>
+                      <div style={{
+                        width:18, height:18, borderRadius:'50%', flexShrink:0,
+                        border: isActive ? `5px solid ${m.color}` : '2px solid #D1D5DB',
+                        background: '#fff', transition:'all 0.2s',
+                      }} />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Template editor */}
+            <div style={{ ...card, padding:'20px 24px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                <h3 style={{ color:'#1F2937', fontSize:14, fontWeight:700, margin:0 }}>✏️ Default Message Template</h3>
+                <div style={{ display:'flex', gap:6 }}>
+                  {['{name}', '{link}'].map(v => (
+                    <button key={v} onClick={() => {
+                      const ta = document.getElementById('template-ta') as HTMLTextAreaElement
+                      if (ta) {
+                        const start = ta.selectionStart, end = ta.selectionEnd
+                        const next = defaultTemplate.slice(0, start) + v + defaultTemplate.slice(end)
+                        setDefaultTemplate(next)
+                        setTimeout(() => { ta.focus(); ta.setSelectionRange(start + v.length, start + v.length) }, 0)
+                      }
+                    }} style={{
+                      padding:'3px 10px', background:'#EEF2FF', border:'1px solid #C7D2FE',
+                      borderRadius:6, color:'#4F46E5', fontSize:11, fontWeight:700, cursor:'pointer',
+                    }}>
+                      {v}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <span style={{
-                background: '#F4E7EC', color: '#D72660',
-                fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 999,
-              }}>
-                {selectedGuests.length - sendingIndex} remaining
-              </span>
+              <textarea
+                id="template-ta"
+                value={defaultTemplate}
+                onChange={e => setDefaultTemplate(e.target.value)}
+                rows={8}
+                style={{ ...inputStyle, resize:'vertical', lineHeight:1.7, fontFamily:'inherit' }}
+              />
+              <p style={{ color:'#9CA3AF', fontSize:11, marginTop:6 }}>
+                Use <code style={{ background:'#F3F4F6', padding:'1px 4px', borderRadius:4 }}>{'{name}'}</code> and{' '}
+                <code style={{ background:'#F3F4F6', padding:'1px 4px', borderRadius:4 }}>{'{link}'}</code> as placeholders.
+              </p>
             </div>
-            {/* Progress bar */}
-            <div style={{ height: 6, background: '#F3F4F6', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', background: 'linear-gradient(90deg, #D72660, #9B1C4C)',
-                borderRadius: 999, transition: 'width 0.4s ease',
-                width: `${(sendingIndex / selectedGuests.length) * 100}%`,
-              }} />
+
+            {/* Per-guest overrides */}
+            <div style={{ ...card, padding:'20px 24px' }}>
+              <h3 style={{ color:'#1F2937', fontSize:14, fontWeight:700, margin:'0 0 10px' }}>🎯 Customise Individual Guests</h3>
+              <p style={{ color:'#9CA3AF', fontSize:12, margin:'0 0 12px' }}>
+                Override the default template for specific guests. Others use the default.
+              </p>
+              <div style={{ position:'relative', marginBottom:12 }}>
+                <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'#9CA3AF', fontSize:13 }}>🔍</span>
+                <input
+                  value={custSearch} onChange={e => setCustSearch(e.target.value)}
+                  placeholder="Search guest to customise…"
+                  style={{ ...inputStyle, paddingLeft:30, fontSize:12 }}
+                />
+              </div>
+              <div style={{ maxHeight:240, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
+                {selectedGuests
+                  .filter(g => !custSearch || g.name.toLowerCase().includes(custSearch.toLowerCase()))
+                  .map(g => {
+                    const hasOverride = !!overrides[g.id]
+                    const isOpen = custOpenId === g.id
+                    return (
+                      <div key={g.id} style={{ border:'1.5px solid', borderRadius:10, transition:'all 0.2s',
+                        borderColor: hasOverride ? '#C7D2FE' : '#F3F4F6',
+                        background: hasOverride ? '#F5F3FF' : '#FAFAFA',
+                      }}>
+                        <div
+                          onClick={() => setCustOpenId(isOpen ? null : g.id)}
+                          style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', cursor:'pointer' }}
+                        >
+                          <div style={{
+                            width:28, height:28, borderRadius:'50%', flexShrink:0,
+                            background: hasOverride ? 'linear-gradient(135deg, #EEF2FF, #E0E7FF)' : 'linear-gradient(135deg, #F4E7EC, #FDE7EF)',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontSize:11, fontWeight:800, color: hasOverride ? '#4F46E5' : '#D72660',
+                          }}>
+                            {g.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span style={{ flex:1, fontSize:13, fontWeight:600, color:'#1F2937' }}>{g.name}</span>
+                          {hasOverride && (
+                            <span style={{ background:'#EEF2FF', color:'#4F46E5', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999 }}>
+                              Custom
+                            </span>
+                          )}
+                          <span style={{ color:'#9CA3AF', fontSize:14 }}>{isOpen ? '▲' : '▼'}</span>
+                        </div>
+                        {isOpen && (
+                          <div style={{ padding:'0 14px 12px', borderTop:'1px solid #F3F4F6' }}>
+                            <textarea
+                              value={overrides[g.id] ?? defaultTemplate}
+                              onChange={e => setOverrides(prev => ({ ...prev, [g.id]: e.target.value }))}
+                              rows={5}
+                              style={{ ...inputStyle, marginTop:10, resize:'none', fontSize:12, lineHeight:1.6 }}
+                            />
+                            {overrides[g.id] && (
+                              <button onClick={() => {
+                                const next = { ...overrides }; delete next[g.id]; setOverrides(next)
+                              }} style={{ marginTop:6, background:'none', border:'none', color:'#9CA3AF', fontSize:11, cursor:'pointer', textDecoration:'underline' }}>
+                                Reset to default
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
             </div>
           </div>
 
-          {sendingIndex < selectedGuests.length ? (() => {
-            const guest = selectedGuests[sendingIndex]
-            const msg = buildMessage(guest)
-            return (
-              <div>
-                {/* Guest info */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '14px 18px', background: '#FAFAFA', borderRadius: 14,
-                  border: '1px solid #F3F4F6', marginBottom: 16,
-                }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: `linear-gradient(135deg, ${channelColor[sendChannel]}20, ${channelColor[sendChannel]}10)`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, fontWeight: 700, color: channelColor[sendChannel],
-                    border: `2px solid ${channelColor[sendChannel]}30`,
+          {/* ── Right: Live Preview ── */}
+          <div style={{ position:'sticky', top:80 }}>
+            <div style={{ ...card, padding:'20px 24px' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                <h3 style={{ color:'#1F2937', fontSize:14, fontWeight:700, margin:0 }}>👁️ Live Preview</h3>
+                <span style={{ background: ch.bg, color: ch.color, fontSize:12, fontWeight:700, padding:'3px 10px', borderRadius:999, border:`1px solid ${ch.border}` }}>
+                  {ch.icon} {ch.label}
+                </span>
+              </div>
+              {/* Guest selector */}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+                {selectedGuests.slice(0, 8).map(g => (
+                  <button key={g.id} onClick={() => setPreviewGuestId(g.id)} style={{
+                    padding:'5px 12px', borderRadius:999, fontSize:12, fontWeight:600,
+                    cursor:'pointer', border:'1.5px solid', transition:'all 0.15s',
+                    background: previewGuestId === g.id ? ch.color : '#F3F4F6',
+                    color: previewGuestId === g.id ? '#fff' : '#6B7280',
+                    borderColor: previewGuestId === g.id ? ch.color : '#E5E7EB',
                   }}>
-                    {guest.name.charAt(0).toUpperCase()}
+                    {g.name.split(' ')[0]}
+                  </button>
+                ))}
+                {selectedGuests.length > 8 && (
+                  <span style={{ padding:'5px 10px', color:'#9CA3AF', fontSize:12 }}>+{selectedGuests.length - 8} more</span>
+                )}
+              </div>
+              {previewGuest ? (
+                <>
+                  {/* Phone/message mockup */}
+                  <div style={{
+                    background:'#075E54', borderRadius:16, padding:'12px',
+                    boxShadow:'0 8px 32px rgba(7,94,84,0.25)', marginBottom:14,
+                  }}>
+                    <div style={{
+                      background:'#DCF8C6', borderRadius:'12px 12px 4px 12px',
+                      padding:'12px 14px', maxWidth:'90%', marginLeft:'auto',
+                    }}>
+                      <pre style={{
+                        margin:0, fontSize:12.5, lineHeight:1.65, color:'#1F2937',
+                        whiteSpace:'pre-wrap', wordBreak:'break-word', fontFamily:'inherit',
+                      }}>
+                        {buildMsg(previewGuest)}
+                      </pre>
+                      <p style={{ color:'#9CA3AF', fontSize:10, textAlign:'right', margin:'6px 0 0' }}>
+                        {new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} ✓✓
+                      </p>
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ color: '#1F2937', fontWeight: 700, fontSize: 15, margin: 0 }}>{guest.name}</p>
-                    <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
-                      {guest.guest_category || 'Other'}
-                      {guest.phone ? ` · ${guest.phone}` : ''}
-                      {guest.email ? ` · ${guest.email}` : ''}
+                  {/* Guest chip */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, background:'#F9FAFB', borderRadius:10, padding:'10px 12px' }}>
+                    <div style={{
+                      width:32, height:32, borderRadius:'50%', flexShrink:0,
+                      background:'linear-gradient(135deg, #F4E7EC, #FDE7EF)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:13, fontWeight:700, color:'#D72660',
+                    }}>
+                      {previewGuest.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p style={{ fontSize:13, fontWeight:600, color:'#1F2937', margin:0 }}>{previewGuest.name}</p>
+                      <p style={{ fontSize:11, color:'#9CA3AF', marginTop:1 }}>
+                        {overrides[previewGuest.id] ? '🎯 Custom message' : '📄 Default template'}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ textAlign:'center', padding:'40px 0', color:'#9CA3AF' }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>👆</div>
+                  <p style={{ fontSize:13 }}>Select a guest above to preview</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ display:'flex', justifyContent:'space-between', marginTop:20 }}>
+          <button onClick={() => setStep('select')} style={btnSecondary}>← Back</button>
+          <button onClick={() => { setReviewIdx(0); setStep('review') }} disabled={selectedIds.size === 0} style={{ ...btnPrimary, opacity: selectedIds.size === 0 ? 0.5 : 1 }}>
+            Review & Send →
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // STEP 3 – REVIEW & SEND (Carousel / instant switch)
+  // ════════════════════════════════════════════════════════════════════
+  const reviewGuest = reviewGuests[reviewIdx] ?? null
+  const sentCount = sentIds.size
+  const allSent = sentCount >= selectedGuests.length && selectedGuests.length > 0
+
+  return (
+    <div style={{ fontFamily:'inherit' }}>
+      <Header />
+      <EditDrawer />
+      <SummaryBar />
+
+      {/* Progress */}
+      <div style={{ ...card, padding:'20px 24px', marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:18 }}>{ch.icon}</span>
+            <div>
+              <p style={{ color:'#1F2937', fontWeight:700, fontSize:14, margin:0 }}>
+                Sending via {ch.label}
+              </p>
+              <p style={{ color:'#9CA3AF', fontSize:12, marginTop:2 }}>{sentCount} of {selectedGuests.length} sent</p>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{
+              background: allSent ? '#DCFCE7' : '#F4E7EC', color: allSent ? '#15803D' : '#D72660',
+              fontSize:13, fontWeight:700, padding:'5px 14px', borderRadius:999,
+              border: `1px solid ${allSent ? '#BBF7D0' : '#F9D0DC'}`,
+            }}>
+              {allSent ? '🎉 All sent!' : `${selectedGuests.length - sentCount} remaining`}
+            </span>
+            {allSent && (
+              <button onClick={() => {
+                setSentIds(new Set()); setReviewIdx(0); setSelectedIds(new Set())
+                setOverrides({}); setStep('select')
+              }} style={btnPrimary}>
+                New Campaign
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div style={{ height:8, background:'#F3F4F6', borderRadius:999, overflow:'hidden' }}>
+          <div style={{
+            height:'100%', background:`linear-gradient(90deg, ${ch.color}, #D72660)`,
+            borderRadius:999, transition:'width 0.5s ease',
+            width: selectedGuests.length > 0 ? `${(sentCount / selectedGuests.length) * 100}%` : '0%',
+          }} />
+        </div>
+      </div>
+
+      {/* Two-column: guest list + preview */}
+      <div style={{ display:'grid', gridTemplateColumns:'280px 1fr', gap:20, alignItems:'start' }}>
+
+        {/* ── Left: Guest carousel list ── */}
+        <div style={{ ...card, overflow:'hidden' }}>
+          <div style={{ padding:'14px 16px', borderBottom:'1px solid #F3F4F6' }}>
+            <p style={{ color:'#1F2937', fontSize:13, fontWeight:700, margin:0 }}>Guest Queue</p>
+            <p style={{ color:'#9CA3AF', fontSize:11, marginTop:2 }}>{selectedGuests.length} guests</p>
+          </div>
+          <div style={{ maxHeight:480, overflowY:'auto' }}>
+            {reviewGuests.map((g, idx) => {
+              const isSent = sentIds.has(g.id)
+              const isActive = idx === reviewIdx
+              return (
+                <div
+                  key={g.id}
+                  onClick={() => setReviewIdx(idx)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:10, padding:'11px 16px',
+                    cursor:'pointer', transition:'all 0.15s',
+                    background: isActive ? '#FFF0F5' : 'transparent',
+                    borderLeft: isActive ? `3px solid #D72660` : '3px solid transparent',
+                    borderBottom:'1px solid #F9FAFB',
+                  }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#F9FAFB' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = isActive ? '#FFF0F5' : 'transparent' }}
+                >
+                  <div style={{ position:'relative', flexShrink:0 }}>
+                    <div style={{
+                      width:32, height:32, borderRadius:'50%',
+                      background: isSent ? 'linear-gradient(135deg, #DCFCE7, #BBF7D0)' : 'linear-gradient(135deg, #F4E7EC, #FDE7EF)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:12, fontWeight:700, color: isSent ? '#15803D' : '#D72660',
+                    }}>
+                      {isSent ? '✓' : g.name.charAt(0).toUpperCase()}
+                    </div>
+                    {overrides[g.id] && (
+                      <div style={{
+                        position:'absolute', top:-2, right:-2, width:10, height:10,
+                        borderRadius:'50%', background:'#6366F1', border:'2px solid #fff',
+                      }} />
+                    )}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ color: isSent ? '#6B7280' : '#1F2937', fontSize:12, fontWeight:600, margin:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration: isSent ? 'line-through' : 'none' }}>
+                      {g.name}
+                    </p>
+                    <p style={{ color:'#9CA3AF', fontSize:10, marginTop:1 }}>{g.guest_category || 'Other'}</p>
+                  </div>
+                  {isSent && <span style={{ color:'#16A34A', fontSize:14, flexShrink:0 }}>✓</span>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Right: Preview + Send ── */}
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          {reviewGuest ? (
+            <>
+              {/* Guest info card */}
+              <div style={{ ...card, padding:'18px 22px' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                  <div style={{
+                    width:52, height:52, borderRadius:'50%', flexShrink:0,
+                    background:`linear-gradient(135deg, ${ch.color}20, ${ch.color}10)`,
+                    border:`2px solid ${ch.color}30`,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:20, fontWeight:800, color:ch.color,
+                  }}>
+                    {reviewGuest.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <p style={{ color:'#1F2937', fontWeight:800, fontSize:16, margin:0 }}>{reviewGuest.name}</p>
+                      {overrides[reviewGuest.id] && (
+                        <span style={{ background:'#EEF2FF', color:'#4F46E5', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999 }}>Custom</span>
+                      )}
+                      {sentIds.has(reviewGuest.id) && (
+                        <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:999 }}>✓ Sent</span>
+                      )}
+                    </div>
+                    <p style={{ color:'#9CA3AF', fontSize:13, marginTop:3 }}>
+                      {reviewGuest.guest_category || 'Other'}
+                      {reviewGuest.phone ? ` · ${reviewGuest.phone}` : ''}
+                      {reviewGuest.email ? ` · ${reviewGuest.email}` : ''}
+                      {` · Guest ${reviewIdx + 1} of ${selectedGuests.length}`}
                     </p>
                   </div>
-                  <span style={{
-                    background: '#F3F4F6', color: '#6B7280',
-                    fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999,
-                  }}>
-                    #{sendingIndex + 1}
-                  </span>
-                </div>
-
-                {/* Message preview */}
-                <div style={{
-                  background: 'linear-gradient(135deg, #F8F9FF 0%, #F0F4FF 100%)',
-                  border: '1px solid #E0E7FF', borderRadius: 14, padding: '16px 20px',
-                  marginBottom: 20, position: 'relative',
-                }}>
-                  <div style={{
-                    position: 'absolute', top: 12, right: 14,
-                    background: '#EEF2FF', color: '#6366F1',
-                    fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-                    letterSpacing: '0.04em',
-                  }}>
-                    MESSAGE PREVIEW
+                  {/* Prev/next */}
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => setReviewIdx(Math.max(0, reviewIdx - 1))} disabled={reviewIdx === 0}
+                      style={{ ...btnSecondary, padding:'8px 14px', opacity: reviewIdx === 0 ? 0.4 : 1 }}>←</button>
+                    <button onClick={() => setReviewIdx(Math.min(reviewGuests.length - 1, reviewIdx + 1))} disabled={reviewIdx >= reviewGuests.length - 1}
+                      style={{ ...btnSecondary, padding:'8px 14px', opacity: reviewIdx >= reviewGuests.length - 1 ? 0.4 : 1 }}>→</button>
                   </div>
-                  <pre style={{
-                    margin: 0, fontFamily: 'inherit', fontSize: 13, lineHeight: 1.7,
-                    color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                    paddingTop: 4,
-                  }}>
-                    {msg}
-                  </pre>
-                </div>
-
-                {/* Action buttons */}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    onClick={() => {
-                      if (sendingIndex > 0) setSendingIndex(sendingIndex - 1)
-                    }}
-                    disabled={sendingIndex === 0}
-                    style={{
-                      padding: '11px 20px', background: '#F3F4F6',
-                      border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
-                      fontWeight: 600, fontSize: 13, cursor: sendingIndex === 0 ? 'not-allowed' : 'pointer',
-                      opacity: sendingIndex === 0 ? 0.4 : 1, transition: 'all 0.15s',
-                    }}
-                  >
-                    ← Prev
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      handleSend(guest)
-                      if (sendingIndex < selectedGuests.length - 1) {
-                        setTimeout(() => setSendingIndex(sendingIndex + 1), 600)
-                      } else {
-                        // Done!
-                        setTimeout(() => {
-                          setSendSessionActive(false)
-                          setSendingIndex(selectedGuests.length)
-                        }, 400)
-                      }
-                    }}
-                    style={{
-                      flex: 1, padding: '11px',
-                      background: channelColor[sendChannel],
-                      border: 'none', borderRadius: 12, color: '#fff',
-                      fontWeight: 700, fontSize: 14, cursor: 'pointer',
-                      boxShadow: `0 4px 14px ${channelColor[sendChannel]}40`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)' }}
-                  >
-                    <span>{channelIcon[sendChannel]}</span>
-                    Send via {channelLabel[sendChannel]}
-                    {sendingIndex < selectedGuests.length - 1 ? ' & Next →' : ' ✓'}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (sendingIndex < selectedGuests.length - 1) {
-                        setSendingIndex(sendingIndex + 1)
-                      }
-                    }}
-                    disabled={sendingIndex >= selectedGuests.length - 1}
-                    style={{
-                      padding: '11px 20px', background: '#F3F4F6',
-                      border: '1.5px solid #E5E7EB', borderRadius: 12, color: '#6B7280',
-                      fontWeight: 600, fontSize: 13,
-                      cursor: sendingIndex >= selectedGuests.length - 1 ? 'not-allowed' : 'pointer',
-                      opacity: sendingIndex >= selectedGuests.length - 1 ? 0.4 : 1,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    Skip →
-                  </button>
                 </div>
               </div>
-            )
-          })() : (
-            /* All done! */
-            <div style={{ textAlign: 'center', padding: '32px 0' }}>
-              <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-              <h3 style={{ color: '#1F2937', fontSize: 18, fontWeight: 800, margin: '0 0 8px' }}>
-                All invitations sent!
-              </h3>
-              <p style={{ color: '#9CA3AF', fontSize: 14, marginBottom: 24 }}>
-                {selectedGuests.length} personalised invitation{selectedGuests.length !== 1 ? 's' : ''} sent via {channelLabel[sendChannel]}
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedCategories(new Set())
-                  setSendingIndex(0)
-                  setSendSessionActive(false)
-                  setStep(1)
-                }}
-                style={{
-                  padding: '12px 28px', background: '#D72660', border: 'none',
-                  borderRadius: 12, color: '#fff', fontWeight: 700, fontSize: 14,
-                  cursor: 'pointer', boxShadow: '0 4px 14px rgba(215,38,96,0.35)',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#B91C4C' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#D72660' }}
-              >
-                Send Another Batch
-              </button>
-            </div>
-          )}
 
-          {/* Back button */}
-          {sendingIndex < selectedGuests.length && (
-            <div style={{ marginTop: 16, textAlign: 'center' }}>
-              <button
-                onClick={() => { setSendSessionActive(false); setStep(2) }}
-                style={{
-                  background: 'none', border: 'none', color: '#9CA3AF',
-                  fontSize: 13, cursor: 'pointer', textDecoration: 'underline',
-                }}
-              >
-                ← Change channel
-              </button>
+              {/* Message preview – WhatsApp mockup */}
+              <div style={{ ...card, padding:'20px 24px' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                  <h3 style={{ color:'#1F2937', fontSize:13, fontWeight:700, margin:0 }}>Message Preview</h3>
+                  <span style={{ background:ch.bg, color:ch.color, fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:999, border:`1px solid ${ch.border}` }}>
+                    {ch.icon} {ch.label}
+                  </span>
+                </div>
+                <div style={{
+                  background:'#ECE5DD', borderRadius:14, padding:'16px',
+                  boxShadow:'inset 0 2px 8px rgba(0,0,0,0.05)', marginBottom:14,
+                }}>
+                  <div style={{
+                    background:'#fff', borderRadius:'12px 12px 4px 12px', padding:'12px 16px',
+                    maxWidth:'85%', marginLeft:'auto', boxShadow:'0 1px 4px rgba(0,0,0,0.08)',
+                  }}>
+                    <pre style={{
+                      margin:0, fontSize:13, lineHeight:1.7, color:'#1F2937',
+                      whiteSpace:'pre-wrap', wordBreak:'break-word', fontFamily:'inherit',
+                    }}>
+                      {buildMsg(reviewGuest)}
+                    </pre>
+                    <p style={{ color:'#9CA3AF', fontSize:10, textAlign:'right', margin:'8px 0 0', display:'flex', alignItems:'center', gap:3, justifyContent:'flex-end' }}>
+                      {new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
+                      <span style={{ color: sentIds.has(reviewGuest.id) ? '#34B7F1' : '#9CA3AF', fontSize:13 }}>✓✓</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Send button */}
+                <button
+                  onClick={() => {
+                    doSend(reviewGuest)
+                    // Auto-advance to next unsent guest
+                    const nextUnsent = reviewGuests.findIndex((g, i) => i > reviewIdx && !sentIds.has(g.id))
+                    if (nextUnsent !== -1) setTimeout(() => setReviewIdx(nextUnsent), 400)
+                  }}
+                  style={{
+                    width:'100%', padding:'13px', border:'none', borderRadius:12,
+                    background: sentIds.has(reviewGuest.id) ? '#F3F4F6' : ch.color,
+                    color: sentIds.has(reviewGuest.id) ? '#9CA3AF' : '#fff',
+                    fontWeight:700, fontSize:15, cursor:'pointer',
+                    boxShadow: sentIds.has(reviewGuest.id) ? 'none' : `0 4px 16px ${ch.color}40`,
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                    transition:'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => { if (!sentIds.has(reviewGuest.id)) e.currentTarget.style.opacity = '0.88' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
+                >
+                  {sentIds.has(reviewGuest.id) ? (
+                    <><span>✓</span> Sent – Send Again</>
+                  ) : (
+                    <><span>{ch.icon}</span> Send via {ch.label}</>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ ...card, padding:'60px 24px', textAlign:'center', color:'#9CA3AF' }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🎉</div>
+              <p style={{ fontSize:15, fontWeight:700, color:'#1F2937' }}>All done!</p>
+              <p style={{ fontSize:13 }}>All selected guests have been sent invitations.</p>
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* Bottom nav */}
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:20 }}>
+        <button onClick={() => setStep('compose')} style={btnSecondary}>← Back to Compose</button>
+        {!allSent && (
+          <button
+            onClick={() => {
+              // Send all remaining in sequence
+              reviewGuests.filter(g => !sentIds.has(g.id)).forEach((g, i) => {
+                setTimeout(() => doSend(g), i * 800)
+              })
+            }}
+            style={{ ...btnPrimary, background:'#7C3AED', boxShadow:'0 4px 14px rgba(124,58,237,0.35)' }}
+          >
+            ⚡ Send All Remaining ({selectedGuests.length - sentCount})
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -713,13 +1171,7 @@ export default function ProjectDashboardPage() {
   const [deleteError, setDeleteError] = useState('')
   const [deletingProject, setDeletingProject] = useState(false)
 
-  // ── Send Invitations state ───────────────────────────────────────────────────
-  const [sendStep, setSendStep] = useState<1 | 2 | 3>(1)
-  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
-  const [sendChannel, setSendChannel] = useState<'whatsapp' | 'sms' | 'email'>('whatsapp')
-  const [sendPreviewGuest, setSendPreviewGuest] = useState<Guest | null>(null)
-  const [sendingIndex, setSendingIndex] = useState<number>(0)
-  const [sendSessionActive, setSendSessionActive] = useState(false)
+  // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
@@ -1666,18 +2118,6 @@ export default function ProjectDashboardPage() {
             <SendInvitationsPanel
               guests={guests}
               project={project}
-              step={sendStep}
-              setStep={setSendStep}
-              selectedCategories={selectedCategories}
-              setSelectedCategories={setSelectedCategories}
-              sendChannel={sendChannel}
-              setSendChannel={setSendChannel}
-              sendPreviewGuest={sendPreviewGuest}
-              setSendPreviewGuest={setSendPreviewGuest}
-              sendingIndex={sendingIndex}
-              setSendingIndex={setSendingIndex}
-              sendSessionActive={sendSessionActive}
-              setSendSessionActive={setSendSessionActive}
               theme={theme}
             />
           </TabsContent>
