@@ -2,32 +2,30 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import InvitationClient from './InvitationClient'
+import InvitationClient from '@/app/invite/[token]/InvitationClient'
 import { getInvitePageTheme } from '@/lib/invitePageTheme'
 
-export default function InvitePage() {
+export default function OpenInvitePage() {
   const params = useParams()
-  const token = params.token as string
-  const [guest, setGuest] = useState<any>(null)
+  const projectId = params.projectId as string
   const [event, setEvent] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await fetch(`/api/invite?token=${encodeURIComponent(token)}`)
+      const res = await fetch(`/api/invite/open?projectId=${encodeURIComponent(projectId)}`)
       if (!res.ok) {
         setError(true)
         setLoading(false)
         return
       }
-      const { guest, event } = await res.json()
-      setGuest(guest)
+      const { event } = await res.json()
       setEvent(event)
       setLoading(false)
     }
-    if (token) fetchData()
-  }, [token])
+    if (projectId) fetchData()
+  }, [projectId])
 
   const theme = getInvitePageTheme(event?.event_template)
 
@@ -48,18 +46,15 @@ export default function InvitePage() {
           </div>
         </div>
         <p className={`text-sm tracking-widest animate-pulse ${loadingTheme.loadingTextClass}`}>
-          Loading your invitation…
+          Loading invitation…
         </p>
       </div>
     )
   }
 
-  if (error || !guest) {
+  if (error || !event) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center px-4"
-        style={{ background: theme.background }}
-      >
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: theme.background }}>
         <div
           className="text-center max-w-sm p-10 rounded-3xl"
           style={{
@@ -69,11 +64,9 @@ export default function InvitePage() {
           }}
         >
           <div className="text-5xl mb-4">💌</div>
-          <h1 className="text-2xl font-serif italic text-white mb-3">
-            Invitation Not Found
-          </h1>
+          <h1 className="text-2xl font-serif italic text-white mb-3">Invitation Not Found</h1>
           <p className="text-white/50 text-sm font-light mb-6">
-            We couldn&apos;t find your invitation. Please check your link and try again.
+            We couldn&apos;t find this invitation. Please check your link and try again.
           </p>
           <a
             href="/"
@@ -87,5 +80,5 @@ export default function InvitePage() {
     )
   }
 
-  return <InvitationClient guest={guest} event={event} />
+  return <InvitationClient event={event} open />
 }

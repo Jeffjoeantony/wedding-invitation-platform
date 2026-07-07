@@ -19,6 +19,7 @@ import {
   parseAdditionalBirthdayPersons,
   serializeAdditionalBirthdayPersons,
 } from '@/lib/birthdayPersons'
+import { buildOpenInviteUrl } from '@/lib/inviteLinks'
 
 interface Guest {
   id: string
@@ -192,6 +193,7 @@ function SendInvitationsPanel({
   // Step 3 review
   const [reviewIdx, setReviewIdx] = useState(0)
   const [sentIds, setSentIds] = useState<Set<string>>(new Set())
+  const [openLinkCopied, setOpenLinkCopied] = useState(false)
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const categories = Array.from(new Set(guests.map((g) => g.guest_category || 'Other'))).sort()
@@ -273,6 +275,84 @@ function SendInvitationsPanel({
     borderRadius: 11, color: '#6B7280', fontWeight: 600, fontSize: 13,
     cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
     transition: 'all 0.15s',
+  }
+
+  const openInviteUrl = project?.id && typeof window !== 'undefined'
+    ? buildOpenInviteUrl(window.location.origin, project.id)
+    : project?.id
+      ? `/invite/open/${project.id}`
+      : ''
+
+  const copyOpenLink = () => {
+    if (!project?.id) return
+    const url = typeof window !== 'undefined'
+      ? buildOpenInviteUrl(window.location.origin, project.id)
+      : `/invite/open/${project.id}`
+    navigator.clipboard.writeText(url)
+    setOpenLinkCopied(true)
+    setTimeout(() => setOpenLinkCopied(false), 2000)
+  }
+
+  const OpenInviteLinkBar = () => {
+    if (!project?.id) return null
+    return (
+      <div style={{
+        ...card,
+        padding: '16px 20px',
+        marginBottom: 20,
+        background: 'linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%)',
+        border: '1.5px solid #BBF7D0',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 220 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+            }}>🔗</div>
+            <div>
+              <p style={{ color: '#14532D', fontWeight: 800, fontSize: 14, margin: 0 }}>
+                Open invitation link
+              </p>
+              <p style={{ color: '#166534', fontSize: 12, margin: '4px 0 0', lineHeight: 1.5 }}>
+                Share with anyone — no guest name, no RSVP or headcount. Unique to this project.
+              </p>
+              <p style={{
+                color: '#15803D', fontSize: 11, margin: '8px 0 0', fontFamily: 'monospace',
+                wordBreak: 'break-all', opacity: 0.85,
+              }}>
+                {openInviteUrl}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={copyOpenLink}
+              style={{
+                padding: '9px 16px', borderRadius: 10, border: '1.5px solid #86EFAC',
+                background: openLinkCopied ? '#DCFCE7' : '#fff',
+                color: openLinkCopied ? '#15803D' : '#166534',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {openLinkCopied ? '✓ Copied!' : 'Copy Link'}
+            </button>
+            <button
+              onClick={() => window.open(openInviteUrl, '_blank')}
+              style={{
+                padding: '9px 16px', borderRadius: 10, border: 'none',
+                background: '#16A34A', color: '#fff',
+                fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: '0 2px 10px rgba(22,163,74,0.25)',
+              }}
+            >
+              Preview ↗
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // ── Header + Stepper ─────────────────────────────────────────────────────────
@@ -500,6 +580,7 @@ function SendInvitationsPanel({
     return (
       <div style={{ fontFamily:'inherit' }}>
         <Header />
+        <OpenInviteLinkBar />
         <EditDrawer />
         <div style={{ ...card, padding:'24px 28px' }}>
           {/* Header row */}
@@ -670,6 +751,7 @@ function SendInvitationsPanel({
     return (
       <div style={{ fontFamily:'inherit' }}>
         <Header />
+        <OpenInviteLinkBar />
         <EditDrawer />
         <SummaryBar />
 
@@ -909,6 +991,7 @@ function SendInvitationsPanel({
   return (
     <div style={{ fontFamily:'inherit' }}>
       <Header />
+      <OpenInviteLinkBar />
       <EditDrawer />
       <SummaryBar />
 
@@ -2217,9 +2300,10 @@ export default function ProjectDashboardPage() {
                     <Input defaultValue={project.contact} onChange={(e) => updateProject({ contact: e.target.value })} className="mt-2 rounded-xl" />
                   </div>
                   <div>
-                    <Label>Google Maps URL</Label>
+                    <Label>Maps Link or Address</Label>
                     <Input defaultValue={project.maps_url || ''} onChange={(e) => updateProject({ maps_url: e.target.value })}
-                      placeholder="https://maps.google.com/…" className="mt-2 rounded-xl" />
+                      placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
+                    <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
                   </div>
                   <p className="text-xs text-gray-400 italic flex items-center gap-1.5"><span>✓</span> Changes are saved automatically</p>
                 </CardContent>

@@ -38,6 +38,14 @@ function formatTime(time: string | undefined): string {
   return `${hour}:${String(m).padStart(2, '0')} ${period}`
 }
 
+function getMapsUrl(raw: string | undefined): string {
+  if (!raw) return ''
+  // Already a full URL — use as-is
+  if (/^https?:\/\//i.test(raw)) return raw
+  // Plain address, plus code, or partial URL — open via Google Maps search
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(raw)}`
+}
+
 type Step = 'view' | 'rsvp-yes' | 'confirmed'
 
 // ─────────────────────────────────────────────────────────────
@@ -344,7 +352,7 @@ function BirthdayOrnament({ text = '🎂 🎉 🎈' }: { text?: string }) {
 //  BIRTHDAY INVITATION VIEW
 // ─────────────────────────────────────────────────────────────
 
-function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPaxCount, submitting, handleRsvp, submitRsvp, rsvpResponse, transitionClass }: any) {
+function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPaxCount, submitting, handleRsvp, submitRsvp, rsvpResponse, transitionClass, open }: any) {
   const countdown = useCountdown(event.date)
   const dateStr = event?.date
     ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
@@ -385,25 +393,27 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
           <p className="text-[11px] uppercase tracking-[0.35em] text-yellow-300/80 font-medium mb-3">
             🎉 You&apos;re Invited!
           </p>
-          <h2
-            className="font-light text-white leading-tight"
-            style={{ fontSize: 'clamp(1.8rem, 6vw, 3rem)' }}
-          >
-            Hey,{' '}
-            <span
-              className="font-bold"
-              style={{
-                background: 'linear-gradient(135deg, #fde68a 20%, #f59e0b 55%, #fde68a 90%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                filter: 'drop-shadow(0 0 18px rgba(251,191,36,0.5))',
-              }}
+          {!open && (
+            <h2
+              className="font-light text-white leading-tight"
+              style={{ fontSize: 'clamp(1.8rem, 6vw, 3rem)' }}
             >
-              {guest.name}
-            </span>
-            !
-          </h2>
+              Hey,{' '}
+              <span
+                className="font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, #fde68a 20%, #f59e0b 55%, #fde68a 90%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  filter: 'drop-shadow(0 0 18px rgba(251,191,36,0.5))',
+                }}
+              >
+                {guest.name}
+              </span>
+              !
+            </h2>
+          )}
         </div>
 
         {/* ══ STEP: VIEW ══ */}
@@ -479,7 +489,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
                 {event.location && <p className="text-yellow-300/50 text-xs mt-0.5">{event.location}</p>}
                 {event.maps_url && (
                   <a
-                    href={event.maps_url}
+                    href={getMapsUrl(event.maps_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-yellow-400 text-xs mt-1.5 inline-block hover:text-yellow-200 transition-colors"
@@ -508,33 +518,33 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
 
             <BirthdayOrnament text="✨ 🎉 ✨" />
 
-            {/* RSVP Buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={() => handleRsvp('yes')}
-                className="w-full py-3.5 rounded-2xl text-white font-semibold tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
-                style={{
-                  background: 'linear-gradient(135deg, #7c3aed, #6d28d9, #5b21b6)',
-                  border: '1px solid rgba(251,191,36,0.25)',
-                  boxShadow: '0 4px 20px rgba(124,58,237,0.35)',
-                }}
-              >
-                🎉 &nbsp; Accept with Joy!
-              </button>
-              <button
-                onClick={() => handleRsvp('no')}
-                className="w-full py-3.5 rounded-2xl text-white/50 font-light text-sm transition-all duration-300 hover:text-white/80 hover:bg-white/5"
-                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                Regretfully Decline
-              </button>
-            </div>
+            {!open && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleRsvp('yes')}
+                  className="w-full py-3.5 rounded-2xl text-white font-semibold tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+                  style={{
+                    background: 'linear-gradient(135deg, #7c3aed, #6d28d9, #5b21b6)',
+                    border: '1px solid rgba(251,191,36,0.25)',
+                    boxShadow: '0 4px 20px rgba(124,58,237,0.35)',
+                  }}
+                >
+                  🎉 &nbsp; Accept with Joy!
+                </button>
+                <button
+                  onClick={() => handleRsvp('no')}
+                  className="w-full py-3.5 rounded-2xl text-white/50 font-light text-sm transition-all duration-300 hover:text-white/80 hover:bg-white/5"
+                  style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  Regretfully Decline
+                </button>
+              </div>
+            )}
 
             {event?.contact && (
               <p className="text-center text-white/30 text-xs mt-5">
-                Questions?{' '}
                 <a href={`tel:${event.contact}`} className="text-purple-400/70 hover:text-purple-300 transition-colors">
-                  {event.contact}
+                  Contact Us
                 </a>
               </p>
             )}
@@ -549,7 +559,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
         )}
 
         {/* ══ STEP: RSVP-YES ══ */}
-        {step === 'rsvp-yes' && (
+        {!open && step === 'rsvp-yes' && (
           <BirthdayGlassCard className={`w-full max-w-md px-8 py-10 md:px-12 ${transitionClass}`}>
             <div className="text-center mb-8">
               <div className="text-4xl mb-3">🥳</div>
@@ -611,7 +621,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
         )}
 
         {/* ══ STEP: CONFIRMED ══ */}
-        {step === 'confirmed' && (
+        {!open && step === 'confirmed' && (
           <BirthdayGlassCard className={`w-full max-w-md px-8 py-12 md:px-12 text-center ${transitionClass}`}>
             {rsvpResponse === 'yes' ? (
               <>
@@ -688,7 +698,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
                 </div>
                 {event?.maps_url && (
                   <a
-                    href={event.maps_url}
+                    href={getMapsUrl(event.maps_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-yellow-400 text-xs inline-block mt-1 hover:text-yellow-200 transition-colors ml-6"
@@ -701,9 +711,8 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
 
             {event?.contact && (
               <p className="text-white/25 text-xs">
-                Questions?{' '}
                 <a href={`tel:${event.contact}`} className="text-purple-400/60 hover:text-purple-300 transition-colors">
-                  {event.contact}
+                  Contact Us
                 </a>
               </p>
             )}
@@ -723,7 +732,7 @@ function BirthdayInvitation({ guest, event, copy, step, setStep, paxCount, setPa
 //  WEDDING / ENGAGEMENT INVITATION VIEW
 // ─────────────────────────────────────────────────────────────
 
-function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPaxCount, submitting, handleRsvp, submitRsvp, rsvpResponse, transitionClass }: any) {
+function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPaxCount, submitting, handleRsvp, submitRsvp, rsvpResponse, transitionClass, open }: any) {
   const countdown = useCountdown(event.date)
   const dateStr = event?.date
     ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
@@ -760,24 +769,26 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
           <p className="text-[11px] uppercase tracking-[0.35em] text-rose-300 font-medium mb-3 animate-fade-in-down delay-100">
             Cordially Invited
           </p>
-          <h2
-            className="font-light text-white leading-tight"
-            style={{ fontSize: 'clamp(1.8rem, 6vw, 3rem)' }}
-          >
-            Dear{' '}
-            <span
-              className="font-serif italic"
-              style={{
-                background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 60%, #fff 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                filter: 'drop-shadow(0 0 15px rgba(255,100,130,0.4))',
-              }}
+          {!open && (
+            <h2
+              className="font-light text-white leading-tight"
+              style={{ fontSize: 'clamp(1.8rem, 6vw, 3rem)' }}
             >
-              {guest.name}
-            </span>
-          </h2>
+              Dear{' '}
+              <span
+                className="font-serif italic"
+                style={{
+                  background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 60%, #fff 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  filter: 'drop-shadow(0 0 15px rgba(255,100,130,0.4))',
+                }}
+              >
+                {guest.name}
+              </span>
+            </h2>
+          )}
         </div>
 
         {/* ══ STEP: VIEW ══ */}
@@ -860,7 +871,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
                 {event.location && <p className="text-rose-300/60 text-xs mt-0.5">{event.location}</p>}
                 {event.maps_url && (
                   <a
-                    href={event.maps_url}
+                    href={getMapsUrl(event.maps_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-rose-400 text-xs mt-1.5 inline-block hover:text-rose-300 transition-colors"
@@ -889,32 +900,32 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
 
             <WeddingOrnament text="✦" />
 
-            {/* RSVP Buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={() => handleRsvp('yes')}
-                className="w-full py-3.5 rounded-2xl text-white font-medium tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl animate-glow-pulse"
-                style={{
-                  background: 'linear-gradient(135deg, #be123c, #9f1239)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                }}
-              >
-                ✓ &nbsp; Accept with Pleasure
-              </button>
-              <button
-                onClick={() => handleRsvp('no')}
-                className="w-full py-3.5 rounded-2xl text-white/60 font-light text-sm transition-all duration-300 hover:text-white/90 hover:bg-white/5"
-                style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-              >
-                Regretfully Decline
-              </button>
-            </div>
+            {!open && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleRsvp('yes')}
+                  className="w-full py-3.5 rounded-2xl text-white font-medium tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl animate-glow-pulse"
+                  style={{
+                    background: 'linear-gradient(135deg, #be123c, #9f1239)',
+                    border: '1px solid rgba(255,255,255,0.15)',
+                  }}
+                >
+                  ✓ &nbsp; Accept with Pleasure
+                </button>
+                <button
+                  onClick={() => handleRsvp('no')}
+                  className="w-full py-3.5 rounded-2xl text-white/60 font-light text-sm transition-all duration-300 hover:text-white/90 hover:bg-white/5"
+                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                >
+                  Regretfully Decline
+                </button>
+              </div>
+            )}
 
             {event?.contact && (
               <p className="text-center text-white/30 text-xs mt-5">
-                Questions?{' '}
                 <a href={`tel:${event.contact}`} className="text-rose-400/70 hover:text-rose-300 transition-colors">
-                  {event.contact}
+                  Contact Us
                 </a>
               </p>
             )}
@@ -929,7 +940,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
         )}
 
         {/* ══ STEP: RSVP-YES ══ */}
-        {step === 'rsvp-yes' && (
+        {!open && step === 'rsvp-yes' && (
           <WeddingGlassCard className={`w-full max-w-md px-8 py-10 md:px-12 ${transitionClass}`}>
             <div className="text-center mb-8">
               <div className="text-4xl mb-3 animate-heart-beat">💕</div>
@@ -991,7 +1002,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
         )}
 
         {/* ══ STEP: CONFIRMED ══ */}
-        {step === 'confirmed' && (
+        {!open && step === 'confirmed' && (
           <WeddingGlassCard className={`w-full max-w-md px-8 py-12 md:px-12 text-center ${transitionClass}`}>
             {rsvpResponse === 'yes' ? (
               <>
@@ -1068,7 +1079,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
                 </div>
                 {event?.maps_url && (
                   <a
-                    href={event.maps_url}
+                    href={getMapsUrl(event.maps_url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-rose-400 text-xs inline-block mt-1 hover:text-rose-300 transition-colors ml-6"
@@ -1081,9 +1092,8 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
 
             {event?.contact && (
               <p className="text-white/25 text-xs">
-                Questions?{' '}
                 <a href={`tel:${event.contact}`} className="text-rose-400/60 hover:text-rose-300 transition-colors">
-                  {event.contact}
+                  Contact Us
                 </a>
               </p>
             )}
@@ -1103,7 +1113,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
 //  MAIN COMPONENT — routes to correct theme
 // ─────────────────────────────────────────────────────────────
 
-export default function InvitationClient({ guest, event }: any) {
+export default function InvitationClient({ guest, event, open = false }: { guest?: any; event: any; open?: boolean }) {
   const [step, setStep] = useState<Step>('view')
   const [paxCount, setPaxCount] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -1156,6 +1166,7 @@ export default function InvitationClient({ guest, event }: any) {
     guest, event, copy, step, setStep,
     paxCount, setPaxCount, submitting,
     handleRsvp, submitRsvp, rsvpResponse, transitionClass,
+    open,
   }
 
   // Route to the correct themed experience
