@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { getEventCopy } from '@/lib/eventCopy'
 import { allBirthdayPersons, formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
 
@@ -49,96 +50,140 @@ function getMapsUrl(raw: string | undefined): string {
 type Step = 'view' | 'rsvp-yes' | 'confirmed'
 
 // ─────────────────────────────────────────────────────────────
-//  WEDDING / ENGAGEMENT THEME COMPONENTS
+//  WEDDING / ENGAGEMENT — MODERN LUXURY THEME
 // ─────────────────────────────────────────────────────────────
 
-function FallingHearts() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+const WEDDING_IMAGES = {
+  hero: '/invitations/couple-standing.png',
+  accent: '/invitations/couple-sitting.png',
+  groomBw: '/invitations/groom-portrait.png',
+  coupleBw: '/invitations/couple-portrait.png',
+  bride: '/invitations/bride-portrait.png',
+}
+
+const LUXURY = {
+  ivory: '#FAF7F2',
+  beige: '#F5F0E8',
+  champagne: '#E8DFD0',
+  gold: '#C9A96E',
+  goldDark: '#A68B4B',
+  black: '#1A1A1A',
+  charcoal: '#2D2A26',
+  muted: '#6B6560',
+}
+
+function useScrollReveal<T extends HTMLElement>(delay = 0) {
+  const ref = useRef<T>(null)
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const el = ref.current
+    if (!el) return
 
-    const resize = () => {
-      canvas.width = canvas.offsetWidth
-      canvas.height = canvas.offsetHeight
-    }
-    resize()
-    window.addEventListener('resize', resize)
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => setVisible(true), delay)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -30px 0px' },
+    )
 
-    const COLOURS = [
-      'rgba(190,18,60,0.65)', 'rgba(225,80,120,0.55)',
-      'rgba(251,207,232,0.7)', 'rgba(244,63,94,0.6)',
-      'rgba(255,192,203,0.7)', 'rgba(160,0,50,0.45)',
-    ]
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [delay])
 
-    type Heart = {
-      x: number; y: number; size: number; speed: number
-      opacity: number; sway: number; swaySpeed: number; phase: number
-      colour: string; rotation: number; rotSpeed: number
-    }
+  return { ref, visible }
+}
 
-    const make = (): Heart => ({
-      x: Math.random() * canvas.width,
-      y: -20 - Math.random() * 200,
-      size: 7 + Math.random() * 16,
-      speed: 0.5 + Math.random() * 1.2,
-      opacity: 0.35 + Math.random() * 0.55,
-      sway: 25 + Math.random() * 55,
-      swaySpeed: 0.005 + Math.random() * 0.009,
-      phase: Math.random() * Math.PI * 2,
-      colour: COLOURS[Math.floor(Math.random() * COLOURS.length)],
-      rotation: Math.random() * Math.PI * 2,
-      rotSpeed: (Math.random() - 0.5) * 0.02,
-    })
-
-    const hearts: Heart[] = Array.from({ length: 24 }, make)
-
-    const drawHeart = (ctx: CanvasRenderingContext2D, h: Heart, t: number) => {
-      const x = h.x + Math.sin(t * h.swaySpeed + h.phase) * h.sway
-      ctx.save()
-      ctx.translate(x, h.y)
-      ctx.rotate(h.rotation)
-      ctx.globalAlpha = h.opacity
-      ctx.fillStyle = h.colour
-      const s = h.size
-      ctx.beginPath()
-      ctx.moveTo(0, -s * 0.4)
-      ctx.bezierCurveTo(s * 0.8, -s * 1.2, s * 1.6, s * 0.2, 0, s)
-      ctx.bezierCurveTo(-s * 1.6, s * 0.2, -s * 0.8, -s * 1.2, 0, -s * 0.4)
-      ctx.fill()
-      ctx.restore()
-    }
-
-    let t = 0
-    let raf: number
-    const loop = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      t++
-      hearts.forEach((h) => {
-        h.y += h.speed
-        h.rotation += h.rotSpeed
-        if (h.y > canvas.height + 30) Object.assign(h, make(), { y: -20 })
-        drawHeart(ctx, h, t)
-      })
-      raf = requestAnimationFrame(loop)
-    }
-    loop()
-
-    return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
-
+function Reveal({
+  children,
+  className = '',
+  delay = 0,
+  scale = false,
+}: {
+  children: React.ReactNode
+  className?: string
+  delay?: number
+  scale?: boolean
+}) {
+  const { ref, visible } = useScrollReveal<HTMLDivElement>(delay)
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 w-full h-full pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
+    <div
+      ref={ref}
+      className={`reveal-init ${scale ? 'reveal-scale' : ''} ${visible ? 'reveal-visible' : ''} ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
+function LiquidGlass({
+  children,
+  className = '',
+  dark = false,
+}: {
+  children: React.ReactNode
+  className?: string
+  dark?: boolean
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl ${dark ? 'liquid-glass-dark' : 'liquid-glass'} ${className}`}>
+      <div className="absolute inset-0 liquid-glass-shine pointer-events-none" aria-hidden />
+      <div className="relative z-[1]">{children}</div>
+    </div>
+  )
+}
+
+function BentoImage({
+  src,
+  alt,
+  className = '',
+  grayscale = false,
+  priority = false,
+  sizes = '50vw',
+}: {
+  src: string
+  alt: string
+  className?: string
+  grayscale?: boolean
+  priority?: boolean
+  sizes?: string
+}) {
+  return (
+    <div className={`relative overflow-hidden rounded-xl bento-tile ${className}`}>
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        priority={priority}
+        className={`object-cover object-center animate-ken-burns ${grayscale ? 'img-bw' : ''}`}
+        sizes={sizes}
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'linear-gradient(to top, rgba(26,26,26,0.15) 0%, transparent 45%)' }}
+      />
+    </div>
+  )
+}
+
+function FullBleedBwImage({ src, alt, grayscale = true }: { src: string; alt: string; grayscale?: boolean }) {
+  return (
+    <div className="relative w-full h-[52vw] max-h-[420px] min-h-[240px] overflow-hidden">
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        className={`object-cover object-center ${grayscale ? 'img-bw' : 'animate-ken-burns'}`}
+        sizes="100vw"
+      />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: 'linear-gradient(180deg, rgba(250,247,242,0.3) 0%, transparent 20%, transparent 80%, rgba(250,247,242,0.5) 100%)' }}
+      />
+    </div>
   )
 }
 
@@ -146,28 +191,33 @@ function WeddingCountCell({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex flex-col items-center">
       <div
-        className="w-14 h-14 md:w-16 md:h-16 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold text-white shadow-lg tabular-nums"
+        className="w-14 h-14 md:w-16 md:h-16 rounded-sm flex items-center justify-center text-xl md:text-2xl font-invite-serif font-medium tabular-nums"
         style={{
-          background: 'linear-gradient(135deg, rgba(190,18,60,0.85), rgba(120,0,40,0.9))',
-          border: '1px solid rgba(255,255,255,0.15)',
+          background: LUXURY.ivory,
+          border: `1px solid ${LUXURY.gold}`,
+          color: LUXURY.black,
         }}
       >
         {String(value).padStart(2, '0')}
       </div>
-      <span className="text-[9px] uppercase tracking-widest text-rose-300/70 mt-1.5 font-medium">{label}</span>
+      <span
+        className="text-[9px] uppercase tracking-[0.22em] mt-1.5 font-invite-sans font-medium"
+        style={{ color: LUXURY.muted }}
+      >
+        {label}
+      </span>
     </div>
   )
 }
 
-function WeddingGlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function WeddingLuxuryCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-3xl ${className}`}
+      className={`rounded-sm ${className}`}
       style={{
-        background: 'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%)',
-        backdropFilter: 'blur(28px)',
-        border: '1px solid rgba(255,255,255,0.13)',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+        background: '#FFFFFF',
+        border: `1px solid ${LUXURY.champagne}`,
+        boxShadow: '0 20px 60px rgba(26, 26, 26, 0.06)',
       }}
     >
       {children}
@@ -175,12 +225,47 @@ function WeddingGlassCard({ children, className = '' }: { children: React.ReactN
   )
 }
 
-function WeddingOrnament({ text = '♥ ♥ ♥' }: { text?: string }) {
+function WeddingOrnament({ text = '—' }: { text?: string }) {
   return (
-    <div className="flex items-center justify-center gap-3 my-6">
-      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-400/30 to-transparent" />
-      <span className="text-rose-400/50 text-xs tracking-widest">{text}</span>
-      <div className="h-px flex-1 bg-gradient-to-l from-transparent via-rose-400/30 to-transparent" />
+    <div className="flex items-center justify-center gap-4 my-7">
+      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${LUXURY.gold}55, transparent)` }} />
+      <span className="text-[10px] tracking-[0.35em] font-invite-sans uppercase" style={{ color: LUXURY.gold }}>
+        {text}
+      </span>
+      <div className="h-px flex-1" style={{ background: `linear-gradient(270deg, transparent, ${LUXURY.gold}55, transparent)` }} />
+    </div>
+  )
+}
+
+function WeddingHeroImage({ src, alt, priority = false }: { src: string; alt: string; priority?: boolean }) {
+  return (
+    <div className="relative w-full mx-auto" style={{ maxWidth: 380 }}>
+      <div
+        className="relative overflow-hidden animate-luxury-reveal"
+        style={{
+          borderRadius: '50% 50% 12px 12px / 38% 38% 12px 12px',
+          border: `1.5px solid ${LUXURY.gold}`,
+          boxShadow: '0 24px 48px rgba(26, 26, 26, 0.08)',
+          aspectRatio: '3 / 4',
+        }}
+      >
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          priority={priority}
+          className="object-cover object-center animate-ken-burns"
+          sizes="(max-width: 768px) 90vw, 380px"
+        />
+      </div>
+      <div
+        className="absolute -top-2 -left-2 w-16 h-16 rounded-full opacity-40 pointer-events-none"
+        style={{ border: `1px solid ${LUXURY.gold}` }}
+      />
+      <div
+        className="absolute -bottom-1 -right-1 w-12 h-12 rounded-full opacity-30 pointer-events-none"
+        style={{ border: `1px solid ${LUXURY.gold}` }}
+      />
     </div>
   )
 }
@@ -739,323 +824,323 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : ''
+  const dateUpper = event?.date
+    ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
+        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+      }).toUpperCase()
+    : ''
+  const coupleLabel = `${event?.couple_1 ?? ''} & ${event?.couple_2 ?? ''}`.trim()
 
   return (
     <main
-      className="min-h-screen relative overflow-x-hidden"
-      style={{
-        background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)',
-      }}
+      className="min-h-screen relative overflow-x-hidden font-invite-sans invite-smooth-scroll"
+      style={{ background: `linear-gradient(180deg, ${LUXURY.ivory} 0%, ${LUXURY.beige} 40%, ${LUXURY.champagne} 100%)` }}
     >
-      <FallingHearts />
-
-      {/* Ambient glows */}
-      <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+      {/* Ambient orbs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
         <div
-          className="absolute top-0 left-0 w-[500px] h-[500px] opacity-15 animate-float"
-          style={{ background: 'radial-gradient(circle, rgba(255,80,120,0.5), transparent 70%)', borderRadius: '50%' }}
+          className="absolute -top-20 -right-20 w-72 h-72 rounded-full animate-float-soft opacity-40"
+          style={{ background: `radial-gradient(circle, ${LUXURY.gold}33, transparent 70%)` }}
         />
         <div
-          className="absolute bottom-0 right-0 w-[350px] h-[350px] opacity-10 animate-float delay-500"
-          style={{ background: 'radial-gradient(circle, rgba(255,140,170,0.4), transparent 70%)', borderRadius: '50%' }}
+          className="absolute bottom-1/4 -left-16 w-56 h-56 rounded-full animate-float-soft opacity-30"
+          style={{ background: `radial-gradient(circle, ${LUXURY.champagne}, transparent 70%)`, animationDelay: '2s' }}
         />
       </div>
 
-      {/* Content */}
-      <div className="relative flex flex-col items-center justify-center min-h-screen px-4 py-16" style={{ zIndex: 2 }}>
+      <div className="relative max-w-xl mx-auto" style={{ zIndex: 2 }}>
 
-        {/* ── Greeting header ── */}
-        <div className={`text-center mb-8 ${transitionClass}`}>
-          <p className="text-[11px] uppercase tracking-[0.35em] text-rose-300 font-medium mb-3 animate-fade-in-down delay-100">
-            Cordially Invited
-          </p>
-          {!open && (
-            <h2
-              className="font-light text-white leading-tight"
-              style={{ fontSize: 'clamp(1.8rem, 6vw, 3rem)' }}
-            >
-              Dear{' '}
-              <span
-                className="font-serif italic"
-                style={{
-                  background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 60%, #fff 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  filter: 'drop-shadow(0 0 15px rgba(255,100,130,0.4))',
-                }}
-              >
-                {guest.name}
-              </span>
-            </h2>
-          )}
-        </div>
-
-        {/* ══ STEP: VIEW ══ */}
+        {/* ══ STEP: VIEW — scrollable editorial layout ══ */}
         {step === 'view' && (
-          <WeddingGlassCard className={`w-full max-w-xl px-8 py-10 md:px-12 ${transitionClass}`}>
-
-            {/* Top ornament */}
-            <div className="flex items-center justify-center gap-3 mb-8">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-400/40 to-transparent" />
-              <span className="text-rose-300 text-lg tracking-widest animate-heart-beat">♥</span>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent via-rose-400/40 to-transparent" />
-            </div>
-
-            {/* Couple names */}
-            <div className="text-center mb-8">
-              <h1
-                className="font-serif italic leading-tight mb-2"
-                style={{
-                  fontSize: 'clamp(2.2rem, 8vw, 3.5rem)',
-                  background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 55%, #fff 90%)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  filter: 'drop-shadow(0 0 20px rgba(255,100,130,0.35))',
-                  animation: 'shimmer 4s linear infinite',
-                }}
-              >
-                {event?.couple_1}
-              </h1>
-              <p className="text-rose-300/70 text-2xl font-light my-1">&amp;</p>
-              <h1
-                className="font-serif italic leading-tight"
-                style={{
-                  fontSize: 'clamp(2.2rem, 8vw, 3.5rem)',
-                  background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 55%, #fff 90%)',
-                  backgroundSize: '200% auto',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                  filter: 'drop-shadow(0 0 20px rgba(255,100,130,0.35))',
-                  animation: 'shimmer 4s linear 0.5s infinite',
-                }}
-              >
-                {event?.couple_2}
-              </h1>
-            </div>
-
-            <p className="text-white/50 text-sm font-light text-center leading-relaxed mb-6">
-              {copy.requestLine}
-              <br />
-              {copy.atLine}
-            </p>
-
-            <WeddingOrnament />
-
-            {/* Date & Venue */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-              <div
-                className="rounded-2xl p-4 group hover:scale-[1.02] transition-transform duration-300"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span>📅</span>
-                  <span className="text-[9px] uppercase tracking-widest text-rose-300/80 font-semibold">Date & Time</span>
-                </div>
-                <p className="text-white text-sm font-light leading-snug">{dateStr}</p>
-                {event.time && <p className="text-rose-300/60 text-xs mt-0.5 font-mono">{formatTime(event.time)}</p>}
-              </div>
-
-              <div
-                className="rounded-2xl p-4 group hover:scale-[1.02] transition-transform duration-300"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span>📍</span>
-                  <span className="text-[9px] uppercase tracking-widest text-rose-300/80 font-semibold">Venue</span>
-                </div>
-                <p className="text-white text-sm font-light leading-snug">{event.venue}</p>
-                {event.location && <p className="text-rose-300/60 text-xs mt-0.5">{event.location}</p>}
-                {event.maps_url && (
-                  <a
-                    href={getMapsUrl(event.maps_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-rose-400 text-xs mt-1.5 inline-block hover:text-rose-300 transition-colors"
+          <>
+            {/* ── Hero ── */}
+            <section className="px-5 pt-10 pb-4">
+              <Reveal className="text-center mb-8">
+                <p className="text-[10px] uppercase tracking-[0.42em] font-medium mb-4" style={{ color: LUXURY.goldDark }}>
+                  Cordially Invited
+                </p>
+                {!open && (
+                  <h2
+                    className="font-invite-serif font-light leading-snug"
+                    style={{ fontSize: 'clamp(1.5rem, 5vw, 2.25rem)', color: LUXURY.black }}
                   >
-                    View on Maps →
-                  </a>
+                    Dear <span className="italic" style={{ color: LUXURY.charcoal }}>{guest.name}</span>
+                  </h2>
                 )}
+              </Reveal>
+
+              <Reveal delay={100} scale>
+                <WeddingHeroImage src={WEDDING_IMAGES.hero} alt={coupleLabel || 'Couple portrait'} priority />
+              </Reveal>
+
+              {/* Overlapping liquid-glass name card */}
+              <Reveal delay={200} className="-mt-8 mx-1 mb-10">
+                <LiquidGlass className="px-7 py-8 md:px-9 md:py-10">
+                  <div className="text-center">
+                    <h1
+                      className="font-invite-serif font-semibold leading-none tracking-[0.06em] uppercase"
+                      style={{ fontSize: 'clamp(1.6rem, 6.5vw, 2.5rem)', color: LUXURY.black }}
+                    >
+                      {event?.couple_1}
+                    </h1>
+                    <p className="font-invite-serif italic my-2 text-xl" style={{ color: LUXURY.gold }}>&amp;</p>
+                    <h1
+                      className="font-invite-serif font-semibold leading-none tracking-[0.06em] uppercase"
+                      style={{ fontSize: 'clamp(1.6rem, 6.5vw, 2.5rem)', color: LUXURY.black }}
+                    >
+                      {event?.couple_2}
+                    </h1>
+                    <WeddingOrnament />
+                    <p className="font-invite-serif italic leading-relaxed mb-1" style={{ color: LUXURY.muted }}>
+                      {copy.requestLine}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-[0.28em] font-medium" style={{ color: LUXURY.goldDark }}>
+                      {copy.atLine}
+                    </p>
+                  </div>
+                </LiquidGlass>
+              </Reveal>
+            </section>
+
+            {/* ── Full-bleed portrait ── */}
+            <Reveal>
+              <FullBleedBwImage
+                src={WEDDING_IMAGES.accent}
+                alt={`${coupleLabel} together`}
+                grayscale={false}
+              />
+            </Reveal>
+
+            {/* ── Bento grid ── */}
+            <section className="px-5 py-10">
+              <Reveal>
+                <p className="text-[10px] uppercase tracking-[0.35em] text-center mb-5 font-medium" style={{ color: LUXURY.goldDark }}>
+                  Our Story
+                </p>
+              </Reveal>
+
+              <div className="grid grid-cols-2 gap-3 auto-rows-[130px] md:auto-rows-[150px]">
+                <Reveal delay={0} scale className="col-span-1 row-span-2">
+                  <BentoImage
+                    src={WEDDING_IMAGES.bride}
+                    alt={`${event?.couple_2 ?? 'Bride'} portrait`}
+                    grayscale
+                    className="h-full min-h-[270px] md:min-h-[310px]"
+                    sizes="40vw"
+                  />
+                </Reveal>
+
+                <Reveal delay={80} className="col-span-1 row-span-1">
+                  <LiquidGlass className="h-full p-4 flex flex-col justify-center">
+                    <p className="text-[9px] uppercase tracking-[0.26em] mb-1 font-medium" style={{ color: LUXURY.goldDark }}>Date</p>
+                    <p className="font-invite-serif text-sm leading-snug" style={{ color: LUXURY.black }}>{dateStr || '—'}</p>
+                    {event?.time && (
+                      <p className="font-invite-serif italic text-xs mt-1" style={{ color: LUXURY.muted }}>{formatTime(event.time)}</p>
+                    )}
+                  </LiquidGlass>
+                </Reveal>
+
+                <Reveal delay={160} className="col-span-1 row-span-1">
+                  <BentoImage
+                    src={WEDDING_IMAGES.groomBw}
+                    alt={`${event?.couple_1 ?? 'Groom'} portrait`}
+                    grayscale
+                    className="h-full"
+                    sizes="40vw"
+                  />
+                </Reveal>
+
+                <Reveal delay={240} className="col-span-2 row-span-1">
+                  <LiquidGlass dark className="h-full min-h-[120px] p-5 flex flex-col justify-center">
+                    <p className="text-[9px] uppercase tracking-[0.26em] mb-1.5 font-medium" style={{ color: LUXURY.gold }}>Venue</p>
+                    <p className="font-invite-serif text-base leading-snug text-white">{event?.venue}</p>
+                    {event?.location && (
+                      <p className="text-xs mt-1 text-white/60">{event.location}</p>
+                    )}
+                    {event?.maps_url && (
+                      <a
+                        href={getMapsUrl(event.maps_url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block mt-2 text-[9px] uppercase tracking-[0.22em] font-medium transition-opacity hover:opacity-70"
+                        style={{ color: LUXURY.gold }}
+                      >
+                        View on Maps →
+                      </a>
+                    )}
+                  </LiquidGlass>
+                </Reveal>
               </div>
-            </div>
+            </section>
 
-            {/* Countdown */}
-            {event?.date && (
-              <div className="mb-6 text-center">
-                <p className="text-[9px] uppercase tracking-widest text-rose-300/50 mb-3">{copy.countdownLabel}</p>
-                <div className="flex items-start justify-center gap-2 md:gap-3">
-                  <WeddingCountCell value={countdown.days} label="Days" />
-                  <div className="h-14 md:h-16 flex items-center justify-center"><span className="text-rose-400 text-xl font-light pb-1">:</span></div>
-                  <WeddingCountCell value={countdown.hours} label="Hours" />
-                  <div className="h-14 md:h-16 flex items-center justify-center"><span className="text-rose-400 text-xl font-light pb-1">:</span></div>
-                  <WeddingCountCell value={countdown.minutes} label="Min" />
-                  <div className="h-14 md:h-16 flex items-center justify-center"><span className="text-rose-400 text-xl font-light pb-1">:</span></div>
-                  <WeddingCountCell value={countdown.seconds} label="Sec" />
-                </div>
-              </div>
-            )}
+            {/* ── B&W couple portrait — full bleed ── */}
+            <Reveal>
+              <FullBleedBwImage src={WEDDING_IMAGES.coupleBw} alt={`${coupleLabel} portrait`} />
+            </Reveal>
 
-            <WeddingOrnament text="✦" />
+            {/* ── Countdown + RSVP ── */}
+            <section className="px-5 py-10 pb-16">
+              {event?.date && (
+                <Reveal className="mb-8">
+                  <LiquidGlass className="px-6 py-8 text-center">
+                    <p className="text-[9px] uppercase tracking-[0.3em] mb-5 font-medium" style={{ color: LUXURY.muted }}>
+                      {copy.countdownLabel}
+                    </p>
+                    <div className="flex items-start justify-center gap-2 md:gap-3">
+                      <WeddingCountCell value={countdown.days} label="Days" />
+                      <div className="h-14 md:h-16 flex items-center justify-center">
+                        <span className="text-xl font-light pb-1" style={{ color: LUXURY.gold }}>:</span>
+                      </div>
+                      <WeddingCountCell value={countdown.hours} label="Hours" />
+                      <div className="h-14 md:h-16 flex items-center justify-center">
+                        <span className="text-xl font-light pb-1" style={{ color: LUXURY.gold }}>:</span>
+                      </div>
+                      <WeddingCountCell value={countdown.minutes} label="Min" />
+                      <div className="h-14 md:h-16 flex items-center justify-center">
+                        <span className="text-xl font-light pb-1" style={{ color: LUXURY.gold }}>:</span>
+                      </div>
+                      <WeddingCountCell value={countdown.seconds} label="Sec" />
+                    </div>
+                  </LiquidGlass>
+                </Reveal>
+              )}
 
-            {!open && (
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleRsvp('yes')}
-                  className="w-full py-3.5 rounded-2xl text-white font-medium tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl animate-glow-pulse"
-                  style={{
-                    background: 'linear-gradient(135deg, #be123c, #9f1239)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                  }}
-                >
-                  ✓ &nbsp; Accept with Pleasure
-                </button>
-                <button
-                  onClick={() => handleRsvp('no')}
-                  className="w-full py-3.5 rounded-2xl text-white/60 font-light text-sm transition-all duration-300 hover:text-white/90 hover:bg-white/5"
-                  style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-                >
-                  Regretfully Decline
-                </button>
-              </div>
-            )}
+              {!open && (
+                <Reveal delay={100}>
+                  <LiquidGlass className="px-6 py-7 space-y-3">
+                    <button
+                      onClick={() => handleRsvp('yes')}
+                      className="w-full py-3.5 rounded-xl text-white font-medium tracking-[0.12em] uppercase text-[11px] transition-all duration-500 hover:opacity-90 hover:scale-[1.01] animate-glow-pulse-gold"
+                      style={{ background: LUXURY.black, border: `1px solid ${LUXURY.gold}` }}
+                    >
+                      Accept with Pleasure
+                    </button>
+                    <button
+                      onClick={() => handleRsvp('no')}
+                      className="w-full py-3.5 rounded-xl font-light text-[11px] uppercase tracking-[0.12em] transition-all duration-300 hover:bg-black/[0.04]"
+                      style={{ border: `1px solid ${LUXURY.champagne}`, color: LUXURY.muted }}
+                    >
+                      Regretfully Decline
+                    </button>
+                  </LiquidGlass>
+                </Reveal>
+              )}
 
-            {event?.contact && (
-              <p className="text-center text-white/30 text-xs mt-5">
-                <a href={`tel:${event.contact}`} className="text-rose-400/70 hover:text-rose-300 transition-colors">
-                  Contact Us
-                </a>
-              </p>
-            )}
+              {event?.contact && (
+                <Reveal delay={150} className="text-center mt-8">
+                  <p className="text-xs tracking-wide" style={{ color: LUXURY.muted }}>
+                    Questions?{' '}
+                    <a href={`tel:${event.contact}`} className="transition-opacity hover:opacity-70" style={{ color: LUXURY.goldDark }}>
+                      {event.contact}
+                    </a>
+                  </p>
+                </Reveal>
+              )}
 
-            {/* Bottom ornament */}
-            <div className="flex items-center justify-center gap-3 mt-8">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-rose-400/20 to-transparent" />
-              <span className="text-rose-400/30 text-xs">♥</span>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent via-rose-400/20 to-transparent" />
-            </div>
-          </WeddingGlassCard>
+              <Reveal delay={200} className="mt-12 text-center">
+                <p className="text-[10px] uppercase tracking-[0.35em]" style={{ color: LUXURY.muted }}>
+                  {event?.couple_1} &amp; {event?.couple_2}
+                </p>
+              </Reveal>
+            </section>
+          </>
         )}
 
         {/* ══ STEP: RSVP-YES ══ */}
         {!open && step === 'rsvp-yes' && (
-          <WeddingGlassCard className={`w-full max-w-md px-8 py-10 md:px-12 ${transitionClass}`}>
-            <div className="text-center mb-8">
-              <div className="text-4xl mb-3 animate-heart-beat">💕</div>
-              <h3 className="text-white text-2xl font-light">How many will be attending?</h3>
-              <p className="text-white/40 text-sm mt-1">Including yourself</p>
-            </div>
+          <section className="px-5 py-14 min-h-[70vh] flex items-center">
+            <Reveal className="w-full">
+              <LiquidGlass className={`w-full px-8 py-10 md:px-12 ${transitionClass}`}>
+                <div className="text-center mb-8">
+                  <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: LUXURY.goldDark }}>
+                    Attendance
+                  </p>
+                  <h3 className="font-invite-serif text-2xl font-light" style={{ color: LUXURY.black }}>
+                    How many will be attending?
+                  </h3>
+                  <p className="text-sm mt-1" style={{ color: LUXURY.muted }}>Including yourself</p>
+                </div>
 
-            <div className="flex items-center justify-center gap-6 mb-8">
-              <button
-                onClick={() => setPaxCount(Math.max(0, paxCount - 1))}
-                className="w-12 h-12 rounded-full text-white text-2xl font-light transition-all duration-200 hover:scale-110 flex items-center justify-center disabled:opacity-30"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
-                disabled={paxCount === 0}
-              >
-                −
-              </button>
-              <span
-                className="text-5xl font-bold tabular-nums"
-                style={{
-                  background: 'linear-gradient(135deg, #fff, #ffb3c6)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                {paxCount}
-              </span>
-              <button
-                onClick={() => setPaxCount(paxCount + 1)}
-                className="w-12 h-12 rounded-full text-white text-2xl font-light transition-all duration-200 hover:scale-110 flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
-              >
-                +
-              </button>
-            </div>
+                <div className="flex items-center justify-center gap-6 mb-8">
+                  <button
+                    onClick={() => setPaxCount(Math.max(0, paxCount - 1))}
+                    className="w-12 h-12 rounded-xl text-2xl font-light transition-all duration-300 hover:scale-105 flex items-center justify-center disabled:opacity-30"
+                    style={{ background: LUXURY.beige, border: `1px solid ${LUXURY.champagne}`, color: LUXURY.black }}
+                    disabled={paxCount === 0}
+                  >
+                    −
+                  </button>
+                  <span className="text-5xl font-invite-serif font-semibold tabular-nums" style={{ color: LUXURY.black }}>
+                    {paxCount}
+                  </span>
+                  <button
+                    onClick={() => setPaxCount(paxCount + 1)}
+                    className="w-12 h-12 rounded-xl text-2xl font-light transition-all duration-300 hover:scale-105 flex items-center justify-center"
+                    style={{ background: LUXURY.beige, border: `1px solid ${LUXURY.champagne}`, color: LUXURY.black }}
+                  >
+                    +
+                  </button>
+                </div>
 
-            <div className="space-y-3">
-              <button
-                onClick={() => submitRsvp('yes', paxCount)}
-                disabled={submitting || paxCount === 0}
-                className="w-full py-3.5 rounded-2xl text-white font-medium text-sm tracking-wide transition-all duration-300 hover:scale-[1.02] disabled:opacity-60"
-                style={{
-                  background: 'linear-gradient(135deg, #be123c, #9f1239)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                }}
-              >
-                {submitting ? 'Confirming…' : 'Confirm Attendance'}
-              </button>
-              <button
-                onClick={() => setStep('view')}
-                disabled={submitting}
-                className="w-full py-3 rounded-2xl text-white/50 font-light text-sm transition-all hover:text-white/80 disabled:opacity-50"
-                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                ← Back
-              </button>
-            </div>
-          </WeddingGlassCard>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => submitRsvp('yes', paxCount)}
+                    disabled={submitting || paxCount === 0}
+                    className="w-full py-3.5 rounded-xl text-white font-medium text-[11px] uppercase tracking-[0.12em] transition-all duration-300 hover:opacity-90 disabled:opacity-60"
+                    style={{ background: LUXURY.black, border: `1px solid ${LUXURY.gold}` }}
+                  >
+                    {submitting ? 'Confirming…' : 'Confirm Attendance'}
+                  </button>
+                  <button
+                    onClick={() => setStep('view')}
+                    disabled={submitting}
+                    className="w-full py-3 rounded-xl font-light text-sm transition-all hover:opacity-70 disabled:opacity-50"
+                    style={{ border: `1px solid ${LUXURY.champagne}`, color: LUXURY.muted }}
+                  >
+                    ← Back
+                  </button>
+                </div>
+              </LiquidGlass>
+            </Reveal>
+          </section>
         )}
 
         {/* ══ STEP: CONFIRMED ══ */}
         {!open && step === 'confirmed' && (
-          <WeddingGlassCard className={`w-full max-w-md px-8 py-12 md:px-12 text-center ${transitionClass}`}>
+          <section className="px-5 py-14 min-h-[70vh] flex items-center">
+            <Reveal className="w-full">
+              <LiquidGlass className={`w-full px-8 py-12 md:px-12 text-center ${transitionClass}`}>
             {rsvpResponse === 'yes' ? (
               <>
-                <div className="text-5xl mb-4 animate-heart-beat">🎉</div>
-                <h3
-                  className="text-3xl font-serif italic mb-2"
-                  style={{
-                    background: 'linear-gradient(135deg, #fff, #ffb3c6)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
+                <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: LUXURY.goldDark }}>
+                  Confirmed
+                </p>
+                <h3 className="font-invite-serif text-3xl font-light mb-2" style={{ color: LUXURY.black }}>
                   We Can&apos;t Wait!
                 </h3>
-                <p className="text-white/50 text-sm font-light mb-6 leading-relaxed">
-                  Your RSVP has been confirmed. We look forward to celebrating with you!
+                <p className="text-sm font-light mb-6 leading-relaxed" style={{ color: LUXURY.muted }}>
+                  Your RSVP has been confirmed. We look forward to celebrating with you.
                 </p>
 
                 <div
-                  className="rounded-2xl p-5 mb-6"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                  className="rounded-sm p-5 mb-6"
+                  style={{ background: LUXURY.beige, border: `1px solid ${LUXURY.champagne}` }}
                 >
-                  <p className="text-white/40 text-xs uppercase tracking-widest mb-2">You will be attending with</p>
-                  <p
-                    className="text-4xl font-bold"
-                    style={{
-                      background: 'linear-gradient(135deg, #fff, #ffb3c6)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                    }}
-                  >
+                  <p className="text-[9px] uppercase tracking-[0.26em] mb-2" style={{ color: LUXURY.muted }}>
+                    You will be attending with
+                  </p>
+                  <p className="text-4xl font-invite-serif font-semibold" style={{ color: LUXURY.black }}>
                     {paxCount}
                   </p>
-                  <p className="text-white/40 text-sm">{paxCount === 1 ? 'guest' : 'guests'}</p>
+                  <p className="text-sm" style={{ color: LUXURY.muted }}>{paxCount === 1 ? 'guest' : 'guests'}</p>
                 </div>
               </>
             ) : (
               <>
-                <div className="text-5xl mb-4">🙏</div>
-                <h3
-                  className="text-3xl font-serif italic mb-2"
-                  style={{
-                    background: 'linear-gradient(135deg, #fff, #ffb3c6)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
+                <h3 className="font-invite-serif text-3xl font-light mb-2" style={{ color: LUXURY.black }}>
                   Thank You
                 </h3>
-                <p className="text-white/50 text-sm font-light mb-6">
+                <p className="text-sm font-light mb-6" style={{ color: LUXURY.muted }}>
                   We appreciate you letting us know. Thank you for your response.
                 </p>
               </>
@@ -1063,47 +1148,47 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
 
             <WeddingOrnament text="✦" />
 
-            <div className="text-left space-y-2 mb-6">
-              <p className="text-[9px] uppercase tracking-widest text-rose-300/60 text-center mb-3">Event Details</p>
-              <div
-                className="rounded-2xl p-4 space-y-2"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm">📅</span>
-                  <p className="text-white/70 text-sm">{dateStr} · {formatTime(event?.time)}</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-sm">📍</span>
-                  <p className="text-white/70 text-sm">{event?.venue}, {event?.location}</p>
-                </div>
-                {event?.maps_url && (
-                  <a
-                    href={getMapsUrl(event.maps_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-rose-400 text-xs inline-block mt-1 hover:text-rose-300 transition-colors ml-6"
-                  >
-                    View on Maps →
-                  </a>
-                )}
-              </div>
+            <div
+              className="rounded-xl p-4 space-y-2 text-left liquid-glass-dark"
+            >
+              <p className="text-[9px] uppercase tracking-[0.26em] text-center mb-3" style={{ color: LUXURY.gold }}>
+                Event Details
+              </p>
+              <p className="text-sm font-invite-serif text-white">{dateStr} · {formatTime(event?.time)}</p>
+              <p className="text-sm font-light text-white/75">{event?.venue}, {event?.location}</p>
+              {event?.maps_url && (
+                <a
+                  href={getMapsUrl(event.maps_url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] uppercase tracking-[0.2em] inline-block mt-1 transition-opacity hover:opacity-80"
+                  style={{ color: LUXURY.gold }}
+                >
+                  View on Maps →
+                </a>
+              )}
             </div>
 
             {event?.contact && (
-              <p className="text-white/25 text-xs">
-                <a href={`tel:${event.contact}`} className="text-rose-400/60 hover:text-rose-300 transition-colors">
+              <p className="text-xs mt-5" style={{ color: LUXURY.muted }}>
+                <a href={`tel:${event.contact}`} className="transition-opacity hover:opacity-70" style={{ color: LUXURY.goldDark }}>
                   Contact Us
                 </a>
               </p>
             )}
-          </WeddingGlassCard>
+              </LiquidGlass>
+            </Reveal>
+          </section>
         )}
 
-        {/* Footer */}
-        <p className="mt-10 text-white/15 text-xs tracking-widest">
-          {event?.couple_1} &amp; {event?.couple_2}
-        </p>
+        {step !== 'view' && (
+          <p
+            className="px-5 pb-10 text-center text-[10px] uppercase tracking-[0.35em]"
+            style={{ color: LUXURY.muted }}
+          >
+            {event?.couple_1} &amp; {event?.couple_2}
+          </p>
+        )}
       </div>
     </main>
   )

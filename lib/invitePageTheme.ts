@@ -6,10 +6,10 @@ export interface InvitePageTheme {
 }
 
 const weddingTheme: InvitePageTheme = {
-  background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)',
-  ringColor: 'rgba(255,100,130,0.35)',
-  buttonGradient: 'linear-gradient(135deg, #be123c, #9f1239)',
-  loadingTextClass: 'text-rose-300/70',
+  background: 'linear-gradient(180deg, #FAF7F2 0%, #F5F0E8 50%, #EDE6DA 100%)',
+  ringColor: 'rgba(201, 169, 110, 0.45)',
+  buttonGradient: 'linear-gradient(135deg, #1A1A1A, #2D2A26)',
+  loadingTextClass: 'text-stone-500',
 }
 
 const birthdayTheme: InvitePageTheme = {

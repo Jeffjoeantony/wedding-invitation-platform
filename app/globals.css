@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap');
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -119,6 +121,9 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -169,9 +174,109 @@
   from { opacity: 0; transform: translateY(60px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes glowPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(190, 18, 60, 0.3); }
-  50%       { box-shadow: 0 0 40px rgba(190, 18, 60, 0.6), 0 0 80px rgba(190, 18, 60, 0.2); }
+@keyframes glowPulseGold {
+  0%, 100% { box-shadow: 0 4px 24px rgba(201, 169, 110, 0.15); }
+  50%       { box-shadow: 0 8px 32px rgba(201, 169, 110, 0.28); }
+}
+@keyframes luxuryReveal {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-glow-pulse-gold { animation: glowPulseGold 3s ease-in-out infinite; }
+.animate-luxury-reveal     { animation: luxuryReveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+.font-invite-serif { font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; }
+.font-invite-sans  { font-family: 'Jost', system-ui, sans-serif; }
+
+/* ── Wedding invite: smooth scroll + glass + reveal ─────────────────────── */
+.invite-smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.42);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow:
+    0 8px 32px rgba(26, 26, 26, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(201, 169, 110, 0.08);
+}
+
+.liquid-glass-dark {
+  background: rgba(26, 26, 26, 0.72);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid rgba(201, 169, 110, 0.25);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+.liquid-glass-shine {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.35) 45%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 55%
+  );
+  background-size: 200% 100%;
+  animation: liquidShine 6s ease-in-out infinite;
+}
+
+@keyframes liquidShine {
+  0%, 100% { background-position: 200% 0; }
+  50%       { background-position: -200% 0; }
+}
+
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-8px) scale(1.01); }
+}
+
+@keyframes kenBurns {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.06); }
+}
+
+.animate-float-soft   { animation: floatSoft 5s ease-in-out infinite; }
+.animate-ken-burns    { animation: kenBurns 18s ease-in-out infinite alternate; }
+
+.bento-tile {
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s ease;
+}
+.bento-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 40px rgba(26, 26, 26, 0.1);
+}
+
+.img-bw {
+  filter: grayscale(100%) contrast(1.05);
+  transition: filter 0.6s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bento-tile:hover .img-bw {
+  filter: grayscale(60%) contrast(1.02);
+}
+
+.reveal-init {
+  opacity: 0;
+  transform: translateY(40px);
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-init.reveal-scale {
+  transform: translateY(30px) scale(0.97);
+}
+.reveal-visible.reveal-scale {
+  transform: translateY(0) scale(1);
 }
 @keyframes textReveal {
   from { clip-path: inset(0 100% 0 0); }
