@@ -346,19 +346,9 @@
     var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-}
-
-/* Touch phones only — do not apply to laptop trackpads */
-@media (hover: none) and (pointer: coarse) {
-  .invite-root {
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-  }
-
-  .invite-root .invite-section {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 70vh;
-  }
+  /* clip avoids the iOS scroll trap that overflow-x:hidden creates */
+  overflow-x: clip;
+  min-height: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

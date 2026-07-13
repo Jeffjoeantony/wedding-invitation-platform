@@ -1,7 +1,7 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Countdown } from './countdown'
 import { Footer } from './footer'
 import { FullBleedPhoto } from './full-bleed-photo'
@@ -23,14 +23,15 @@ export function Invitation({
 }) {
   const [ready, setReady] = useState(false)
   const mobile = useMobileMotion()
+  const onLoaderDone = useCallback(() => setReady(true), [])
 
   return (
     <>
-      <Loader onDone={() => setReady(true)} />
+      <Loader onDone={onLoaderDone} />
       <AmbientGlow />
       <Hearts count={mobile ? 7 : 12} />
       <main
-        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-hidden transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'
         }`}
       >

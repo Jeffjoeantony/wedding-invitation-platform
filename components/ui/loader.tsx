@@ -1,32 +1,37 @@
 'use client'
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // Elegant opening-envelope loader that transitions into the hero.
 export function Loader({ onDone }: { onDone: () => void }) {
   const reduce = useReducedMotion()
   const [open, setOpen] = useState(false)
   const [hidden, setHidden] = useState(false)
+  const doneRef = useRef(false)
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
 
   useEffect(() => {
+    const finish = () => {
+      if (doneRef.current) return
+      doneRef.current = true
+      setHidden(true)
+      onDoneRef.current()
+    }
+
     if (reduce) {
-      const t = setTimeout(() => {
-        setHidden(true)
-        onDone()
-      }, 400)
+      const t = setTimeout(finish, 400)
       return () => clearTimeout(t)
     }
+
     const t1 = setTimeout(() => setOpen(true), 900)
-    const t2 = setTimeout(() => {
-      setHidden(true)
-      onDone()
-    }, 2600)
+    const t2 = setTimeout(finish, 2600)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
     }
-  }, [reduce, onDone])
+  }, [reduce])
 
   return (
     <AnimatePresence>
@@ -34,8 +39,9 @@ export function Loader({ onDone }: { onDone: () => void }) {
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--gold-soft)_28%,var(--background)),var(--background))]"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, scale: 1.03 }}
-          transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{ pointerEvents: 'none' }}
         >
           <div
             aria-hidden="true"
@@ -53,9 +59,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
               className="relative h-28 w-40"
               style={{ perspective: 800 }}
             >
-              {/* envelope body */}
               <div className="absolute inset-0 rounded-sm border border-gold/50 bg-card shadow-[0_20px_60px_-30px_rgba(0,0,0,0.4)]" />
-              {/* letter sliding up */}
               <motion.div
                 className="absolute inset-x-3 bottom-2 top-3 rounded-sm border border-gold/30 bg-[color-mix(in_oklab,var(--gold-soft)_18%,white)]"
                 initial={{ y: 0 }}
@@ -67,7 +71,6 @@ export function Loader({ onDone }: { onDone: () => void }) {
                   <span className="h-px w-8 bg-gold/60" />
                 </div>
               </motion.div>
-              {/* envelope flap */}
               <motion.div
                 className="absolute left-0 top-0 h-14 w-full origin-top"
                 style={{ transformStyle: 'preserve-3d' }}

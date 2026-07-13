@@ -42,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${jost.variable} scroll-smooth`}>
-      <body style={{ background: '#FAFAFA', margin: 0, padding: 0 }}>
+    <html lang="en" className={`${cormorant.variable} ${jost.variable}`}>
+      <body style={{ background: '#FAFAFA', margin: 0, padding: 0, overflowX: 'clip' }}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

@@ -1263,7 +1263,7 @@ export default function InvitationClient({ guest, event, open = false }: { guest
 
   const config = buildInvitationConfig(event, guest)
   return (
-    <div className="invite-root relative min-h-screen overflow-x-hidden">
+    <div className="invite-root relative">
       <Invitation config={config} openInvite={open} />
     </div>
   )

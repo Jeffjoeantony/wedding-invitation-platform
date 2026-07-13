@@ -53,7 +53,7 @@ export function Hearts({ count = 28 }: { count?: number }) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-[25] overflow-hidden"
+      className="pointer-events-none fixed inset-0 z-[1] overflow-hidden"
     >
       {hearts.map((h, i) => (
         <span
