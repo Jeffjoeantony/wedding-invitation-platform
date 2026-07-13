@@ -1,6 +1,21 @@
 import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
+import { Cormorant_Garamond, Jost } from 'next/font/google'
 import './globals.css'
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  variable: '--font-invite-serif',
+  display: 'swap',
+})
+
+const jost = Jost({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  variable: '--font-invite-sans',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'InviteFlow — Create Beautiful Digital Invitations in Minutes',
@@ -27,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
+    <html lang="en" className={`${cormorant.variable} ${jost.variable} scroll-smooth`}>
       <body style={{ background: '#FAFAFA', margin: 0, padding: 0 }}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
@@ -35,4 +50,3 @@ export default function RootLayout({
     </html>
   )
 }
-

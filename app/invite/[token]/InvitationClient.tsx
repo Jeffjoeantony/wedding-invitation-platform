@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { getEventCopy } from '@/lib/eventCopy'
+import { Invitation } from '@/components/ui/invitation'
 import { allBirthdayPersons, formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
+import { getEventCopy } from '@/lib/eventCopy'
+import { buildInvitationConfig } from '@/lib/invitation-config'
 
 // ─────────────────────────────────────────────────────────────
 //  SHARED UTILITIES
@@ -1259,5 +1261,10 @@ export default function InvitationClient({ guest, event, open = false }: { guest
     return <BirthdayInvitation {...sharedProps} />
   }
 
-  return <WeddingInvitation {...sharedProps} />
+  const config = buildInvitationConfig(event, guest)
+  return (
+    <div className="invite-root relative min-h-screen overflow-x-hidden">
+      <Invitation config={config} openInvite={open} />
+    </div>
+  )
 }
