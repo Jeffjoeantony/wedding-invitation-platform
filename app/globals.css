@@ -348,6 +348,25 @@
   font-family: var(--font-sans);
 }
 
+/* Touch phones only — do not apply to laptop trackpads */
+@media (hover: none) and (pointer: coarse) {
+  .invite-root {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  .invite-root .invite-section {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 70vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invite-root {
+    scroll-behavior: auto;
+  }
+}
+
 @layer utilities {
   @keyframes invite-ken-burns {
     0% { transform: scale(1) translate3d(0, 0, 0); }

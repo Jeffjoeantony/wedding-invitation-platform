@@ -46,7 +46,7 @@ export function Hero({
 
   return (
     <header className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-hidden px-6 pb-10 pt-14 text-center">
-      <Sparkles count={12} />
+      <Sparkles count={6} />
 
       {/* Soft radial wash behind the composition */}
       <div
@@ -129,7 +129,7 @@ export function Hero({
         </motion.div>
 
         <motion.div
-          className="absolute inset-x-3 -bottom-14 rounded-xl border border-white/50 bg-white/60 px-5 py-5 shadow-[0_28px_70px_-30px_rgba(60,45,25,0.55)] backdrop-blur-md"
+          className="absolute inset-x-3 -bottom-14 rounded-xl border border-white/50 bg-white/70 px-5 py-5 shadow-[0_28px_70px_-30px_rgba(60,45,25,0.55)] backdrop-blur-sm sm:bg-white/60 sm:backdrop-blur-md"
           initial={{ opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 1.05, duration: 1, ease: [0.22, 1, 0.36, 1] }}

@@ -1,6 +1,7 @@
 export type InvitationConfig = {
   guestName: string
   guestToken?: string
+  projectId?: string
   couple1: string
   couple2: string
   dateISO: string
@@ -62,6 +63,7 @@ function buildDateISO(date: string | undefined, time: string | undefined): strin
 /** Map platform event (+ optional guest) into the invitation UI config. */
 export function buildInvitationConfig(
   event: {
+    id?: string
     couple_1?: string
     couple_2?: string
     date?: string
@@ -71,7 +73,7 @@ export function buildInvitationConfig(
     contact?: string
     maps_url?: string
   },
-  guest?: { name?: string; unique_token?: string } | null,
+  guest?: { name?: string; unique_token?: string; project_id?: string } | null,
 ): InvitationConfig {
   const couple1 = event.couple_1?.trim() || 'Partner'
   const couple2 = event.couple_2?.trim() || 'Partner'
@@ -82,6 +84,7 @@ export function buildInvitationConfig(
   return {
     guestName: guest?.name?.trim() || 'Guest',
     guestToken: guest?.unique_token,
+    projectId: event.id || guest?.project_id,
     couple1,
     couple2,
     dateISO: buildDateISO(event.date, event.time),

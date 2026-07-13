@@ -15,18 +15,34 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
   const [step, setStep] = useState<Step>('idle')
   const [pax, setPax] = useState(2)
   const [message, setMessage] = useState('')
+  const [name, setName] = useState(
+    config.guestName && config.guestName !== 'Guest' ? config.guestName : '',
+  )
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const needsName = !config.guestToken
 
   function confirmAccept() {
     setError(null)
-    if (!config.guestToken) {
+    const guestName = (needsName ? name : config.guestName).trim()
+    if (needsName && !guestName) {
+      setError('Please enter your name.')
+      return
+    }
+    if (!config.guestToken && !config.projectId) {
       setError('This invitation link cannot submit an RSVP.')
       return
     }
     startTransition(async () => {
       try {
-        await submitRsvp({ token: config.guestToken!, status: 'accepted', pax })
+        await submitRsvp({
+          guestName,
+          status: 'accepted',
+          pax,
+          message,
+          token: config.guestToken,
+          projectId: config.projectId,
+        })
         setStep('confirmed-accept')
       } catch {
         setError('Something went wrong. Please try again.')
@@ -36,13 +52,24 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
 
   function confirmDecline() {
     setError(null)
-    if (!config.guestToken) {
+    const guestName = (needsName ? name : config.guestName).trim()
+    if (needsName && !guestName) {
+      setError('Please enter your name.')
+      return
+    }
+    if (!config.guestToken && !config.projectId) {
       setError('This invitation link cannot submit an RSVP.')
       return
     }
     startTransition(async () => {
       try {
-        await submitRsvp({ token: config.guestToken!, status: 'declined' })
+        await submitRsvp({
+          guestName,
+          status: 'declined',
+          message,
+          token: config.guestToken,
+          projectId: config.projectId,
+        })
         setStep('confirmed-decline')
       } catch {
         setError('Something went wrong. Please try again.')
@@ -51,7 +78,7 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
   }
 
   return (
-    <section id="rsvp" className="relative overflow-hidden px-6 py-24">
+    <section id="rsvp" className="invite-section relative overflow-hidden px-6 py-16 sm:py-24">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_20%,color-mix(in_oklab,var(--gold-soft)_20%,transparent),transparent_55%)]"
@@ -106,6 +133,21 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
               <p className="text-center font-serif text-xl font-light text-foreground">
                 Wonderful! How many will attend?
               </p>
+
+              {needsName && (
+                <label className="mt-5 block">
+                  <span className="font-sans text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground">
+                    Your name
+                  </span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2.5 font-sans text-sm text-foreground outline-none transition-shadow focus:border-gold focus:ring-2 focus:ring-gold/25"
+                    placeholder="Full name"
+                    autoComplete="name"
+                  />
+                </label>
+              )}
 
               <div className="mt-6 flex items-center justify-center gap-6">
                 <button
@@ -183,6 +225,20 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
               <p className="mt-3 font-sans text-sm leading-relaxed text-muted-foreground">
                 If you&apos;d like, leave a note for {config.couple1} &amp; {config.couple2}.
               </p>
+              {needsName && (
+                <label className="mt-4 block text-left">
+                  <span className="font-sans text-[0.6rem] uppercase tracking-[0.28em] text-muted-foreground">
+                    Your name
+                  </span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2.5 font-sans text-sm text-foreground outline-none transition-shadow focus:border-gold focus:ring-2 focus:ring-gold/25"
+                    placeholder="Full name"
+                    autoComplete="name"
+                  />
+                </label>
+              )}
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
@@ -233,8 +289,8 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
               </p>
               <p className="mt-3 font-sans text-sm leading-relaxed text-muted-foreground">
                 {step === 'confirmed-accept'
-                  ? `Your response has been received. We can't wait to celebrate with you, ${config.guestName}.`
-                  : `Thank you for letting us know. You will be missed, ${config.guestName}.`}
+                  ? `Your response has been received. We can't wait to celebrate with you${name || config.guestName ? `, ${name || config.guestName}` : ''}.`
+                  : `Thank you for letting us know. You will be missed${name || config.guestName ? `, ${name || config.guestName}` : ''}.`}
               </p>
             </motion.div>
           )}

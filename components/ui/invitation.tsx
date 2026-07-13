@@ -11,8 +11,9 @@ import { Loader } from './loader'
 import { AmbientGlow } from './ornament'
 import { RsvpPanel } from './rsvp-panel'
 import { StoryBento } from './story-bento'
+import { useMobileMotion } from './use-mobile-motion'
 
-// `openInvite` = read-only public mode: hide personalized greeting + RSVP actions.
+// `openInvite` = public open link: hide personalized greeting.
 export function Invitation({
   config,
   openInvite = false,
@@ -21,15 +22,16 @@ export function Invitation({
   openInvite?: boolean
 }) {
   const [ready, setReady] = useState(false)
+  const mobile = useMobileMotion()
 
   return (
     <>
       <Loader onDone={() => setReady(true)} />
       <AmbientGlow />
-      <Hearts count={12} />
+      <Hearts count={mobile ? 7 : 12} />
       <main
-        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-hidden transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          ready ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
+        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-hidden transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          ready ? 'opacity-100' : 'opacity-0'
         }`}
       >
         <div
@@ -63,7 +65,7 @@ export function Invitation({
 
         <Countdown dateISO={config.dateISO} />
 
-        {!openInvite && <RsvpPanel config={config} />}
+        <RsvpPanel config={config} />
 
         <Footer config={config} />
       </main>

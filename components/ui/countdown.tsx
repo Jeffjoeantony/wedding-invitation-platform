@@ -26,10 +26,10 @@ function FlipDigit({ value, label }: { value: string; label: string }) {
           <motion.span
             key={value}
             className="absolute font-serif text-4xl font-light tabular-nums text-foreground sm:text-5xl"
-            initial={{ y: 18, opacity: 0, filter: 'blur(4px)' }}
-            animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-            exit={{ y: -18, opacity: 0, filter: 'blur(4px)' }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ y: 12, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -12, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             suppressHydrationWarning
           >
             {value}
@@ -62,14 +62,14 @@ export function Countdown({ dateISO }: { dateISO: string }) {
   ]
 
   return (
-    <section className="relative overflow-hidden px-6 py-24">
+    <section className="invite-section relative overflow-hidden px-6 py-16 sm:py-24">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_50%,color-mix(in_oklab,var(--gold-soft)_28%,transparent),transparent_65%)]"
       />
 
       <Reveal direction="scale">
-        <div className="relative mx-auto max-w-md overflow-hidden rounded-[1.75rem] border border-white/60 bg-white/50 p-8 text-center shadow-[0_36px_80px_-40px_rgba(60,45,25,0.55)] backdrop-blur-md">
+        <div className="relative mx-auto max-w-md overflow-hidden rounded-[1.75rem] border border-white/60 bg-white/70 p-8 text-center shadow-[0_36px_80px_-40px_rgba(60,45,25,0.55)] backdrop-blur-sm sm:bg-white/50 sm:backdrop-blur-md">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-gold/55 to-transparent"

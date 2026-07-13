@@ -23,7 +23,7 @@ export default function InvitePage() {
       }
       const { guest, event } = await res.json()
       setGuest(guest)
-      setEvent(event)
+      setEvent(event ? { ...event, id: guest?.project_id } : event)
       setLoading(false)
     }
     if (token) fetchData()

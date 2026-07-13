@@ -2,8 +2,9 @@
 
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
+import { useMobileMotion } from './use-mobile-motion'
 
-// Full-bleed photo with a gentle scroll parallax + optional caption.
+/** Full-bleed photo with soft 1:1 scroll parallax (no spring lag on trackpads). */
 export function FullBleedPhoto({
   src,
   alt,
@@ -15,22 +16,32 @@ export function FullBleedPhoto({
   caption?: string
   grayscale?: boolean
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useRef<HTMLElement>(null)
   const reduce = useReducedMotion()
+  const mobile = useMobileMotion()
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ['start end', 'end start'],
   })
-  const y = useTransform(scrollYProgress, [0, 1], reduce ? ['0%', '0%'] : ['-10%', '10%'])
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], reduce ? [1, 1, 1] : [1.08, 1, 1.08])
+
+  const yTravel = reduce ? 0 : mobile ? 24 : 40
+  const scalePeak = reduce ? 1 : mobile ? 1.03 : 1.06
+
+  const y = useTransform(scrollYProgress, [0, 1], [-yTravel, yTravel])
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [scalePeak, 1, scalePeak])
 
   return (
-    <section ref={ref} className="relative h-[78vh] w-full overflow-hidden">
+    <section
+      ref={ref}
+      className="invite-section relative h-[70vh] w-full overflow-hidden sm:h-[78vh]"
+    >
       <motion.img
         src={src || '/placeholder.svg'}
         alt={alt}
         style={{ y, scale }}
-        className={`absolute inset-0 h-[120%] w-full object-cover will-change-transform ${
+        decoding="async"
+        loading="lazy"
+        className={`absolute inset-0 h-[118%] w-full object-cover ${
           grayscale ? 'grayscale' : ''
         }`}
       />
@@ -46,10 +57,10 @@ export function FullBleedPhoto({
       {caption && (
         <motion.div
           className="absolute inset-x-0 bottom-12 px-8 text-center"
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.55 }}
-          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: mobile ? 0.7 : 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
           <div
             aria-hidden="true"

@@ -77,14 +77,14 @@ export function AmbientGlow() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div
-        className="animate-glow-drift absolute -left-[15%] top-[8%] h-[42vh] w-[42vh] rounded-full opacity-70 blur-3xl"
+        className="animate-glow-drift absolute -left-[15%] top-[8%] h-[34vh] w-[34vh] rounded-full opacity-55 blur-2xl sm:h-[42vh] sm:w-[42vh] sm:opacity-70 sm:blur-3xl"
         style={{
           background:
             'radial-gradient(circle, color-mix(in oklab, var(--gold-soft) 55%, transparent), transparent 70%)',
         }}
       />
       <div
-        className="animate-glow-drift absolute -right-[18%] top-[38%] h-[48vh] w-[48vh] rounded-full opacity-60 blur-3xl"
+        className="animate-glow-drift absolute -right-[18%] top-[38%] h-[36vh] w-[36vh] rounded-full opacity-45 blur-2xl sm:h-[48vh] sm:w-[48vh] sm:opacity-60 sm:blur-3xl"
         style={{
           background:
             'radial-gradient(circle, color-mix(in oklab, var(--gold) 35%, transparent), transparent 72%)',
@@ -92,7 +92,7 @@ export function AmbientGlow() {
         }}
       />
       <div
-        className="animate-glow-drift absolute bottom-[5%] left-[20%] h-[36vh] w-[36vh] rounded-full opacity-50 blur-3xl"
+        className="animate-glow-drift absolute bottom-[5%] left-[20%] h-[28vh] w-[28vh] rounded-full opacity-40 blur-2xl sm:h-[36vh] sm:w-[36vh] sm:opacity-50 sm:blur-3xl"
         style={{
           background:
             'radial-gradient(circle, color-mix(in oklab, var(--gold-soft) 40%, white), transparent 70%)',

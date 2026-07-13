@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useMobileMotion } from './use-mobile-motion'
 
 type Heart = {
   left: number
@@ -23,6 +24,7 @@ const tones: Record<Heart['tone'], string> = {
 /** Small gold-toned hearts drifting down across the invite. */
 export function Hearts({ count = 28 }: { count?: number }) {
   const [mounted, setMounted] = useState(false)
+  const mobile = useMobileMotion()
   useEffect(() => setMounted(true), [])
 
   const hearts = useMemo<Heart[]>(() => {
@@ -35,16 +37,16 @@ export function Hearts({ count = 28 }: { count?: number }) {
       }
       return {
         left: round(r(12.9898) * 100),
-        size: round(7 + r(78.233) * 9),
-        fallDuration: round(10 + r(37.719) * 14),
+        size: round((mobile ? 6 : 7) + r(78.233) * (mobile ? 7 : 9)),
+        fallDuration: round((mobile ? 14 : 10) + r(37.719) * (mobile ? 12 : 14)),
         swayDuration: round(3.2 + r(51.31) * 3.8),
         delay: round(r(4.113) * -24),
-        drift: round(12 + r(93.11) * 28),
-        opacity: round(0.28 + r(19.02) * 0.42),
+        drift: round((mobile ? 8 : 12) + r(93.11) * (mobile ? 18 : 28)),
+        opacity: round((mobile ? 0.2 : 0.28) + r(19.02) * (mobile ? 0.28 : 0.42)),
         tone: toneList[Math.floor(r(63.77) * 4) % 4],
       }
     })
-  }, [count])
+  }, [count, mobile])
 
   if (!mounted) return null
 
@@ -80,9 +82,6 @@ export function Hearts({ count = 28 }: { count?: number }) {
               height={h.size}
               viewBox="0 0 24 24"
               fill={tones[h.tone]}
-              style={{
-                filter: 'drop-shadow(0 1px 3px color-mix(in oklab, var(--gold) 28%, transparent))',
-              }}
             >
               <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
             </svg>

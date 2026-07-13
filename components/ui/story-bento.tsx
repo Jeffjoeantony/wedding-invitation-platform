@@ -8,12 +8,12 @@ import { Reveal } from './reveal'
 
 export function StoryBento({ config }: { config: InvitationConfig }) {
   return (
-    <section className="relative overflow-hidden px-6 py-24">
+    <section className="invite-section relative overflow-hidden px-6 py-16 sm:py-24">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,color-mix(in_oklab,var(--gold-soft)_22%,transparent),transparent_55%)]"
       />
-      <Sparkles count={8} />
+      <Sparkles count={5} />
 
       <Reveal direction="up" className="relative text-center">
         <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">Our Story</p>
@@ -34,6 +34,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
         <Reveal direction="left" delay={0.06}>
           <motion.div
             whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.985 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-card via-card to-gold-soft/20 p-6 shadow-[0_18px_40px_-30px_rgba(60,45,25,0.45)]"
           >
@@ -59,6 +60,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
         <Reveal direction="right" delay={0.14}>
           <motion.div
             whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.985 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-card via-card to-gold-soft/20 p-6 shadow-[0_18px_40px_-30px_rgba(60,45,25,0.45)]"
           >

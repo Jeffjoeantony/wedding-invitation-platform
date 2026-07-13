@@ -21,7 +21,7 @@ export default function OpenInvitePage() {
         return
       }
       const { event } = await res.json()
-      setEvent(event)
+      setEvent({ ...event, id: projectId })
       setLoading(false)
     }
     if (projectId) fetchData()
