@@ -1,72 +1,44 @@
-'use client'
+import type { Metadata } from 'next'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { buildInviteMetadata } from '@/lib/invite-metadata'
+import InvitePageClient from './InvitePageClient'
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import InvitationClient from './InvitationClient'
-import { getInvitePageTheme } from '@/lib/invitePageTheme'
+type Props = { params: Promise<{ token: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { token } = await params
+  if (!token || !/^[a-zA-Z0-9_-]{6,64}$/.test(token)) {
+    return buildInviteMetadata({ event: null, path: `/invite/${token || ''}` })
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data: guest } = await supabase
+      .from('guests')
+      .select('name,project_id')
+      .eq('unique_token', token)
+      .single()
+
+    if (!guest?.project_id) {
+      return buildInviteMetadata({ event: null, path: `/invite/${token}` })
+    }
+
+    const { data: event } = await supabase
+      .from('projects')
+      .select('id,couple_1,couple_2,event_template,date')
+      .eq('id', guest.project_id)
+      .single()
+
+    return buildInviteMetadata({
+      event: event ? { ...event, id: guest.project_id } : null,
+      path: `/invite/${token}`,
+      guestName: guest.name,
+    })
+  } catch {
+    return buildInviteMetadata({ event: null, path: `/invite/${token}` })
+  }
+}
 
 export default function InvitePage() {
-  const params = useParams()
-  const token = params.token as string
-  const [guest, setGuest] = useState<any>(null)
-  const [event, setEvent] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      const res = await fetch(`/api/invite?token=${encodeURIComponent(token)}`)
-      if (!res.ok) {
-        setError(true)
-        setLoading(false)
-        return
-      }
-      const { guest, event } = await res.json()
-      setGuest(guest)
-      setEvent(event ? { ...event, id: guest?.project_id } : event)
-      setLoading(false)
-    }
-    if (token) fetchData()
-  }, [token])
-
-  const theme = getInvitePageTheme(event?.event_template)
-
-  if (loading) {
-    return <div className="min-h-screen bg-[oklch(0.965_0.011_85)]" aria-hidden="true" />
-  }
-
-  if (error || !guest) {
-    return (
-      <div
-        className="min-h-screen flex items-center justify-center px-4"
-        style={{ background: theme.background }}
-      >
-        <div
-          className="text-center max-w-sm p-10 rounded-3xl"
-          style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          <div className="text-5xl mb-4">💌</div>
-          <h1 className="text-2xl font-serif italic text-white mb-3">
-            Invitation Not Found
-          </h1>
-          <p className="text-white/50 text-sm font-light mb-6">
-            We couldn&apos;t find your invitation. Please check your link and try again.
-          </p>
-          <a
-            href="/"
-            className="inline-block px-6 py-2.5 rounded-full text-sm text-white font-medium transition-all hover:scale-105"
-            style={{ background: theme.buttonGradient }}
-          >
-            Return Home
-          </a>
-        </div>
-      </div>
-    )
-  }
-
-  return <InvitationClient guest={guest} event={event} />
+  return <InvitePageClient />
 }

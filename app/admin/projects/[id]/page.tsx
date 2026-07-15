@@ -195,7 +195,16 @@ function SendInvitationsPanel({
   // Step 2 compose
   const [channel, setChannel] = useState<SendChannel>('whatsapp')
   const [defaultTemplate, setDefaultTemplate] = useState(
-    `Hi {name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n{link}\n\nWe look forward to celebrating with you.`
+    `Hi {name} ❤️,
+
+I have some wonderful news to share! With the blessings of our families, I'm getting engaged, and it would mean so much to have you with me on this special day.
+
+Here's my invitation with all the details:
+{link}
+
+Your presence and blessings would make this occasion even more special. I truly hope you can join me in celebrating this beautiful new chapter of my life.
+
+Looking forward to seeing you! 😊`
   )
   const [overrides, setOverrides] = useState<Record<string, string>>({}) // guestId → custom msg
   const [previewGuestId, setPreviewGuestId] = useState<string>('')
@@ -220,13 +229,6 @@ function SendInvitationsPanel({
 
   const reviewGuests = selectedGuests
   const currentReviewGuest = reviewGuests[reviewIdx] ?? null
-
-  // Sync template when project loads
-  useEffect(() => {
-    setDefaultTemplate(
-      `Hi {name},\n\nYou're warmly invited to our ${project?.event_template ?? 'Wedding'}.\n\nView Invitation:\n{link}\n\nWe look forward to celebrating with you.`
-    )
-  }, [project?.event_template])
 
   // Set first preview guest when entering compose
   useEffect(() => {

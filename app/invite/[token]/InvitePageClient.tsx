@@ -1,0 +1,72 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import InvitationClient from './InvitationClient'
+import { getInvitePageTheme } from '@/lib/invitePageTheme'
+
+export default function InvitePageClient() {
+  const params = useParams()
+  const token = params.token as string
+  const [guest, setGuest] = useState<any>(null)
+  const [event, setEvent] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const res = await fetch(`/api/invite?token=${encodeURIComponent(token)}`)
+      if (!res.ok) {
+        setError(true)
+        setLoading(false)
+        return
+      }
+      const { guest, event } = await res.json()
+      setGuest(guest)
+      setEvent(event ? { ...event, id: guest?.project_id } : event)
+      setLoading(false)
+    }
+    if (token) fetchData()
+  }, [token])
+
+  const theme = getInvitePageTheme(event?.event_template)
+
+  if (loading) {
+    return <div className="min-h-screen bg-[oklch(0.965_0.011_85)]" aria-hidden="true" />
+  }
+
+  if (error || !guest) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ background: theme.background }}
+      >
+        <div
+          className="text-center max-w-sm p-10 rounded-3xl"
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            backdropFilter: 'blur(20px)',
+          }}
+        >
+          <div className="text-5xl mb-4">💌</div>
+          <h1 className="text-2xl font-serif italic text-white mb-3">
+            Invitation Not Found
+          </h1>
+          <p className="text-white/50 text-sm font-light mb-6">
+            We couldn&apos;t find your invitation. Please check your link and try again.
+          </p>
+          <a
+            href="/"
+            className="inline-block px-6 py-2.5 rounded-full text-sm text-white font-medium transition-all hover:scale-105"
+            style={{ background: theme.buttonGradient }}
+          >
+            Return Home
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  return <InvitationClient guest={guest} event={event} />
+}
