@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getGuestMoments, getProjectGallery } from '@/lib/invite-media-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -18,7 +19,6 @@ export async function GET(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    // Fetch guest — include project_id so we can get per-project event data
     const { data: guest, error: guestError } = await supabase
       .from('guests')
       .select('id,name,phone,unique_token,rsvp_status,pax_count,guest_category,opened_at,responded_at,project_id')
@@ -37,15 +37,21 @@ export async function GET(req: NextRequest) {
         .eq('id', guest.id)
     }
 
-    // Fetch event data from the PROJECT — each project has its own event_template,
-    // couple names, date, venue etc. (not from the legacy global `event` table)
     const { data: event } = await supabase
       .from('projects')
-      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+      .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
       .eq('id', guest.project_id)
       .single()
 
-    return NextResponse.json({ guest, event })
+    const [moments, galleryImages] = await Promise.all([
+      getGuestMoments(guest.id, guest.project_id).catch(() => []),
+      getProjectGallery(guest.project_id).catch(() => []),
+    ])
+
+    return NextResponse.json({
+      guest: { ...guest, moments },
+      event: event ? { ...event, gallery_images: galleryImages } : event,
+    })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

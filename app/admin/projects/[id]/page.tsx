@@ -20,6 +20,14 @@ import {
   serializeAdditionalBirthdayPersons,
 } from '@/lib/birthdayPersons'
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
+import { MediaUploader } from '@/components/admin/media-uploader'
+import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
+import {
+  MAX_GALLERY_IMAGES,
+  MAX_GUEST_MOMENTS,
+  parseMediaList,
+  type MediaItem,
+} from '@/lib/invite-media'
 
 interface Guest {
   id: string
@@ -32,6 +40,9 @@ interface Guest {
   guest_category?: string
   opened_at?: string
   responded_at?: string
+  moments?: MediaItem[] | unknown
+  /** Count from Storage — set by guests list API */
+  moments_count?: number
 }
 
 interface Project {
@@ -48,6 +59,7 @@ interface Project {
   event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' |
     'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
   status: string
+  gallery_images?: MediaItem[] | unknown
 }
 
 
@@ -235,8 +247,17 @@ function SendInvitationsPanel({
     const msg = buildMsg(guest)
     const enc = encodeURIComponent(msg)
     if (channel === 'whatsapp') {
-      const ph = (guest.phone || '').replace(/\D/g, '')
-      window.open(ph ? `https://wa.me/${ph.startsWith('91') ? '' : '91'}${ph}?text=${enc}` : `https://wa.me/?text=${enc}`, '_blank')
+      // Use api.whatsapp.com (not wa.me) — wa.me redirects corrupt 4-byte emoji to �
+      const digits = (guest.phone || '').replace(/\D/g, '')
+      const phone = digits
+        ? digits.startsWith('91')
+          ? digits
+          : `91${digits}`
+        : ''
+      const url = phone
+        ? `https://api.whatsapp.com/send?phone=${phone}&text=${enc}`
+        : `https://api.whatsapp.com/send?text=${enc}`
+      window.open(url, '_blank', 'noopener,noreferrer')
     } else if (channel === 'sms') {
       window.open(`sms:${(guest.phone || '').replace(/\D/g, '')}?&body=${enc}`, '_blank')
     } else {
@@ -1253,14 +1274,23 @@ export default function ProjectDashboardPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [deletingProject, setDeletingProject] = useState(false)
+  const [galleryImages, setGalleryImages] = useState<MediaItem[]>([])
+  const [galleryUploading, setGalleryUploading] = useState(false)
+  const [galleryError, setGalleryError] = useState('')
+  const [lastAddedGuest, setLastAddedGuest] = useState<Guest | null>(null)
+  const [lastAddedMoments, setLastAddedMoments] = useState<MediaItem[]>([])
+  const [momentsUploading, setMomentsUploading] = useState(false)
+  const [momentsError, setMomentsError] = useState('')
+  const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
   const fetchData = useCallback(async () => {
     setRefreshing(true)
-    const [guestRes, projectRes] = await Promise.all([
+    const [guestRes, projectRes, galleryRes] = await Promise.all([
       fetch(`/api/projects/${projectId}/guests`),
       fetch(`/api/projects/${projectId}/event`),
+      fetch(`/api/projects/${projectId}/gallery`),
     ])
 
     if (guestRes.ok) {
@@ -1300,6 +1330,11 @@ export default function ProjectDashboardPage() {
       setProject(proj)
     }
 
+    if (galleryRes.ok) {
+      const gallery = await galleryRes.json()
+      setGalleryImages(parseMediaList(gallery.images))
+    }
+
     setLoading(false)
     setRefreshing(false)
     setLastUpdated(new Date())
@@ -1337,6 +1372,9 @@ export default function ProjectDashboardPage() {
       setGuests([data, ...guests])
       // Update snapshot so this guest isn't treated as new on next poll
       prevGuestsRef.current[data.id] = 'pending'
+      setLastAddedGuest(data)
+      setLastAddedMoments(parseMediaList(data.moments))
+      setMomentsError('')
       addNotification({
         type: 'guest_added',
         title: 'Guest Added ✓',
@@ -1351,6 +1389,95 @@ export default function ProjectDashboardPage() {
       setAddGuestError('')
     }
     setAdding(false)
+  }
+
+  const uploadGalleryFiles = async (files: File[]) => {
+    setGalleryUploading(true)
+    setGalleryError('')
+    try {
+      let next = galleryImages
+      for (const file of files) {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch(`/api/projects/${projectId}/gallery`, { method: 'POST', body: form })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Upload failed')
+        next = parseMediaList(data.images)
+        setGalleryImages(next)
+      }
+    } catch (e) {
+      setGalleryError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setGalleryUploading(false)
+    }
+  }
+
+  const removeGalleryImage = async (imageId: string) => {
+    setGalleryError('')
+    const res = await fetch(
+      `/api/projects/${projectId}/gallery?imageId=${encodeURIComponent(imageId)}`,
+      { method: 'DELETE' },
+    )
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setGalleryError(data.error || 'Delete failed')
+      return
+    }
+    setGalleryImages(parseMediaList(data.images))
+  }
+
+  const uploadLastAddedMoments = async (files: File[]) => {
+    if (!lastAddedGuest) return
+    setMomentsUploading(true)
+    setMomentsError('')
+    try {
+      for (const file of files) {
+        const form = new FormData()
+        form.append('file', file)
+        const res = await fetch(
+          `/api/projects/${projectId}/guests/${lastAddedGuest.id}/moments`,
+          { method: 'POST', body: form },
+        )
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.error || 'Upload failed')
+        const next = parseMediaList(data.moments)
+        setLastAddedMoments(next)
+        setGuests((prev) =>
+          prev.map((g) =>
+            g.id === lastAddedGuest.id
+              ? { ...g, moments: next, moments_count: next.length }
+              : g,
+          ),
+        )
+      }
+    } catch (e) {
+      setMomentsError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setMomentsUploading(false)
+    }
+  }
+
+  const removeLastAddedMoment = async (imageId: string) => {
+    if (!lastAddedGuest) return
+    setMomentsError('')
+    const res = await fetch(
+      `/api/projects/${projectId}/guests/${lastAddedGuest.id}/moments?imageId=${encodeURIComponent(imageId)}`,
+      { method: 'DELETE' },
+    )
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setMomentsError(data.error || 'Delete failed')
+      return
+    }
+    const next = parseMediaList(data.moments)
+    setLastAddedMoments(next)
+    setGuests((prev) =>
+      prev.map((g) =>
+        g.id === lastAddedGuest.id
+          ? { ...g, moments: next, moments_count: next.length }
+          : g,
+      ),
+    )
   }
 
   const deleteGuest = async (id: string, name: string) => {
@@ -1960,7 +2087,12 @@ export default function ProjectDashboardPage() {
                           </TableCell>
                         </TableRow>
                       )}
-                      {filteredGuests.map((guest) => (
+                      {filteredGuests.map((guest) => {
+                        const momentCount =
+                          typeof guest.moments_count === 'number'
+                            ? guest.moments_count
+                            : parseMediaList(guest.moments).length
+                        return (
                         <TableRow key={guest.id} className={`transition-colors group border-gray-50 ${theme.tableRowHover}`}>
                           <TableCell>
                             <div className="flex items-center gap-3">
@@ -2011,6 +2143,13 @@ export default function ProjectDashboardPage() {
                             <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
                               <Button
                                 variant="outline" size="sm"
+                                className="text-xs h-7 px-3 rounded-lg border-amber-200 text-amber-800 hover:bg-amber-50"
+                                onClick={() => setMomentsGuest(guest)}
+                              >
+                                Moments{momentCount > 0 ? ` (${momentCount})` : ''}
+                              </Button>
+                              <Button
+                                variant="outline" size="sm"
                                 className={`text-xs h-7 px-3 rounded-lg transition-all ${
                                   copiedId === guest.id ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : theme.copyLinkBtn
                                 }`}
@@ -2033,7 +2172,8 @@ export default function ProjectDashboardPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -2050,7 +2190,7 @@ export default function ProjectDashboardPage() {
 
           {/* ══ ADD GUEST ═════════════════════════════════════════════════════ */}
           <TabsContent value="add-guest" className="mt-0">
-            <div className="max-w-md">
+            <div className="max-w-md space-y-4">
               <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
                 <CardHeader>
                   <div className="flex items-center gap-3">
@@ -2109,6 +2249,32 @@ export default function ProjectDashboardPage() {
                   </form>
                 </CardContent>
               </Card>
+
+              {lastAddedGuest && (
+                <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Moments with {lastAddedGuest.name}</CardTitle>
+                    <CardDescription>
+                      Optional — up to {MAX_GUEST_MOMENTS} photos on their personal invite only.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {momentsError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                        {momentsError}
+                      </div>
+                    )}
+                    <MediaUploader
+                      title="Add images"
+                      images={lastAddedMoments}
+                      max={MAX_GUEST_MOMENTS}
+                      uploading={momentsUploading}
+                      onUpload={uploadLastAddedMoments}
+                      onRemove={removeLastAddedMoment}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
@@ -2305,6 +2471,22 @@ export default function ProjectDashboardPage() {
                       placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
                     <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
                   </div>
+
+                  <div className="border-t border-gray-100 pt-5">
+                    <MediaUploader
+                      title="Invite gallery"
+                      description="Shared photos shown on every invite link (open + personal)."
+                      images={galleryImages}
+                      max={MAX_GALLERY_IMAGES}
+                      uploading={galleryUploading}
+                      onUpload={uploadGalleryFiles}
+                      onRemove={removeGalleryImage}
+                    />
+                    {galleryError && (
+                      <p className="text-xs text-red-600 mt-2">{galleryError}</p>
+                    )}
+                  </div>
+
                   <p className="text-xs text-gray-400 italic flex items-center gap-1.5"><span>✓</span> Changes are saved automatically</p>
                 </CardContent>
               </Card>
@@ -2343,6 +2525,28 @@ export default function ProjectDashboardPage() {
 
         </Tabs>
       </div>
+
+      <GuestMomentsEditor
+        open={!!momentsGuest}
+        onClose={() => setMomentsGuest(null)}
+        projectId={projectId}
+        guestId={momentsGuest?.id || ''}
+        guestName={momentsGuest?.name || ''}
+        initialMoments={momentsGuest?.moments}
+        onUpdated={(moments) => {
+          if (!momentsGuest) return
+          const moments_count = moments.length
+          setGuests((prev) =>
+            prev.map((g) =>
+              g.id === momentsGuest.id ? { ...g, moments, moments_count } : g,
+            ),
+          )
+          setMomentsGuest((prev) =>
+            prev ? { ...prev, moments, moments_count } : prev,
+          )
+          if (lastAddedGuest?.id === momentsGuest.id) setLastAddedMoments(moments)
+        }}
+      />
     </main>
   )
 }

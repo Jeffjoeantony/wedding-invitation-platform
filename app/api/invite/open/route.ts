@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getProjectGallery } from '@/lib/invite-media-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     const { data: event, error } = await supabase
       .from('projects')
-      .select('couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+      .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
       .eq('id', projectId)
       .single()
 
@@ -28,7 +29,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ event })
+    const galleryImages = await getProjectGallery(projectId).catch(() => [])
+
+    return NextResponse.json({
+      event: { ...event, gallery_images: galleryImages },
+    })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

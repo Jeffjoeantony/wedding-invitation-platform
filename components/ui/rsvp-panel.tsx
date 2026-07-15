@@ -86,7 +86,18 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
       <RevealStagger className="relative text-center" stagger={0.1}>
         <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">R.S.V.P</p>
         <h2 className="mt-3 font-serif text-3xl font-light text-foreground sm:text-4xl">
-          Will you <span className="italic text-gilded">join us?</span>
+          {config.rsvpHeadline ? (
+            <>
+              Will you{' '}
+              <span className="italic text-gilded">
+                {config.rsvpHeadline.replace(/^will you\s+/i, '').replace(/\?$/, '')}?
+              </span>
+            </>
+          ) : (
+            <>
+              Will you <span className="italic text-gilded">join us?</span>
+            </>
+          )}
         </h2>
         <p className="mx-auto mt-4 max-w-sm font-sans text-sm leading-relaxed text-muted-foreground">
           Kindly let us know by responding below. We would be honoured to celebrate with you.

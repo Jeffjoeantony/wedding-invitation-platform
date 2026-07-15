@@ -5,15 +5,17 @@ import { useCallback, useState } from 'react'
 import { Countdown } from './countdown'
 import { Footer } from './footer'
 import { FullBleedPhoto } from './full-bleed-photo'
+import { GuestMoments } from './guest-moments'
 import { Hearts } from './hearts'
 import { Hero } from './hero'
 import { Loader } from './loader'
 import { AmbientGlow } from './ornament'
+import { PhotoCarousel } from './photo-carousel'
 import { RsvpPanel } from './rsvp-panel'
 import { StoryBento } from './story-bento'
 import { useMobileMotion } from './use-mobile-motion'
 
-// `openInvite` = public open link: hide personalized greeting.
+// `openInvite` = public open link: hide personalized greeting + guest moments.
 export function Invitation({
   config,
   openInvite = false,
@@ -24,6 +26,7 @@ export function Invitation({
   const [ready, setReady] = useState(false)
   const mobile = useMobileMotion()
   const onLoaderDone = useCallback(() => setReady(true), [])
+  const hasGallery = config.galleryImages.length > 0
 
   return (
     <>
@@ -50,10 +53,18 @@ export function Invitation({
 
         <Hero config={config} showGreeting={!openInvite} />
 
-        <FullBleedPhoto
-          src={config.images.accent}
-          alt={`${config.couple1} and ${config.couple2} at golden hour`}
-        />
+        {!openInvite && (
+          <GuestMoments guestName={config.guestName} moments={config.guestMoments} />
+        )}
+
+        {hasGallery ? (
+          <PhotoCarousel images={config.galleryImages} label="Gallery" />
+        ) : (
+          <FullBleedPhoto
+            src={config.images.accent}
+            alt={`${config.couple1} and ${config.couple2} at golden hour`}
+          />
+        )}
 
         <StoryBento config={config} />
 

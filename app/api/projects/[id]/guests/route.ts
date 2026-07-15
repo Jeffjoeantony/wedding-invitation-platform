@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
+import { getGuestMomentsCounts } from '@/lib/invite-media-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -31,7 +32,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: error.message || 'Fetch failed' }, { status: 500 })
     }
 
-    return NextResponse.json(data)
+    const guests = data ?? []
+    const counts = await getGuestMomentsCounts(
+      id,
+      guests.map((g) => g.id as string),
+    ).catch(() => ({} as Record<string, number>))
+
+    return NextResponse.json(
+      guests.map((g) => ({
+        ...g,
+        moments_count: counts[g.id as string] ?? 0,
+      })),
+    )
   } catch (e) {
     console.error('[GET /api/projects/[id]/guests] Unexpected error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

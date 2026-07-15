@@ -1,4 +1,5 @@
 import { getEventCopy } from '@/lib/eventCopy'
+import { parseMediaList, type MediaItem } from '@/lib/invite-media'
 
 export type InvitationConfig = {
   guestName: string
@@ -25,6 +26,25 @@ export type InvitationConfig = {
     accent: string
     portrait: string
   }
+  /** Shared project gallery shown on every invite */
+  galleryImages: MediaItem[]
+  /** Personal guest moments (token invites only) */
+  guestMoments: MediaItem[]
+  /** Optional custom RSVP question (personal invites) */
+  rsvpHeadline?: string
+}
+
+/** Guest-specific RSVP headings (matched case-insensitively on guest name). */
+const RSVP_HEADLINE_BY_GUEST_NAME: Record<string, string> = {
+  ponnambili: 'Will you be my maid of honor?',
+}
+
+function rsvpHeadlineForGuest(guest?: { name?: string; rsvp_headline?: string | null } | null) {
+  const fromField = guest?.rsvp_headline?.trim()
+  if (fromField) return fromField
+  const key = guest?.name?.trim().toLowerCase()
+  if (key && RSVP_HEADLINE_BY_GUEST_NAME[key]) return RSVP_HEADLINE_BY_GUEST_NAME[key]
+  return undefined
 }
 
 const DEFAULT_IMAGES = {
@@ -91,8 +111,15 @@ export function buildInvitationConfig(
     contact?: string
     maps_url?: string
     event_template?: string
+    gallery_images?: unknown
   },
-  guest?: { name?: string; unique_token?: string; project_id?: string } | null,
+  guest?: {
+    name?: string
+    unique_token?: string
+    project_id?: string
+    moments?: unknown
+    rsvp_headline?: string | null
+  } | null,
 ): InvitationConfig {
   const couple1 = event.couple_1?.trim() || 'Partner'
   const couple2 = event.couple_2?.trim() || 'Partner'
@@ -123,5 +150,8 @@ export function buildInvitationConfig(
     footerTagline: copy.footerTagline,
     storyLine: storyLineFor(template, couple1, couple2),
     images: DEFAULT_IMAGES,
+    galleryImages: parseMediaList(event.gallery_images),
+    guestMoments: parseMediaList(guest?.moments),
+    rsvpHeadline: rsvpHeadlineForGuest(guest),
   }
 }
