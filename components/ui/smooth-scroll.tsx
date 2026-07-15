@@ -2,30 +2,44 @@
 
 import { ReactLenis } from 'lenis/react'
 import { useReducedMotion } from 'framer-motion'
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { useMobileMotion } from './use-mobile-motion'
 
 /**
- * Lerp-based smooth scrolling for the invitation (desktop wheel + mobile touch).
- * Concept: current += (target - current) * lerp each frame.
+ * Lenis lerp scroll on desktop + mobile.
  *
- * Carousel / form elements use data-lenis-prevent so swipe still works.
+ * Mobile "heavy" feel usually comes from lagging behind the finger
+ * (lerp too low) + long inertia. We use a higher syncTouchLerp so it
+ * stays buttery without fighting your swipe.
  */
 export function SmoothScroll({ children }: { children: ReactNode }) {
-  const reduce = useReducedMotion()
+  // Normalize to boolean so hook deps stay a stable shape across renders
+  const reduceMotion = useReducedMotion() === true
   const mobile = useMobileMotion()
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (reduceMotion) {
+      root.classList.add('invite-native-smooth')
+      root.classList.remove('invite-lenis-active')
+    } else {
+      root.classList.add('invite-lenis-active')
+      root.classList.remove('invite-native-smooth')
+    }
+    return () => {
+      root.classList.remove('invite-native-smooth', 'invite-lenis-active')
+    }
+  }, [reduceMotion, mobile])
 
   const options = useMemo(
     () => ({
       autoRaf: true as const,
-      // Desktop: softer butter (~0.08). Mobile: slightly snappier so it
-      // doesn't feel laggy behind the finger.
-      lerp: mobile ? 0.12 : 0.08,
       smoothWheel: true,
       syncTouch: true,
-      syncTouchLerp: mobile ? 0.1 : 0.075,
-      touchInertiaExponent: mobile ? 1.35 : 1.7,
-      touchMultiplier: mobile ? 1.2 : 1,
+      lerp: mobile ? 0.18 : 0.08,
+      syncTouchLerp: mobile ? 0.22 : 0.075,
+      touchInertiaExponent: mobile ? 1.05 : 1.7,
+      touchMultiplier: 1,
       wheelMultiplier: 0.92,
       overscroll: true,
       prevent: (node: HTMLElement) =>
@@ -36,7 +50,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
     [mobile],
   )
 
-  if (reduce) return <>{children}</>
+  if (reduceMotion) return <>{children}</>
 
   return (
     <ReactLenis root options={options}>

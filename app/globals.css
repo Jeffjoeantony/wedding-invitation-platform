@@ -351,7 +351,7 @@
   min-height: 100%;
 }
 
-/* Lenis smooth scroll — don't fight CSS scroll-behavior */
+/* Lenis smooth scroll (desktop only) — don't fight CSS scroll-behavior */
 html.lenis,
 html.lenis body {
   height: auto;
@@ -364,6 +364,19 @@ html.lenis.lenis-smooth [data-lenis-prevent] {
 }
 html.lenis.lenis-stopped {
   overflow: clip;
+}
+
+/* Mobile invite: native momentum + CSS smooth scrolling */
+html.invite-native-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+html.invite-native-smooth body {
+  overscroll-behavior-y: none;
+}
+.invite-root {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (prefers-reduced-motion: reduce) {
