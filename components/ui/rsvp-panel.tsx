@@ -5,7 +5,7 @@ import type { InvitationConfig } from '@/lib/invitation-config'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Minus, Phone, Plus } from 'lucide-react'
 import { useState, useTransition } from 'react'
-import { Reveal } from './reveal'
+import { Reveal, RevealStagger } from './reveal'
 
 type Step = 'idle' | 'accept' | 'decline' | 'confirmed-accept' | 'confirmed-decline'
 
@@ -83,7 +83,7 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_20%,color-mix(in_oklab,var(--gold-soft)_20%,transparent),transparent_55%)]"
       />
-      <Reveal direction="up" className="relative text-center">
+      <RevealStagger className="relative text-center" stagger={0.1}>
         <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">R.S.V.P</p>
         <h2 className="mt-3 font-serif text-3xl font-light text-foreground sm:text-4xl">
           Will you <span className="italic text-gilded">join us?</span>
@@ -91,9 +91,9 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
         <p className="mx-auto mt-4 max-w-sm font-sans text-sm leading-relaxed text-muted-foreground">
           Kindly let us know by responding below. We would be honoured to celebrate with you.
         </p>
-      </Reveal>
+      </RevealStagger>
 
-      <div className="mx-auto mt-10 max-w-sm">
+      <Reveal direction="up" delay={0.12} className="mx-auto mt-10 max-w-sm">
         <AnimatePresence mode="wait">
           {step === 'idle' && (
             <motion.div
@@ -303,14 +303,16 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
             </p>
             <a
               href={`tel:${config.contact.replace(/\s/g, '')}`}
-              className="mt-2 inline-flex items-center gap-2 font-serif text-lg font-light text-foreground transition-colors hover:text-gold"
+              aria-label={`Contact us at ${config.contact}`}
+              title={config.contact}
+              className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-gold/50 px-5 py-2.5 font-serif text-sm font-light tracking-wide text-foreground transition-all duration-300 hover:border-gold hover:bg-gold/10 hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <Phone className="h-4 w-4 text-gold" strokeWidth={1.5} />
-              {config.contact}
+              <Phone className="h-3.5 w-3.5 text-gold" strokeWidth={1.5} aria-hidden="true" />
+              Contact us
             </a>
           </div>
         ) : null}
-      </div>
+      </Reveal>
     </section>
   )
 }

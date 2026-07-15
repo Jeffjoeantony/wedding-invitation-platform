@@ -29,7 +29,7 @@ export function Invitation({
     <>
       <Loader onDone={onLoaderDone} />
       <AmbientGlow />
-      <Hearts count={mobile ? 7 : 12} />
+      <Hearts count={mobile ? 18 : 32} />
       <main
         className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'
@@ -60,11 +60,15 @@ export function Invitation({
         <FullBleedPhoto
           src={config.images.portrait}
           alt={`Portrait of ${config.couple1} and ${config.couple2}`}
-          caption="&ldquo;And so the adventure begins.&rdquo;"
+          caption={
+            config.eventTemplate === 'Engagement'
+              ? '\u201CTwo hearts, one promise.\u201D'
+              : '\u201CAnd so the adventure begins.\u201D'
+          }
           grayscale
         />
 
-        <Countdown dateISO={config.dateISO} />
+        <Countdown dateISO={config.dateISO} label={config.countdownLabel} />
 
         <RsvpPanel config={config} />
 

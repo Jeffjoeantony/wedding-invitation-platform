@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Ornament } from './ornament'
-import { Reveal } from './reveal'
+import { Reveal, RevealStagger } from './reveal'
 
 function diff(target: number) {
   const total = Math.max(0, target - Date.now())
@@ -43,7 +43,13 @@ function FlipDigit({ value, label }: { value: string; label: string }) {
   )
 }
 
-export function Countdown({ dateISO }: { dateISO: string }) {
+export function Countdown({
+  dateISO,
+  label = 'Counting down to forever',
+}: {
+  dateISO: string
+  label?: string
+}) {
   const target = new Date(dateISO).getTime()
   const [time, setTime] = useState(() => diff(target))
   const [mounted, setMounted] = useState(false)
@@ -84,13 +90,13 @@ export function Countdown({ dateISO }: { dateISO: string }) {
           />
 
           <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">
-            Counting down to forever
+            {label}
           </p>
           <div className="mt-4">
             <Ornament />
           </div>
 
-          <div className="relative mt-8 grid grid-cols-4 gap-2.5 sm:gap-3">
+          <RevealStagger className="relative mt-8 grid grid-cols-4 gap-2.5 sm:gap-3" stagger={0.08} delay={0.15}>
             {units.map((u) => (
               <FlipDigit
                 key={u.label}
@@ -98,7 +104,7 @@ export function Countdown({ dateISO }: { dateISO: string }) {
                 value={mounted ? String(u.value).padStart(2, '0') : '--'}
               />
             ))}
-          </div>
+          </RevealStagger>
         </div>
       </Reveal>
     </section>

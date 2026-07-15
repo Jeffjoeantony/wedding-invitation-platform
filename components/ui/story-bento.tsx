@@ -2,9 +2,9 @@
 
 import type { InvitationConfig } from '@/lib/invitation-config'
 import { motion } from 'framer-motion'
-import { Clock, MapPin } from 'lucide-react'
+import { Clock, MapPin, Navigation } from 'lucide-react'
 import { Ornament, Sparkles } from './ornament'
-import { Reveal } from './reveal'
+import { Reveal, RevealStagger } from './reveal'
 
 export function StoryBento({ config }: { config: InvitationConfig }) {
   return (
@@ -15,7 +15,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
       />
       <Sparkles count={5} />
 
-      <Reveal direction="up" className="relative text-center">
+      <RevealStagger className="relative text-center" stagger={0.12}>
         <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">Our Story</p>
         <h2 className="mt-3 font-serif text-[2rem] font-light leading-tight text-foreground sm:text-4xl">
           Two hearts,{' '}
@@ -25,13 +25,12 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
           <Ornament />
         </div>
         <p className="mx-auto mt-6 max-w-md font-sans text-sm leading-relaxed text-muted-foreground">
-          From a chance meeting to a lifetime of togetherness, {config.couple1} and {config.couple2}{' '}
-          invite you to witness the beginning of their forever.
+          {config.storyLine}
         </p>
-      </Reveal>
+      </RevealStagger>
 
       <div className="relative mx-auto mt-14 grid max-w-md grid-cols-1 gap-5 sm:grid-cols-2">
-        <Reveal direction="left" delay={0.06}>
+        <Reveal direction="left" delay={0.08}>
           <motion.div
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.985 }}
@@ -57,7 +56,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
           </motion.div>
         </Reveal>
 
-        <Reveal direction="right" delay={0.14}>
+        <Reveal direction="right" delay={0.16}>
           <motion.div
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.985 }}
@@ -83,10 +82,10 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
                 href={config.mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-1.5 font-sans text-xs font-medium tracking-wide text-gold transition-all duration-300 hover:gap-2.5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-gold px-5 py-2.5 font-serif text-[0.7rem] uppercase tracking-[0.16em] text-gold transition-all duration-300 hover:bg-gold hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
-                View on Maps
-                <span aria-hidden="true">&rarr;</span>
+                <Navigation className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+                Get Directions
               </a>
             </div>
           </motion.div>

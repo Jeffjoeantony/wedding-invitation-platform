@@ -1,3 +1,5 @@
+import { getEventCopy } from '@/lib/eventCopy'
+
 export type InvitationConfig = {
   guestName: string
   guestToken?: string
@@ -12,6 +14,12 @@ export type InvitationConfig = {
   address: string
   mapsUrl: string
   contact: string
+  eventTemplate: string
+  requestLine: string
+  atLine: string
+  countdownLabel: string
+  footerTagline: string
+  storyLine: string
   images: {
     hero: string
     accent: string
@@ -60,6 +68,16 @@ function buildDateISO(date: string | undefined, time: string | undefined): strin
   return Number.isNaN(iso.getTime()) ? `${date}T17:00:00+05:30` : iso.toISOString()
 }
 
+function storyLineFor(template: string | null | undefined, couple1: string, couple2: string) {
+  if (template === 'Engagement') {
+    return `From a chance meeting to a promise of forever, ${couple1} and ${couple2} invite you to celebrate their engagement.`
+  }
+  if (template === 'Birthday') {
+    return `Join us as we celebrate ${couple1} with love, joy, and cherished memories.`
+  }
+  return `From a chance meeting to a lifetime of togetherness, ${couple1} and ${couple2} invite you to witness the beginning of their forever.`
+}
+
 /** Map platform event (+ optional guest) into the invitation UI config. */
 export function buildInvitationConfig(
   event: {
@@ -72,6 +90,7 @@ export function buildInvitationConfig(
     location?: string
     contact?: string
     maps_url?: string
+    event_template?: string
   },
   guest?: { name?: string; unique_token?: string; project_id?: string } | null,
 ): InvitationConfig {
@@ -80,6 +99,8 @@ export function buildInvitationConfig(
   const venue = event.venue?.trim() || ''
   const location = event.location?.trim() || ''
   const address = [venue, location].filter(Boolean).join(', ')
+  const template = event.event_template || 'Wedding'
+  const copy = getEventCopy(template)
 
   return {
     guestName: guest?.name?.trim() || 'Guest',
@@ -95,6 +116,12 @@ export function buildInvitationConfig(
     address,
     mapsUrl: getMapsUrl(event.maps_url, address),
     contact: event.contact?.trim() || '',
+    eventTemplate: template,
+    requestLine: copy.requestLine,
+    atLine: copy.atLine,
+    countdownLabel: copy.countdownLabel,
+    footerTagline: copy.footerTagline,
+    storyLine: storyLineFor(template, couple1, couple2),
     images: DEFAULT_IMAGES,
   }
 }

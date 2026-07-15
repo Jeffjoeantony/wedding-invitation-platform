@@ -4,7 +4,9 @@ import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion
 import { useRef } from 'react'
 import { useMobileMotion } from './use-mobile-motion'
 
-/** Full-bleed photo with soft 1:1 scroll parallax (no spring lag on trackpads). */
+const easeOut = [0.16, 1, 0.3, 1] as const
+
+/** Full-bleed photo with soft parallax + scroll-linked fade. */
 export function FullBleedPhoto({
   src,
   alt,
@@ -24,27 +26,44 @@ export function FullBleedPhoto({
     offset: ['start end', 'end start'],
   })
 
-  const yTravel = reduce ? 0 : mobile ? 24 : 40
-  const scalePeak = reduce ? 1 : mobile ? 1.03 : 1.06
+  const yTravel = reduce ? 0 : mobile ? 28 : 56
+  const scalePeak = reduce ? 1 : mobile ? 1.04 : 1.08
 
   const y = useTransform(scrollYProgress, [0, 1], [-yTravel, yTravel])
   const scale = useTransform(scrollYProgress, [0, 0.5, 1], [scalePeak, 1, scalePeak])
+  const opacity = useTransform(
+    scrollYProgress,
+    [0, 0.18, 0.82, 1],
+    reduce ? [1, 1, 1, 1] : [0.55, 1, 1, 0.55],
+  )
+  const captionY = useTransform(
+    scrollYProgress,
+    [0.25, 0.5, 0.75],
+    reduce ? [0, 0, 0] : [28, 0, -18],
+  )
+  const captionOpacity = useTransform(
+    scrollYProgress,
+    [0.28, 0.45, 0.72, 0.88],
+    reduce ? [1, 1, 1, 1] : [0, 1, 1, 0],
+  )
 
   return (
     <section
       ref={ref}
       className="invite-section relative h-[70vh] w-full overflow-hidden sm:h-[78vh]"
     >
-      <motion.img
-        src={src || '/placeholder.svg'}
-        alt={alt}
-        style={{ y, scale }}
-        decoding="async"
-        loading="lazy"
-        className={`absolute inset-0 h-[118%] w-full object-cover ${
-          grayscale ? 'grayscale' : ''
-        }`}
-      />
+      <motion.div style={{ opacity }} className="absolute inset-0">
+        <motion.img
+          src={src || '/placeholder.svg'}
+          alt={alt}
+          style={{ y, scale }}
+          decoding="async"
+          loading="lazy"
+          className={`absolute inset-0 h-[120%] w-full object-cover ${
+            grayscale ? 'grayscale' : ''
+          }`}
+        />
+      </motion.div>
       <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-black/20" />
       <div
         aria-hidden="true"
@@ -57,14 +76,15 @@ export function FullBleedPhoto({
       {caption && (
         <motion.div
           className="absolute inset-x-0 bottom-12 px-8 text-center"
-          initial={{ opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: mobile ? 0.7 : 0.9, ease: [0.22, 1, 0.36, 1] }}
+          style={{ y: captionY, opacity: captionOpacity }}
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true, amount: 0.35 }}
+          transition={{ duration: mobile ? 0.8 : 1.1, ease: easeOut }}
         >
           <div
             aria-hidden="true"
-            className="mx-auto mb-4 h-px w-14 bg-gradient-to-r from-transparent via-white/70 to-transparent"
+            className="mx-auto mb-4 h-px w-14 origin-center bg-gradient-to-r from-transparent via-white/70 to-transparent"
           />
           <p className="font-serif text-2xl font-light italic text-white/95 [text-shadow:0_2px_22px_rgba(0,0,0,0.55)] sm:text-3xl">
             {caption}

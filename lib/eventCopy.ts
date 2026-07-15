@@ -38,7 +38,7 @@ const copy: Record<EventTemplate, EventCopy> = {
     splashTag: 'You are joyfully invited',
     splashHeading: 'A Celebration of Togetherness',
     preHeading: 'Together with their families',
-    requestLine: 'Request the pleasure of your presence',
+    requestLine: 'Request the honour of your presence',
     atLine: 'at their engagement ceremony',
     countdownLabel: 'Counting down to the big moment',
     footerTagline: 'A Celebration of Togetherness',

@@ -30,26 +30,7 @@ export default function OpenInvitePage() {
   const theme = getInvitePageTheme(event?.event_template)
 
   if (loading) {
-    const loadingTheme = getInvitePageTheme()
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center gap-6"
-        style={{ background: loadingTheme.background }}
-      >
-        <div className="relative w-20 h-20">
-          <div
-            className="absolute inset-0 rounded-full animate-pulse-ring"
-            style={{ border: `2px solid ${loadingTheme.ringColor}` }}
-          />
-          <div className="absolute inset-0 flex items-center justify-center text-3xl animate-heart-beat">
-            💌
-          </div>
-        </div>
-        <p className={`text-sm tracking-widest animate-pulse ${loadingTheme.loadingTextClass}`}>
-          Loading invitation…
-        </p>
-      </div>
-    )
+    return <div className="min-h-screen bg-[oklch(0.965_0.011_85)]" aria-hidden="true" />
   }
 
   if (error || !event) {

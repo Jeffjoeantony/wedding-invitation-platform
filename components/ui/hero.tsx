@@ -140,7 +140,7 @@ export function Hero({
           />
           <h1 className="flex flex-col items-center leading-none text-foreground">
             <LetterReveal
-              text={config.couple1.toUpperCase()}
+              text={config.couple1}
               className="font-serif text-4xl font-semibold tracking-[0.12em]"
               gilded
             />
@@ -160,9 +160,9 @@ export function Hero({
           </h1>
           <div className="mx-auto mt-3 h-px w-12 bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
           <p className="mt-3 font-sans text-[0.62rem] uppercase leading-relaxed tracking-[0.22em] text-muted-foreground">
-            Request the honour of your presence
+            {config.requestLine}
             <br />
-            at their wedding celebration
+            {config.atLine}
           </p>
         </motion.div>
       </div>
