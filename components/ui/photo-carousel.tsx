@@ -82,6 +82,7 @@ export function PhotoCarousel({
               containScroll: 'trimSnaps',
             }}
             plugins={multi ? [autoplay] : []}
+            data-lenis-prevent
             className="[&_[data-slot=carousel-content]]:touch-pan-y"
             onPointerDownCapture={() => {
               if (multi) autoplay.stop()

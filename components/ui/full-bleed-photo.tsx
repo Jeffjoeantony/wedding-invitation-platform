@@ -6,7 +6,7 @@ import { useMobileMotion } from './use-mobile-motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
 
-/** Full-bleed photo with soft parallax + scroll-linked fade. */
+/** Full-bleed photo with soft parallax + scroll-linked fade (parallax off on mobile). */
 export function FullBleedPhoto({
   src,
   alt,
@@ -26,25 +26,26 @@ export function FullBleedPhoto({
     offset: ['start end', 'end start'],
   })
 
-  const yTravel = reduce ? 0 : mobile ? 28 : 56
-  const scalePeak = reduce ? 1 : mobile ? 1.04 : 1.08
+  // Parallax transforms cause jank on mobile during smooth/native scroll — keep static.
+  const yTravel = reduce || mobile ? 0 : 56
+  const scalePeak = reduce || mobile ? 1 : 1.08
 
   const y = useTransform(scrollYProgress, [0, 1], [-yTravel, yTravel])
   const scale = useTransform(scrollYProgress, [0, 0.5, 1], [scalePeak, 1, scalePeak])
   const opacity = useTransform(
     scrollYProgress,
     [0, 0.18, 0.82, 1],
-    reduce ? [1, 1, 1, 1] : [0.55, 1, 1, 0.55],
+    reduce || mobile ? [1, 1, 1, 1] : [0.55, 1, 1, 0.55],
   )
   const captionY = useTransform(
     scrollYProgress,
     [0.25, 0.5, 0.75],
-    reduce ? [0, 0, 0] : [28, 0, -18],
+    reduce || mobile ? [0, 0, 0] : [28, 0, -18],
   )
   const captionOpacity = useTransform(
     scrollYProgress,
     [0.28, 0.45, 0.72, 0.88],
-    reduce ? [1, 1, 1, 1] : [0, 1, 1, 0],
+    reduce || mobile ? [1, 1, 1, 1] : [0, 1, 1, 0],
   )
 
   return (
@@ -56,7 +57,7 @@ export function FullBleedPhoto({
         <motion.img
           src={src || '/placeholder.svg'}
           alt={alt}
-          style={{ y, scale }}
+          style={mobile || reduce ? undefined : { y, scale }}
           decoding="async"
           loading="lazy"
           className={`absolute inset-0 h-[120%] w-full object-cover ${
@@ -76,7 +77,7 @@ export function FullBleedPhoto({
       {caption && (
         <motion.div
           className="absolute inset-x-0 bottom-12 px-8 text-center"
-          style={{ y: captionY, opacity: captionOpacity }}
+          style={mobile || reduce ? undefined : { y: captionY, opacity: captionOpacity }}
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true, amount: 0.35 }}

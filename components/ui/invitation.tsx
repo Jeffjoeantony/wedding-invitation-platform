@@ -12,6 +12,7 @@ import { Loader } from './loader'
 import { AmbientGlow } from './ornament'
 import { PhotoCarousel } from './photo-carousel'
 import { RsvpPanel } from './rsvp-panel'
+import { SmoothScroll } from './smooth-scroll'
 import { StoryBento } from './story-bento'
 import { useMobileMotion } from './use-mobile-motion'
 
@@ -29,10 +30,10 @@ export function Invitation({
   const hasGallery = config.galleryImages.length > 0
 
   return (
-    <>
+    <SmoothScroll>
       <Loader onDone={onLoaderDone} />
       <AmbientGlow />
-      <Hearts count={mobile ? 18 : 32} />
+      <Hearts count={mobile ? 12 : 28} />
       <main
         className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'
@@ -85,6 +86,6 @@ export function Invitation({
 
         <Footer config={config} />
       </main>
-    </>
+    </SmoothScroll>
   )
 }
