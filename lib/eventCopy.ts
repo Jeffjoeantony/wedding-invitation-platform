@@ -2,7 +2,7 @@
  * Returns all UI copy that changes based on the event template type.
  * Add new templates here and all pages update automatically.
  */
-export type EventTemplate = 'Wedding' | 'Engagement'
+export type EventTemplate = 'Wedding' | 'Engagement' | 'Birthday'
 
 interface EventCopy {
   /** Splash screen top tag */
@@ -38,15 +38,26 @@ const copy: Record<EventTemplate, EventCopy> = {
     splashTag: 'You are joyfully invited',
     splashHeading: 'A Celebration of Togetherness',
     preHeading: 'Together with their families',
-    requestLine: 'Request the pleasure of your presence',
+    requestLine: 'Request the honour of your presence',
     atLine: 'at their engagement ceremony',
     countdownLabel: 'Counting down to the big moment',
     footerTagline: 'A Celebration of Togetherness',
     exportPrefix: 'engagement',
   },
+  Birthday: {
+    splashTag: 'You are warmly invited',
+    splashHeading: 'A Celebration of Life & Joy',
+    preHeading: 'Join us for a special day',
+    requestLine: 'Request the joy of your presence',
+    atLine: 'at this birthday celebration',
+    countdownLabel: 'Counting down to the big day',
+    footerTagline: 'A Celebration of Life & Joy',
+    exportPrefix: 'birthday',
+  },
 }
 
 export function getEventCopy(template?: string | null): EventCopy {
   if (template === 'Engagement') return copy.Engagement
+  if (template === 'Birthday') return copy.Birthday
   return copy.Wedding
 }

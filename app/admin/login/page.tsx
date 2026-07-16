@@ -73,7 +73,7 @@ export default function AdminLoginPage() {
           >
             Admin Portal
           </h1>
-          <p className="text-rose-300/60 text-sm mt-1 font-light">Wedding Management Dashboard</p>
+          <p className="text-rose-300/60 text-sm mt-1 font-light">Digital Invitation Management Dashboard</p>
         </div>
 
         {/* Card */}

@@ -1,151 +1,1438 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import * as XLSX from 'xlsx'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import NotificationSystem from '@/components/NotificationSystem'
+import { addNotification, playNotificationSound } from '@/lib/notifications'
+import { formatBirthdayPersonsDisplay, serializeAdditionalBirthdayPersons } from '@/lib/birthdayPersons'
 
-interface Guest {
+interface ProjectStats {
+  total: number
+  confirmed: number
+  declined: number
+  pending: number
+  totalPax: number
+}
+
+interface Project {
   id: string
   name: string
-  phone?: string
-  email?: string
-  unique_token: string
-  rsvp_status: 'pending' | 'yes' | 'no'
-  pax_count: number
-  guest_category?: string
-  opened_at?: string
-  responded_at?: string
-}
-
-interface Event {
-  id: number
   couple_1: string
   couple_2: string
-  date: string
-  time: string
-  venue: string
-  location: string
-  contact: string
+  date?: string
+  time?: string
+  venue?: string
+  location?: string
+  contact?: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement'
+  event_template?: string
+  status: 'active' | 'paused' | 'completed'
+  created_at: string
+  _stats: ProjectStats
 }
 
-// ── Avatar component ──────────────────────────────────────────────────────────
-function GuestAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-  const palette = [
-    'bg-rose-100 text-rose-700',
-    'bg-amber-100 text-amber-700',
-    'bg-emerald-100 text-emerald-700',
-    'bg-blue-100 text-blue-700',
-    'bg-violet-100 text-violet-700',
-    'bg-pink-100 text-pink-700',
-    'bg-cyan-100 text-cyan-700',
-    'bg-orange-100 text-orange-700',
-  ]
-  const c = palette[name.charCodeAt(0) % palette.length]
+// ── Event type config ─────────────────────────────────────────────────────────
+const EVENT_TYPES = [
+  { value: 'Wedding',        label: 'Wedding',        emoji: '💍', color: '#D72660', bg: '#F4E7EC' },
+  { value: 'Engagement',     label: 'Engagement',     emoji: '💑', color: '#7C3AED', bg: '#EDE9FE' },
+  { value: 'Reception',      label: 'Reception',      emoji: '🥂', color: '#0891B2', bg: '#E0F7FA' },
+  { value: 'Mehendi',        label: 'Mehendi',        emoji: '🌿', color: '#059669', bg: '#D1FAE5' },
+  { value: 'Haldi',          label: 'Haldi',          emoji: '🌼', color: '#D97706', bg: '#FEF3C7' },
+  { value: 'Save The Date',  label: 'Save The Date',  emoji: '📅', color: '#DB2777', bg: '#FCE7F3' },
+  { value: 'Birthday',       label: 'Birthday',       emoji: '🎂', color: '#EA580C', bg: '#FEE2E2' },
+  { value: 'Housewarming',   label: 'Housewarming',   emoji: '🏡', color: '#0D9488', bg: '#CCFBF1' },
+  { value: 'Corporate Event',label: 'Corporate Event',emoji: '🏢', color: '#1D4ED8', bg: '#DBEAFE' },
+  { value: 'Custom Event',   label: 'Custom Event',   emoji: '✨', color: '#6B7280', bg: '#F3F4F6' },
+]
+
+function getEventType(value?: string) {
+  return EVENT_TYPES.find((e) => e.value === value) ?? EVENT_TYPES[0]
+}
+
+// ── SVG Icons ─────────────────────────────────────────────────────────────────
+const Icon = {
+  Dashboard: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
+    </svg>
+  ),
+  Grid: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" />
+      <rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />
+    </svg>
+  ),
+  Users: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  ),
+  Analytics: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" /><path d="M2 20h20" />
+    </svg>
+  ),
+  Templates: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" />
+    </svg>
+  ),
+  Settings: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  Plus: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  Search: () => (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  ),
+  List: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  ),
+  ChevronDown: () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  ),
+  X: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  Dots: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
+    </svg>
+  ),
+  Heart: () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  ),
+  TrendUp: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
+    </svg>
+  ),
+  Calendar: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  ),
+  MapPin: () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+    </svg>
+  ),
+  Bell: () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  ),
+  Logout: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
+  CheckCircle: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  ),
+  Clock: () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+    </svg>
+  ),
+  Folder: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+}
+
+// ── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: string }) {
+  const cfg = {
+    active:    { label: 'Active',    dot: '#16A34A', bg: '#DCFCE7', color: '#15803D' },
+    paused:    { label: 'Paused',    dot: '#F59E0B', bg: '#FEF3C7', color: '#B45309' },
+    completed: { label: 'Completed', dot: '#6366F1', bg: '#EEF2FF', color: '#4338CA' },
+  }[status] ?? { label: status, dot: '#6B7280', bg: '#F3F4F6', color: '#374151' }
+
+  return (
+    <span
+      style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.dot}40` }}
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide"
+    >
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: cfg.dot }} />
+      {cfg.label}
+    </span>
+  )
+}
+
+// ── Project Card ──────────────────────────────────────────────────────────────
+function ProjectCard({ project, onOpen, onToggleStatus, onDelete }: {
+  project: Project
+  onOpen: () => void
+  onToggleStatus: () => void
+  onDelete: () => void
+}) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const eventType = getEventType(project.event_template)
+
+  const dateStr = project.date
+    ? new Date(project.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null
+
+  const confirmedPct = project._stats.total > 0
+    ? Math.round((project._stats.confirmed / project._stats.total) * 100) : 0
+  const declinedPct = project._stats.total > 0
+    ? Math.round((project._stats.declined / project._stats.total) * 100) : 0
+  const pendingPct = project._stats.total > 0
+    ? Math.round((project._stats.pending / project._stats.total) * 100) : 0
+
   return (
     <div
-      className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${c}`}
+      style={{
+        background: '#FFFFFF',
+        border: hovered ? '1.5px solid #D72660' : '1.5px solid #E5E7EB',
+        borderRadius: '16px',
+        padding: '20px',
+        cursor: 'pointer',
+        position: 'relative',
+        transition: 'all 0.22s ease',
+        boxShadow: hovered
+          ? '0 8px 32px rgba(215,38,96,0.10), 0 2px 8px rgba(31,41,55,0.06)'
+          : '0 1px 4px rgba(31,41,55,0.06), 0 0 0 0 transparent',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => { if (!menuOpen) onOpen() }}
     >
-      {initials}
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Event icon */}
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: eventType.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, flexShrink: 0,
+          }}>
+            {eventType.emoji}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p style={{ color: '#1F2937', fontWeight: 700, fontSize: '15px', margin: 0 }} className="truncate">{project.name}</p>
+            {(project.couple_1 || project.couple_2) && (
+              <p style={{ color: '#6B7280', fontSize: '12px', marginTop: 2 }} className="truncate">
+                {project.event_template === 'Birthday'
+                  ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
+                  : `${project.couple_1}${project.couple_1 && project.couple_2 ? ' & ' : ''}${project.couple_2}`}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Context menu */}
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{
+              color: '#9CA3AF', background: menuOpen ? '#F3F4F6' : 'transparent',
+              border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280' }}
+            onMouseLeave={(e) => { if (!menuOpen) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' } }}
+          >
+            <Icon.Dots />
+          </button>
+          {menuOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: '4px',
+              background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px',
+              padding: '6px', minWidth: '170px', zIndex: 50,
+              boxShadow: '0 10px 40px rgba(31,41,55,0.12), 0 2px 8px rgba(31,41,55,0.06)',
+            }}>
+              <button className="ctx-item" onClick={() => { setMenuOpen(false); onOpen() }}>Open project</button>
+              <button className="ctx-item" onClick={() => { setMenuOpen(false); onToggleStatus() }}>
+                {project.status === 'paused' ? 'Mark as active' : 'Pause project'}
+              </button>
+              <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }} />
+              <button className="ctx-item ctx-danger" onClick={() => { setMenuOpen(false); onDelete() }}>Delete project</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Badges row */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span style={{
+          background: eventType.bg, color: eventType.color,
+          fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999,
+          letterSpacing: '0.03em',
+        }}>
+          {eventType.label}
+        </span>
+        {dateStr && (
+          <span style={{ color: '#6B7280', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Icon.Calendar /> {dateStr}
+          </span>
+        )}
+        {project.location && (
+          <span style={{ color: '#6B7280', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }} className="truncate max-w-[140px]">
+            <Icon.MapPin /> {project.location}
+          </span>
+        )}
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+          <span style={{ color: '#9CA3AF', fontSize: 11 }}>
+            {project._stats.total > 0 ? `${project._stats.total} guests invited` : 'No guests yet'}
+          </span>
+          {project._stats.total > 0 && (
+            <span style={{ color: '#16A34A', fontSize: 11, fontWeight: 600 }}>{confirmedPct}% confirmed</span>
+          )}
+        </div>
+        <div style={{ height: 5, background: '#F3F4F6', borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
+          {project._stats.confirmed > 0 && (
+            <div style={{ width: `${confirmedPct}%`, background: '#16A34A', borderRadius: '999px 0 0 999px', transition: 'width 0.5s ease' }} />
+          )}
+          {project._stats.declined > 0 && (
+            <div style={{ width: `${declinedPct}%`, background: '#EF4444' }} />
+          )}
+          {project._stats.pending > 0 && (
+            <div style={{ width: `${pendingPct}%`, background: '#F59E0B', borderRadius: '0 999px 999px 0' }} />
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-between">
+        <StatusBadge status={project.status} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11 }}>
+          {project._stats.total > 0 && (
+            <>
+              <span style={{ color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Icon.CheckCircle /> {project._stats.confirmed}
+              </span>
+              <span style={{ color: '#F59E0B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Icon.Clock /> {project._stats.pending}
+              </span>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({
-  label,
-  value,
-  sub,
-  icon,
-  accent,
-  textColor,
-  iconBg,
-}: {
+// ── Stat Card ─────────────────────────────────────────────────────────────────
+function StatCard({ label, value, icon, accent, trend }: {
   label: string
   value: number | string
-  sub: string
-  icon: string
+  icon: React.ReactNode
   accent: string
-  textColor: string
-  iconBg: string
+  trend?: string
 }) {
   return (
-    <Card className={`bg-white/90 border-l-4 ${accent} shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5`}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-            <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>
-          </div>
-          <span className={`text-xl p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+    <div style={{
+      background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
+      padding: '22px 24px',
+      boxShadow: '0 1px 4px rgba(31,41,55,0.06)',
+      transition: 'box-shadow 0.2s, transform 0.2s',
+      flex: 1, minWidth: 0,
+    }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 6px 24px rgba(31,41,55,0.09)'
+        e.currentTarget.style.transform = 'translateY(-2px)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 4px rgba(31,41,55,0.06)'
+        e.currentTarget.style.transform = 'translateY(0)'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 10,
+          background: accent + '18', color: accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {icon}
         </div>
-      </CardContent>
-    </Card>
+        {trend && (
+          <span style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            color: '#16A34A', fontSize: 11, fontWeight: 600,
+            background: '#DCFCE7', padding: '3px 8px', borderRadius: 999,
+          }}>
+            <Icon.TrendUp /> {trend}
+          </span>
+        )}
+      </div>
+      <p style={{ color: '#1F2937', fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</p>
+      <p style={{ color: '#6B7280', fontSize: 13, marginTop: 6, marginBottom: 0 }}>{label}</p>
+    </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-export default function AdminPage() {
-  const router = useRouter()
-  const [guests, setGuests] = useState<Guest[]>([])
-  const [event, setEvent] = useState<Event | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
-  const [search, setSearch] = useState('')
-  const [newGuestName, setNewGuestName] = useState('')
-  const [newGuestPhone, setNewGuestPhone] = useState('')
-  const [newGuestCategory, setNewGuestCategory] = useState('Friends')
-  const [adding, setAdding] = useState(false)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importPreview, setImportPreview] = useState<any[]>([])
-  const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState('')
-  const [addGuestError, setAddGuestError] = useState('')
-  const [phoneError, setPhoneError] = useState('')
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState('')
+// ── New Project Modal ─────────────────────────────────────────────────────────
+function NewProjectModal({ onClose, onCreate }: {
+  onClose: () => void
+  onCreate: (p: Project) => void
+}) {
+  const [form, setForm] = useState({
+    name: '', couple_1: '', couple_2: '', event_template: 'Wedding',
+    date: '', venue: '', location: '', contact: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const selectedType = getEventType(form.event_template)
 
-  const fetchData = useCallback(async () => {
-    setRefreshing(true)
-    const [guestRes, eventRes] = await Promise.all([
-      fetch('/api/guests'),
-      fetch('/api/event'),
-    ])
-    if (guestRes.ok) setGuests(await guestRes.json())
-    if (eventRes.ok) setEvent(await eventRes.json())
-    setLoading(false)
-    setRefreshing(false)
-    setLastUpdated(new Date())
+  const today = new Date().toISOString().split('T')[0]
+  const isWeddingLike = ['Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi', 'Save The Date'].includes(form.event_template)
+  const isBirthday = form.event_template === 'Birthday'
+
+  // Additional birthday persons (stored serialised into couple_2)
+  const [additionalBirthdayPersons, setAdditionalBirthdayPersons] = useState<string[]>([])
+
+  // Validates that a text value is not purely numeric (must contain at least one letter)
+  const isTextOnlyValid = (val: string) => val === '' || /[a-zA-Z]/.test(val)
+
+  const validateField = (key: string, value: string): string => {
+    const textFields: Record<string, string> = {
+      name: 'Project name',
+      couple_1: isWeddingLike ? 'Partner 1' : 'Organizer',
+      couple_2: isWeddingLike ? 'Partner 2' : 'Co-host',
+      venue: 'Venue',
+      location: 'City / Location',
+    }
+    if (textFields[key]) {
+      if (value.trim() && !isTextOnlyValid(value.trim())) {
+        return `${textFields[key]} must contain letters, not numbers only`
+      }
+    }
+    if (key === 'contact') {
+      if (value && !/^\d+$/.test(value)) return 'Contact must contain digits only'
+      if (value && value.length > 10) return 'Contact number must be at most 10 digits'
+    }
+    return ''
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Run all field validations on submit
+    const newFieldErrors: Record<string, string> = {}
+    // For birthday, couple_1 = primary person, couple_2 is managed separately
+    const textKeys = isBirthday
+      ? ['name', 'venue', 'location']
+      : ['name', 'couple_1', 'couple_2', 'venue', 'location']
+    for (const key of textKeys) {
+      const msg = validateField(key, (form as any)[key])
+      if (msg) newFieldErrors[key] = msg
+    }
+    // Validate birthday primary person name if filled
+    if (isBirthday && form.couple_1.trim() && !isTextOnlyValid(form.couple_1.trim())) {
+      newFieldErrors['couple_1'] = 'Birthday person name must contain letters, not numbers only'
+    }
+    const contactMsg = validateField('contact', form.contact)
+    if (contactMsg) newFieldErrors['contact'] = contactMsg
+    if (form.contact && form.contact.length < 10) newFieldErrors['contact'] = 'Contact number must be exactly 10 digits'
+
+    if (!form.name.trim()) {
+      newFieldErrors['name'] = 'Project name is required'
+    }
+
+    setFieldErrors(newFieldErrors)
+    if (Object.keys(newFieldErrors).length > 0) {
+      setErr('Please fix the errors above before creating the project.')
+      return
+    }
+
+    if (form.date && form.date < today) { setErr('Event date cannot be in the past.'); return }
+    setSaving(true)
+    setErr('')
+    // For birthday, serialise additional persons into couple_2
+    const payload = isBirthday
+      ? { ...form, couple_2: serializeAdditionalBirthdayPersons(additionalBirthdayPersons) }
+      : form
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      onCreate(data)
+      onClose()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setErr(d.error || 'Failed to create project. Please try again.')
+    }
+    setSaving(false)
+  }
+
+  const f = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const val = e.target.value
+    setForm((prev) => ({ ...prev, [k]: val }))
+    // Clear field error on change
+    setFieldErrors((prev) => ({ ...prev, [k]: '' }))
+    setErr('')
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(31,41,55,0.45)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        background: '#FFFFFF', borderRadius: 20, width: '100%', maxWidth: 540,
+        boxShadow: '0 24px 64px rgba(31,41,55,0.18), 0 4px 16px rgba(31,41,55,0.08)',
+        maxHeight: '90vh', overflow: 'auto',
+      }}>
+        {/* Modal header */}
+        <div style={{ padding: '24px 28px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: selectedType.bg, fontSize: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {selectedType.emoji}
+            </div>
+            <div>
+              <h2 style={{ color: '#1F2937', fontWeight: 700, fontSize: 18, margin: 0 }}>Create new project</h2>
+              <p style={{ color: '#6B7280', fontSize: 13, marginTop: 2, marginBottom: 0 }}>Set up your digital invitation project</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', padding: 6, borderRadius: 8, marginTop: -2 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#6B7280' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#9CA3AF' }}
+          >
+            <Icon.X />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ padding: '20px 28px 28px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Event type */}
+            <div>
+              <label className="modal-label">Event type</label>
+              <div className="modal-select-wrap">
+                <select value={form.event_template} onChange={f('event_template')} className="modal-input">
+                  {EVENT_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>
+                  ))}
+                </select>
+                <span className="modal-select-chevron"><Icon.ChevronDown /></span>
+              </div>
+            </div>
+
+            {/* Project name */}
+            <div>
+              <label className="modal-label">Project name <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                value={form.name}
+                onChange={(e) => {
+                  f('name')(e)
+                  const msg = validateField('name', e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, name: msg }))
+                }}
+                required
+                placeholder={isWeddingLike ? 'e.g. Priya & Arjun Wedding' : 'e.g. Annual Tech Summit 2025'}
+                className="modal-input"
+                style={fieldErrors.name ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+              />
+              {fieldErrors.name && (
+                <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.name}</p>
+              )}
+            </div>
+
+            {/* Person names — Birthday vs Wedding/other */}
+            {isBirthday ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <label className="modal-label">🎂 Birthday Person</label>
+                <input
+                  value={form.couple_1}
+                  onChange={(e) => {
+                    f('couple_1')(e)
+                    const msg = isTextOnlyValid(e.target.value.trim()) ? '' : 'Name must contain letters, not numbers only'
+                    setFieldErrors((prev) => ({ ...prev, couple_1: e.target.value.trim() ? msg : '' }))
+                  }}
+                  placeholder="Name of the birthday person"
+                  className="modal-input"
+                  style={fieldErrors.couple_1 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                />
+                {fieldErrors.couple_1 && (
+                  <p style={{ color: '#EF4444', fontSize: 11, marginTop: -4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_1}</p>
+                )}
+
+                {/* Additional birthday persons */}
+                {additionalBirthdayPersons.map((name, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: '#9CA3AF', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>&</span>
+                    <input
+                      value={name}
+                      onChange={(e) => {
+                        const next = [...additionalBirthdayPersons]
+                        next[index] = e.target.value
+                        setAdditionalBirthdayPersons(next)
+                      }}
+                      placeholder="Person name"
+                      className="modal-input"
+                      style={{ flex: 1, margin: 0 }}
+                    />
+                    <button
+                      type="button"
+                      title="Remove"
+                      onClick={() => setAdditionalBirthdayPersons(additionalBirthdayPersons.filter((_, i) => i !== index))}
+                      style={{
+                        flexShrink: 0, width: 34, height: 34,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: 10, border: '1px solid #FECACA',
+                        background: 'transparent', color: '#F87171',
+                        cursor: 'pointer', fontSize: 14, transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#DC2626' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#F87171' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setAdditionalBirthdayPersons((prev) => [...prev, ''])}
+                  style={{
+                    alignSelf: 'flex-start',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 8,
+                    border: '1.5px dashed #C4B5FD',
+                    background: 'transparent', color: '#7C3AED',
+                    fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#F5F3FF'; e.currentTarget.style.borderColor = '#7C3AED' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#C4B5FD' }}
+                >
+                  + More
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="modal-label">{isWeddingLike ? 'Partner 1' : 'Organizer'}</label>
+                  <input
+                    value={form.couple_1}
+                    onChange={(e) => {
+                      f('couple_1')(e)
+                      const msg = validateField('couple_1', e.target.value)
+                      setFieldErrors((prev) => ({ ...prev, couple_1: msg }))
+                    }}
+                    placeholder="Name"
+                    className="modal-input"
+                    style={fieldErrors.couple_1 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                  />
+                  {fieldErrors.couple_1 && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_1}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="modal-label">{isWeddingLike ? 'Partner 2' : 'Co-host'}</label>
+                  <input
+                    value={form.couple_2}
+                    onChange={(e) => {
+                      f('couple_2')(e)
+                      const msg = validateField('couple_2', e.target.value)
+                      setFieldErrors((prev) => ({ ...prev, couple_2: msg }))
+                    }}
+                    placeholder="Name"
+                    className="modal-input"
+                    style={fieldErrors.couple_2 ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                  />
+                  {fieldErrors.couple_2 && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.couple_2}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Date & Location */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label className="modal-label">Event date</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val && val < today) {
+                      setErr('Event date cannot be in the past.')
+                    } else {
+                      setErr('')
+                    }
+                    setForm((prev) => ({ ...prev, date: val }))
+                  }}
+                  min={today}
+                  className="modal-input"
+                  style={form.date && form.date < today ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                />
+                {form.date && form.date < today && (
+                  <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    ⚠ Date must be today or in the future
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="modal-label">City / Location</label>
+                <input
+                  value={form.location}
+                  onChange={(e) => {
+                    f('location')(e)
+                    const msg = validateField('location', e.target.value)
+                    setFieldErrors((prev) => ({ ...prev, location: msg }))
+                  }}
+                  placeholder="Chennai"
+                  className="modal-input"
+                  style={fieldErrors.location ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+                />
+                {fieldErrors.location && (
+                  <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.location}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Venue */}
+            <div>
+              <label className="modal-label">Venue</label>
+              <input
+                value={form.venue}
+                onChange={(e) => {
+                  f('venue')(e)
+                  const msg = validateField('venue', e.target.value)
+                  setFieldErrors((prev) => ({ ...prev, venue: msg }))
+                }}
+                placeholder="Grand Ballroom, Hotel..."
+                className="modal-input"
+                style={fieldErrors.venue ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+              />
+              {fieldErrors.venue && (
+                <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.venue}</p>
+              )}
+            </div>
+
+            {/* Contact */}
+            <div>
+              <label className="modal-label">Contact number</label>
+              <input
+                value={form.contact}
+                inputMode="numeric"
+                maxLength={10}
+                onChange={(e) => {
+                  // Allow only digits, max 10
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setForm((prev) => ({ ...prev, contact: digits }))
+                  setFieldErrors((prev) => ({ ...prev, contact: '' }))
+                  setErr('')
+                }}
+                placeholder="10-digit number"
+                className="modal-input"
+                style={fieldErrors.contact ? { borderColor: '#EF4444', boxShadow: '0 0 0 3px rgba(239,68,68,0.1)' } : {}}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                {fieldErrors.contact
+                  ? <p style={{ color: '#EF4444', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>⚠ {fieldErrors.contact}</p>
+                  : <span />}
+                <p style={{ color: form.contact.length === 10 ? '#16A34A' : '#9CA3AF', fontSize: 11, textAlign: 'right' }}>
+                  {form.contact.length}/10
+                </p>
+              </div>
+            </div>
+
+            {err && (
+              <div style={{
+                background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
+                padding: '10px 14px', color: '#B91C1C', fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                ⚠ {err}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                type="button" onClick={onClose}
+                className="modal-btn-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit" disabled={saving}
+                className="modal-btn-primary"
+                style={{ opacity: saving ? 0.75 : 1 }}
+              >
+                {saving ? 'Creating…' : 'Create project'}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Dashboard Stats View ──────────────────────────────────────────────────────
+function DashboardView({ projects }: { projects: Project[] }) {
+  const totalGuests = projects.reduce((s, p) => s + p._stats.total, 0)
+  const totalConfirmed = projects.reduce((s, p) => s + p._stats.confirmed, 0)
+  const totalPending = projects.reduce((s, p) => s + p._stats.pending, 0)
+
+  const now = new Date()
+  const hour = now.getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+  const recent = [...projects]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+
+  return (
+    <div>
+      {/* Welcome */}
+      <div style={{
+        background: 'linear-gradient(135deg, #D72660 0%, #9B1C4C 100%)',
+        borderRadius: 20, padding: '28px 32px', marginBottom: 28,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', top: -20, right: -20, width: 160, height: 160,
+          borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: -40, right: 60, width: 120, height: 120,
+          borderRadius: '50%', background: 'rgba(255,255,255,0.04)',
+        }} />
+        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 6px', fontWeight: 500 }}>{dateLabel}</p>
+        <h2 style={{ color: '#FFFFFF', fontSize: 26, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
+          {greeting} ✦
+        </h2>
+        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, margin: 0 }}>
+          You have {projects.filter(p => p.status === 'active').length} active project{projects.filter(p => p.status === 'active').length !== 1 ? 's' : ''} running.
+        </p>
+      </div>
+
+      {/* Stat cards */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+        <StatCard
+          label="Total Projects"
+          value={projects.length}
+          icon={<Icon.Folder />}
+          accent="#D72660"
+        />
+        <StatCard
+          label="Total Guests"
+          value={totalGuests.toLocaleString()}
+          icon={<Icon.Users />}
+          accent="#7C3AED"
+        />
+        <StatCard
+          label="Confirmed RSVPs"
+          value={totalConfirmed.toLocaleString()}
+          icon={<Icon.CheckCircle />}
+          accent="#16A34A"
+        />
+        <StatCard
+          label="Pending RSVPs"
+          value={totalPending.toLocaleString()}
+          icon={<Icon.Clock />}
+          accent="#F59E0B"
+        />
+      </div>
+
+      {/* Recent Projects */}
+      <div style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 4px rgba(31,41,55,0.06)' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Recent Projects</h3>
+          <span style={{ color: '#6B7280', fontSize: 13 }}>{projects.length} total</span>
+        </div>
+        {recent.length === 0 ? (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+            No projects yet. Create your first one!
+          </div>
+        ) : (
+          <div>
+            {recent.map((p, i) => {
+              const et = getEventType(p.event_template)
+              return (
+                <div
+                  key={p.id}
+                  style={{
+                    padding: '14px 24px',
+                    borderBottom: i < recent.length - 1 ? '1px solid #F9FAFB' : 'none',
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    transition: 'background 0.15s', cursor: 'default',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FAFAFA' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: et.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+                    {et.emoji}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 14, margin: 0 }} className="truncate">{p.name}</p>
+                    <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>
+                      {et.label} · {p._stats.total} guests
+                    </p>
+                  </div>
+                  <StatusBadge status={p.status} />
+                  <span style={{ color: '#16A34A', fontSize: 13, fontWeight: 700, minWidth: 40, textAlign: 'right' }}>
+                    {p._stats.confirmed} ✓
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Skeleton loader ───────────────────────────────────────────────────────────
+function SkeletonCard() {
+  return (
+    <div style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 20, boxShadow: '0 1px 4px rgba(31,41,55,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10 }} />
+        <div style={{ flex: 1 }}>
+          <div className="skeleton-pulse" style={{ height: 15, width: '65%', borderRadius: 6, marginBottom: 8 }} />
+          <div className="skeleton-pulse" style={{ height: 12, width: '40%', borderRadius: 6 }} />
+        </div>
+      </div>
+      <div className="skeleton-pulse" style={{ height: 5, borderRadius: 999, marginBottom: 16 }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div className="skeleton-pulse" style={{ height: 22, width: 72, borderRadius: 999 }} />
+        <div className="skeleton-pulse" style={{ height: 22, width: 90, borderRadius: 6 }} />
+      </div>
+    </div>
+  )
+}
+
+// ── Settings Panel ───────────────────────────────────────────────────────────
+function SettingsPanel({ onLogout }: { onLogout: () => void }) {
+  const supabase = createClient()
+  const [section, setSection] = useState<'profile' | 'notifications' | 'security' | 'appearance' | 'danger'>('profile')
+  const [userEmail, setUserEmail] = useState('')
+  const [displayName, setDisplayName] = useState('Admin')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null)
+
+  // Password change state
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+
+  // Notification toggles
+  const [notifs, setNotifs] = useState({
+    rsvpEmail: true,
+    rsvpSummary: false,
+    marketingEmails: false,
+    projectActivity: true,
+  })
+
+  // Appearance
+  const [compactMode, setCompactMode] = useState(false)
+
+  // Load user on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setUserEmail(data.user.email ?? '')
+        setDisplayName(data.user.user_metadata?.full_name || 'Admin')
+      }
+    })
+    // Load prefs from localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem('inviteos_settings') || '{}')
+      if (saved.notifs) setNotifs((prev) => ({ ...prev, ...saved.notifs }))
+      if (saved.compactMode !== undefined) setCompactMode(saved.compactMode)
+    } catch { /* ignore */ }
   }, [])
 
-  useEffect(() => {
-    fetchData()
-    intervalRef.current = setInterval(fetchData, 30_000)
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+  const savePrefs = (newNotifs = notifs, newCompact = compactMode) => {
+    localStorage.setItem('inviteos_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
+  }
+
+  const toggleNotif = (key: keyof typeof notifs) => {
+    const updated = { ...notifs, [key]: !notifs[key] }
+    setNotifs(updated)
+    savePrefs(updated)
+  }
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    setMsg(null)
+    const { error } = await supabase.auth.updateUser({ data: { full_name: displayName } })
+    setMsg(error
+      ? { text: 'Failed to update profile.', type: 'error' }
+      : { text: 'Profile updated successfully.', type: 'success' }
+    )
+    setSaving(false)
+    setTimeout(() => setMsg(null), 3000)
+  }
+
+  const handleChangePassword = async () => {
+    if (!pwNew || pwNew !== pwConfirm) {
+      setMsg({ text: 'New passwords do not match.', type: 'error' }); return
     }
-  }, [fetchData])
+    if (pwNew.length < 8) {
+      setMsg({ text: 'Password must be at least 8 characters.', type: 'error' }); return
+    }
+    setPwSaving(true)
+    setMsg(null)
+    const { error } = await supabase.auth.updateUser({ password: pwNew })
+    if (error) {
+      setMsg({ text: error.message || 'Failed to change password.', type: 'error' })
+    } else {
+      setMsg({ text: 'Password changed successfully. You may need to log in again.', type: 'success' })
+      setPwNew(''); setPwConfirm('')
+    }
+    setPwSaving(false)
+    setTimeout(() => setMsg(null), 4000)
+  }
+
+  const sidebarItems = [
+    { id: 'profile',       label: 'Profile & Account', icon: '👤' },
+    { id: 'notifications', label: 'Notifications',     icon: '🔔' },
+    { id: 'security',      label: 'Security',           icon: '🔒' },
+    { id: 'appearance',    label: 'Appearance',         icon: '🎨' },
+    { id: 'danger',        label: 'Danger Zone',        icon: '⚠️' },
+  ] as const
+
+  const Toggle = ({ on, onChange }: { on: boolean; onChange: () => void }) => (
+    <button
+      onClick={onChange}
+      style={{
+        width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
+        background: on ? '#D72660' : '#E5E7EB',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3, left: on ? 23 : 3, width: 18, height: 18,
+        borderRadius: '50%', background: '#fff',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+        transition: 'left 0.2s',
+      }} />
+    </button>
+  )
+
+  const SectionCard = ({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) => (
+    <div style={{
+      background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
+      padding: '24px 28px', marginBottom: 16,
+      boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
+    }}>
+      {(title || desc) && (
+        <div style={{ marginBottom: 20 }}>
+          {title && <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>{title}</h3>}
+          {desc && <p style={{ color: '#6B7280', fontSize: 13, marginTop: 4 }}>{desc}</p>}
+        </div>
+      )}
+      {children}
+    </div>
+  )
+
+  const FieldRow = ({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 0', borderBottom: '1px solid #F3F4F6' }}>
+      <div style={{ flex: 1 }}>
+        <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 500, margin: 0 }}>{label}</p>
+        {desc && <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>{desc}</p>}
+      </div>
+      {children}
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      {/* ── Settings sidebar ── */}
+      <div style={{
+        width: 210, flexShrink: 0,
+        background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
+        padding: 10, boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
+      }}>
+        {sidebarItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => { setSection(item.id); setMsg(null) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              width: '100%', padding: '10px 12px', border: 'none', borderRadius: 10,
+              background: section === item.id ? '#F4E7EC' : 'transparent',
+              color: section === item.id ? '#D72660' : '#4B5563',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: section === item.id ? 600 : 500,
+              cursor: 'pointer', textAlign: 'left', marginBottom: 2,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={(e) => { if (section !== item.id) { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#1F2937' }}}
+            onMouseLeave={(e) => { if (section !== item.id) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4B5563' }}}
+          >
+            <span style={{ fontSize: 15 }}>{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Content ── */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+
+        {/* Inline message */}
+        {msg && (
+          <div style={{
+            marginBottom: 16, padding: '12px 16px', borderRadius: 10, fontSize: 13, fontWeight: 500,
+            background: msg.type === 'success' ? '#F0FDF4' : '#FEF2F2',
+            border: `1px solid ${msg.type === 'success' ? '#BBF7D0' : '#FECACA'}`,
+            color: msg.type === 'success' ? '#15803D' : '#B91C1C',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            {msg.type === 'success' ? '✓' : '⚠'} {msg.text}
+          </div>
+        )}
+
+        {/* ══ PROFILE ══════════════════════════════════ */}
+        {section === 'profile' && (
+          <>
+            <SectionCard title="Profile" desc="Your name and email address shown in the admin panel.">
+              {/* Avatar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#fff', fontSize: 24, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 16, margin: 0 }}>{displayName}</p>
+                  <p style={{ color: '#9CA3AF', fontSize: 13, marginTop: 2 }}>{userEmail || 'Loading…'}</p>
+                  <span style={{ display: 'inline-block', marginTop: 4, background: '#F4E7EC', color: '#D72660', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em' }}>ADMIN</span>
+                </div>
+              </div>
+
+              {/* Name field */}
+              <div style={{ marginBottom: 16 }}>
+                <label className="modal-label">Display Name</label>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="modal-input"
+                  placeholder="Your name"
+                />
+              </div>
+
+              {/* Email (read-only) */}
+              <div style={{ marginBottom: 20 }}>
+                <label className="modal-label">Email Address</label>
+                <input
+                  value={userEmail}
+                  readOnly
+                  className="modal-input"
+                  style={{ background: '#F3F4F6', color: '#9CA3AF', cursor: 'not-allowed' }}
+                />
+                <p style={{ color: '#9CA3AF', fontSize: 11, marginTop: 4 }}>Email cannot be changed here. Contact your Supabase admin.</p>
+              </div>
+
+              <button
+                onClick={handleSaveProfile}
+                disabled={saving}
+                style={{
+                  padding: '10px 20px', background: '#D72660', border: 'none',
+                  borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
+                  cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                  fontFamily: 'inherit', transition: 'background 0.15s',
+                  boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                }}
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </SectionCard>
+
+            <SectionCard title="Account Details">
+              <FieldRow label="Account type" desc="Your current plan">
+                <span style={{ background: '#F4E7EC', color: '#D72660', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>Workspace Owner</span>
+              </FieldRow>
+              <FieldRow label="Member since">
+                <span style={{ color: '#6B7280', fontSize: 13 }}>June 2026</span>
+              </FieldRow>
+              <FieldRow label="Platform" desc="InviteOS Admin Dashboard">
+                <span style={{ color: '#6B7280', fontSize: 13 }}>v1.0.0</span>
+              </FieldRow>
+            </SectionCard>
+          </>
+        )}
+
+        {/* ══ NOTIFICATIONS ════════════════════════════ */}
+        {section === 'notifications' && (
+          <SectionCard title="Notification Preferences" desc="Choose what updates you want to receive. Changes are saved instantly.">
+            <FieldRow label="New RSVP alerts" desc="Get notified when a guest responds">
+              <Toggle on={notifs.rsvpEmail} onChange={() => toggleNotif('rsvpEmail')} />
+            </FieldRow>
+            <FieldRow label="Daily RSVP summary" desc="Receive a daily digest of all RSVP activity">
+              <Toggle on={notifs.rsvpSummary} onChange={() => toggleNotif('rsvpSummary')} />
+            </FieldRow>
+            <FieldRow label="Project activity" desc="Updates on project status changes">
+              <Toggle on={notifs.projectActivity} onChange={() => toggleNotif('projectActivity')} />
+            </FieldRow>
+            <FieldRow label="Marketing emails" desc="Tips, new features, and product news">
+              <Toggle on={notifs.marketingEmails} onChange={() => toggleNotif('marketingEmails')} />
+            </FieldRow>
+            <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 16 }}>
+              ✓ Preferences saved automatically to your browser.
+            </p>
+          </SectionCard>
+        )}
+
+        {/* ══ SECURITY ═════════════════════════════════ */}
+        {section === 'security' && (
+          <>
+            <SectionCard title="Change Password" desc="Use a strong password with at least 8 characters.">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label className="modal-label">New Password</label>
+                  <input
+                    type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)}
+                    className="modal-input" placeholder="Min. 8 characters"
+                  />
+                </div>
+                <div>
+                  <label className="modal-label">Confirm New Password</label>
+                  <input
+                    type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)}
+                    className="modal-input" placeholder="Repeat new password"
+                  />
+                  {pwConfirm && pwNew !== pwConfirm && (
+                    <p style={{ color: '#EF4444', fontSize: 11, marginTop: 4 }}>⚠ Passwords do not match</p>
+                  )}
+                  {pwConfirm && pwNew === pwConfirm && pwNew.length >= 8 && (
+                    <p style={{ color: '#16A34A', fontSize: 11, marginTop: 4 }}>✓ Passwords match</p>
+                  )}
+                </div>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8}
+                  style={{
+                    padding: '10px 20px', background: '#D72660', border: 'none',
+                    borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
+                    cursor: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 'not-allowed' : 'pointer',
+                    opacity: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 0.6 : 1,
+                    fontFamily: 'inherit', alignSelf: 'flex-start',
+                    boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                  }}
+                >
+                  {pwSaving ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Sessions">
+              <FieldRow label="Current session" desc="Active now · This device">
+                <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 999 }}>Active</span>
+              </FieldRow>
+              <div style={{ marginTop: 16 }}>
+                <button
+                  onClick={onLogout}
+                  style={{
+                    padding: '10px 20px', background: '#FEF2F2', border: '1.5px solid #FECACA',
+                    borderRadius: 10, color: '#B91C1C', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#FEF2F2' }}
+                >
+                  Sign out of all sessions
+                </button>
+              </div>
+            </SectionCard>
+          </>
+        )}
+
+        {/* ══ APPEARANCE ═══════════════════════════════ */}
+        {section === 'appearance' && (
+          <SectionCard title="Display Preferences" desc="Customise how the admin panel looks and feels.">
+            <FieldRow label="Compact mode" desc="Reduce spacing for a denser layout">
+              <Toggle on={compactMode} onChange={() => {
+                const next = !compactMode
+                setCompactMode(next)
+                savePrefs(notifs, next)
+              }} />
+            </FieldRow>
+            <FieldRow label="Color theme" desc="Premium light theme">
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { color: '#D72660', label: 'Rose' },
+                  { color: '#7C3AED', label: 'Violet' },
+                  { color: '#2563EB', label: 'Blue' },
+                  { color: '#16A34A', label: 'Green' },
+                ].map((t) => (
+                  <div
+                    key={t.color}
+                    title={t.label}
+                    style={{
+                      width: 22, height: 22, borderRadius: '50%', background: t.color,
+                      cursor: 'pointer', border: t.color === '#D72660' ? '2px solid #1F2937' : '2px solid transparent',
+                      transition: 'border 0.15s',
+                    }}
+                  />
+                ))}
+              </div>
+            </FieldRow>
+            <FieldRow label="Date format" desc="How dates appear across the dashboard">
+              <div className="filter-select-wrap">
+                <select className="filter-sel" style={{ fontSize: 12 }}>
+                  <option>DD/MM/YYYY</option>
+                  <option>MM/DD/YYYY</option>
+                  <option>YYYY-MM-DD</option>
+                </select>
+                <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+              </div>
+            </FieldRow>
+            <FieldRow label="Default sort" desc="How projects are sorted on load">
+              <div className="filter-select-wrap">
+                <select className="filter-sel" style={{ fontSize: 12 }}>
+                  <option>Most recent</option>
+                  <option>Name A–Z</option>
+                  <option>Event date</option>
+                </select>
+                <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+              </div>
+            </FieldRow>
+          </SectionCard>
+        )}
+
+        {/* ══ DANGER ZONE ══════════════════════════════ */}
+        {section === 'danger' && (
+          <div style={{
+            background: '#FFF8F8', border: '1.5px solid #FECACA',
+            borderRadius: 16, padding: '24px 28px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <span style={{ fontSize: 22 }}>⚠️</span>
+              <h3 style={{ color: '#991B1B', fontSize: 15, fontWeight: 700, margin: 0 }}>Danger Zone</h3>
+            </div>
+            <p style={{ color: '#B91C1C', fontSize: 13, marginBottom: 24 }}>
+              These actions are irreversible. Proceed with extreme caution.
+            </p>
+
+            {[
+              {
+                title: 'Sign out',
+                desc: 'End your current session and return to the login page.',
+                label: 'Sign Out',
+                action: onLogout,
+                color: '#B91C1C',
+              },
+              {
+                title: 'Export all data',
+                desc: 'Download a JSON export of all your projects and guest data.',
+                label: 'Export JSON',
+                action: () => {
+                  const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), note: 'Full data export — coming soon.' }, null, 2)], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = 'inviteos-export.json'; a.click()
+                  URL.revokeObjectURL(url)
+                },
+                color: '#B45309',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  padding: '18px 20px', background: '#FFFFFF', borderRadius: 12,
+                  border: '1.5px solid #FECACA', marginBottom: 12,
+                }}
+              >
+                <div>
+                  <p style={{ color: '#1F2937', fontSize: 14, fontWeight: 600, margin: 0 }}>{item.title}</p>
+                  <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 3 }}>{item.desc}</p>
+                </div>
+                <button
+                  onClick={item.action}
+                  style={{
+                    padding: '8px 16px', background: '#FEF2F2', border: `1.5px solid #FECACA`,
+                    borderRadius: 8, color: item.color, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FEE2E2' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#FEF2F2' }}
+                >
+                  {item.label}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Navigation items ──────────────────────────────────────────────────────────
+const NAV_ITEMS = [
+  { id: 'dashboard',  label: 'Dashboard',  Icon: Icon.Dashboard  },
+  { id: 'projects',   label: 'Projects',   Icon: Icon.Grid       },
+  { id: 'guests',     label: 'Guests',     Icon: Icon.Users      },
+  { id: 'analytics',  label: 'Analytics',  Icon: Icon.Analytics  },
+  { id: 'templates',  label: 'Templates',  Icon: Icon.Templates  },
+  { id: 'settings',   label: 'Settings',   Icon: Icon.Settings   },
+]
+
+
+// ── Main Admin Hub ────────────────────────────────────────────────────────────
+export default function AdminHubPage() {
+  const router = useRouter()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'date' | 'created'>('created')
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [activeNav, setActiveNav] = useState('dashboard')
+
+  const loadProjects = useCallback(async () => {
+    setLoading(true)
+    const res = await fetch('/api/projects')
+    if (res.ok) setProjects(await res.json())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { loadProjects() }, [loadProjects])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -154,1118 +1441,616 @@ export default function AdminPage() {
     router.refresh()
   }
 
-  const addGuest = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setAddGuestError('')
-    setAdding(true)
-    const res = await fetch('/api/guests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newGuestName,
-        phone: newGuestPhone || null,
-        guest_category: newGuestCategory,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      setAddGuestError(err.error || 'Failed to add guest. Please try again.')
-    } else {
-      const data = await res.json()
-      setGuests([data, ...guests])
-      setNewGuestName('')
-      setNewGuestPhone('')
-      setAddGuestError('')
-    }
-    setAdding(false)
-  }
-
-  const deleteGuest = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
-    setDeletingId(id)
-    const res = await fetch(`/api/guests?id=${id}`, { method: 'DELETE' })
-    if (res.ok) {
-      setGuests((prev) => prev.filter((g) => g.id !== id))
-    } else {
-      setDeleteError(`Failed to delete "${name}". Please try again.`)
-      setTimeout(() => setDeleteError(''), 4000)
-    }
-    setDeletingId(null)
-  }
-
-  const updateEvent = async (updates: Partial<Event>) => {
-    await fetch('/api/event', {
+  const handleToggleStatus = async (project: Project) => {
+    const newStatus = project.status === 'paused' ? 'active' : 'paused'
+    const res = await fetch(`/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({ status: newStatus }),
     })
-    setEvent({ ...event!, ...updates })
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImportFile(file)
-    setImportResult('')
-    setImportPreview([])
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-      const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      const preview = rows.slice(0, 5)
-      setImportPreview(preview)
-      setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+    if (res.ok) {
+      setProjects((prev) => prev.map((p) => p.id === project.id ? { ...p, status: newStatus } : p))
     }
-    reader.readAsArrayBuffer(file)
   }
 
-  const handleBulkImport = () => {
-    if (!importFile) return
-    setImporting(true)
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-        const wb = XLSX.read(data, { type: 'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-        const guests = rows
-          .map((row) => {
-            const norm: Record<string, string> = {}
-            Object.keys(row).forEach((k) => {
-              norm[k.toLowerCase().trim()] = String(row[k])
-            })
-            return {
-              name: norm.name || norm['guest name'] || norm['full name'] || '',
-              phone: norm.phone || norm['phone number'] || norm.mobile || norm.contact || '',
-              email: norm.email || norm['email address'] || '',
-              guest_category: norm.category || norm['guest category'] || norm.group || 'Other',
-            }
-          })
-          .filter((g) => g.name.trim())
-        const res = await fetch('/api/guests/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ guests }),
-        })
-        if (res.ok) {
-          const result = await res.json()
-          setImportResult(
-            result.skipped > 0
-              ? `✓ ${result.message}`
-              : `✓ Successfully imported ${result.count} guests`
-          )
-          setImportFile(null)
-          setImportPreview([])
-          setImportPreviewCols([])
-          fetchData()
-        } else {
-          const err = await res.json()
-          setImportResult(`✗ Import failed: ${err.error}`)
-        }
-      } catch {
-        setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
-      } finally {
-        setImporting(false)
+  const handleDelete = async (project: Project) => {
+    if (!confirm(`Delete "${project.name}"? This will permanently delete all guests and data.`)) return
+    const res = await fetch(`/api/projects/${project.id}`, { method: 'DELETE' })
+    if (res.ok) setProjects((prev) => prev.filter((p) => p.id !== project.id))
+  }
+
+  const filtered = projects
+    .filter((p) => {
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter
+      const term = search.toLowerCase()
+      const matchSearch = !term ||
+        p.name.toLowerCase().includes(term) ||
+        (p.couple_1 || '').toLowerCase().includes(term) ||
+        (p.couple_2 || '').toLowerCase().includes(term) ||
+        (p.venue || '').toLowerCase().includes(term) ||
+        (p.location || '').toLowerCase().includes(term)
+      return matchStatus && matchSearch
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      if (sortBy === 'date') {
+        if (!a.date) return 1; if (!b.date) return -1
+        return new Date(a.date).getTime() - new Date(b.date).getTime()
       }
-    }
-    reader.readAsArrayBuffer(importFile)
-  }
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
 
-  const handleExportExcel = () => {
-    const origin = window.location.origin
-    const rows = guests.map((g) => ({
-      Name: g.name,
-      Phone: g.phone || '',
-      Email: g.email || '',
-      Category: g.guest_category || '',
-      Status: g.rsvp_status,
-      'Pax Count': g.pax_count,
-      'Invite Link': `${origin}/invite/${g.unique_token}`,
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Guests')
-    XLSX.writeFile(wb, 'wedding-guest-links.xlsx')
-  }
-
-  const handleExportCSV = () => {
-    const origin = window.location.origin
-    const header = 'Name,Phone,Email,Category,Status,Guests,Invite Link'
-    const rows = guests.map((g) =>
-      [
-        `"${g.name}"`,
-        `"${g.phone || ''}"`,
-        `"${g.email || ''}"`,
-        `"${g.guest_category || ''}"`,
-        g.rsvp_status,
-        g.pax_count,
-        `${origin}/invite/${g.unique_token}`,
-      ].join(',')
-    )
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'wedding-guest-links.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  // ── Middleware handles auth; page just renders the dashboard ────────────────
-
-  // ── Derived stats ───────────────────────────────────────────────────────────
-  const responded = guests.filter((g) => g.rsvp_status !== 'pending').length
-  const stats = {
-    total: guests.length,
-    pending: guests.filter((g) => g.rsvp_status === 'pending').length,
-    confirmed: guests.filter((g) => g.rsvp_status === 'yes').length,
-    declined: guests.filter((g) => g.rsvp_status === 'no').length,
-    totalPax: guests.filter((g) => g.rsvp_status === 'yes').reduce((s, g) => s + g.pax_count, 0),
-    opened: guests.filter((g) => g.opened_at).length,
-    responseRate:
-      guests.length > 0 ? Math.round((responded / guests.length) * 100) : 0,
-    openRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.opened_at).length / guests.length) * 100)
-        : 0,
-    confirmedRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'yes').length / guests.length) * 100)
-        : 0,
-    declinedRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'no').length / guests.length) * 100)
-        : 0,
-    pendingRate:
-      guests.length > 0
-        ? Math.round((guests.filter((g) => g.rsvp_status === 'pending').length / guests.length) * 100)
-        : 0,
-  }
-
-  // Category breakdown
-  const categoryMap: Record<string, { total: number; yes: number; no: number; pending: number }> = {}
-  guests.forEach((g) => {
-    const cat = g.guest_category || 'Other'
-    if (!categoryMap[cat]) categoryMap[cat] = { total: 0, yes: 0, no: 0, pending: 0 }
-    categoryMap[cat].total++
-    categoryMap[cat][g.rsvp_status]++
-  })
-  const categories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total)
-
-  // Recent responses
-  const recentActivity = [...guests]
-    .filter((g) => g.responded_at)
-    .sort(
-      (a, b) =>
-        new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime()
-    )
-    .slice(0, 4)
-
-  // Filtered guest list
-  const filteredGuests = guests.filter((g) => {
-    const matchFilter = filter === 'all' || g.rsvp_status === filter
-    const term = search.toLowerCase()
-    const matchSearch =
-      !term ||
-      g.name.toLowerCase().includes(term) ||
-      (g.phone || '').includes(term) ||
-      (g.guest_category || '').toLowerCase().includes(term)
-    return matchFilter && matchSearch
-  })
-
-  const eventDateStr = event?.date
-    ? new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
-    : ''
+  const pageTitle = NAV_ITEMS.find(n => n.id === activeNav)?.label ?? 'Dashboard'
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-rose-50 via-amber-50/20 to-rose-50">
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-      {/* ── Sticky header ── */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-rose-100/80 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-2.5 md:px-6 md:py-3.5">
-          <div className="flex items-center justify-between gap-4">
-            {/* Brand */}
-            <div className="flex items-center gap-2.5 md:gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-rose-600 to-rose-800 flex items-center justify-center text-white text-base md:text-lg shadow-md shrink-0">
-                💍
-              </div>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { background: #F8F7F4 !important; }
+
+        .admin-root {
+          font-family: 'Inter', -apple-system, sans-serif;
+          min-height: 100vh;
+          background: #F8F7F4;
+          display: flex;
+          color: #1F2937;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+          width: 224px;
+          background: #FFFFFF;
+          border-right: 1.5px solid #E5E7EB;
+          display: flex;
+          flex-direction: column;
+          padding: 20px 12px;
+          position: sticky;
+          top: 0;
+          height: 100vh;
+          flex-shrink: 0;
+          z-index: 10;
+        }
+
+        .sidebar-logo {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 10px 20px;
+          border-bottom: 1px solid #F3F4F6;
+          margin-bottom: 12px;
+        }
+        .sidebar-logo-icon {
+          width: 34px; height: 34px;
+          border-radius: 9px;
+          background: linear-gradient(135deg, #D72660 0%, #9B1C4C 100%);
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; flex-shrink: 0;
+        }
+        .sidebar-logo-text {
+          font-size: 15px; font-weight: 800; color: #1F2937; letter-spacing: -0.2px;
+        }
+        .sidebar-logo-badge {
+          font-size: 9px; font-weight: 700; color: #D72660;
+          background: #F4E7EC; padding: 1px 5px; border-radius: 4px;
+          letter-spacing: 0.04em; margin-top: 1px;
+        }
+
+        .nav-section-label {
+          font-size: 10px; font-weight: 700; color: #9CA3AF;
+          letter-spacing: 0.08em; text-transform: uppercase;
+          padding: 0 10px; margin: 4px 0 4px;
+        }
+
+        .nav-item {
+          display: flex; align-items: center; gap: 10px;
+          padding: 9px 12px; border-radius: 10px;
+          font-size: 14px; font-weight: 500; color: #6B7280;
+          cursor: pointer; border: none; background: transparent;
+          width: 100%; text-align: left;
+          transition: all 0.15s ease;
+          font-family: inherit;
+          position: relative;
+        }
+        .nav-item:hover { background: #F9FAFB; color: #1F2937; }
+        .nav-item.active {
+          background: #F4E7EC;
+          color: #D72660;
+          font-weight: 600;
+        }
+        .nav-item.active::before {
+          content: '';
+          position: absolute; left: 0; top: 20%; bottom: 20%;
+          width: 3px; border-radius: 0 3px 3px 0;
+          background: #D72660;
+        }
+
+        .sidebar-bottom {
+          margin-top: auto;
+          padding-top: 12px;
+          border-top: 1px solid #F3F4F6;
+        }
+        .user-chip {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border-radius: 10px;
+          cursor: pointer; transition: background 0.15s;
+        }
+        .user-chip:hover { background: #F9FAFB; }
+        .user-avatar {
+          width: 32px; height: 32px; border-radius: 50%;
+          background: linear-gradient(135deg, #D72660, #9B1C4C);
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0;
+        }
+        .user-name { font-size: 13px; font-weight: 600; color: #1F2937; }
+        .user-role { font-size: 11px; color: #9CA3AF; }
+        .logout-btn {
+          display: flex; align-items: center; gap: 8px;
+          width: 100%; padding: 9px 12px; border-radius: 10px;
+          font-size: 13px; font-weight: 500; color: #6B7280;
+          cursor: pointer; border: none; background: transparent;
+          transition: all 0.15s; font-family: inherit;
+        }
+        .logout-btn:hover { background: #FEF2F2; color: #EF4444; }
+
+        /* ── Main ── */
+        .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+        .topbar {
+          height: 60px;
+          background: rgba(248,247,244,0.85);
+          backdrop-filter: blur(12px);
+          border-bottom: 1.5px solid #E5E7EB;
+          display: flex; align-items: center;
+          padding: 0 32px; gap: 16px;
+          position: sticky; top: 0; z-index: 5;
+        }
+        .topbar-title { font-size: 16px; font-weight: 700; color: #1F2937; }
+        .topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #9CA3AF; }
+        .topbar-spacer { flex: 1; }
+        .topbar-icon-btn {
+          width: 36px; height: 36px; border-radius: 9px;
+          display: flex; align-items: center; justify-content: center;
+          color: #6B7280; background: transparent; border: none; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .topbar-icon-btn:hover { background: #F3F4F6; color: #1F2937; }
+
+        /* ── Page body ── */
+        .page-body { padding: 32px; flex: 1; overflow-y: auto; }
+        .page-header { margin-bottom: 24px; }
+        .page-header h1 { font-size: 22px; font-weight: 800; color: #1F2937; letter-spacing: -0.3px; }
+        .page-header p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+
+        /* ── Toolbar ── */
+        .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+        .search-wrap { position: relative; flex: 1; min-width: 200px; max-width: 280px; }
+        .search-wrap input {
+          width: 100%; padding: 9px 12px 9px 36px;
+          background: #FFFFFF; border: 1.5px solid #E5E7EB;
+          border-radius: 10px; color: #1F2937; font-size: 13px;
+          outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+          font-family: inherit;
+        }
+        .search-wrap input:focus { border-color: #D72660; box-shadow: 0 0 0 3px rgba(215,38,96,0.08); }
+        .search-wrap input::placeholder { color: #9CA3AF; }
+        .search-icon-pos { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #9CA3AF; pointer-events: none; }
+
+        .filter-select-wrap { position: relative; }
+        .filter-sel {
+          appearance: none; padding: 8px 30px 8px 12px;
+          background: #FFFFFF; border: 1.5px solid #E5E7EB;
+          border-radius: 10px; color: #4B5563; font-size: 13px;
+          cursor: pointer; outline: none; font-family: inherit;
+          transition: border-color 0.15s;
+        }
+        .filter-sel:focus, .filter-sel:hover { border-color: #D4D4D8; }
+        .filter-sel-chev { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #9CA3AF; }
+
+        .toolbar-spacer { flex: 1; }
+
+        .view-toggle { display: flex; background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 10px; overflow: hidden; }
+        .view-btn {
+          width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+          cursor: pointer; color: #9CA3AF; border: none; background: transparent; transition: all 0.15s;
+        }
+        .view-btn:hover { color: #6B7280; }
+        .view-btn.active { background: #F4E7EC; color: #D72660; }
+
+        .create-btn {
+          padding: 9px 16px;
+          background: #D72660; border: none; border-radius: 10px;
+          color: #fff; font-size: 13px; font-weight: 700;
+          cursor: pointer; display: flex; align-items: center; gap: 6px;
+          transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+          font-family: inherit; white-space: nowrap;
+          box-shadow: 0 2px 8px rgba(215,38,96,0.25);
+        }
+        .create-btn:hover { background: #B91C4C; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(215,38,96,0.35); }
+        .create-btn:active { transform: translateY(0); }
+
+        /* ── Grid / List ── */
+        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+        .projects-list { display: flex; flex-direction: column; gap: 8px; }
+
+        /* List view header */
+        .list-header {
+          display: grid;
+          grid-template-columns: 1fr 130px 110px 80px 90px 80px;
+          gap: 12px; padding: 8px 20px;
+          font-size: 11px; font-weight: 700; color: #9CA3AF;
+          text-transform: uppercase; letter-spacing: 0.06em;
+          border-bottom: 1px solid #E5E7EB; margin-bottom: 6px;
+        }
+        .list-row {
+          background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 12px;
+          padding: 14px 20px;
+          display: grid; grid-template-columns: 1fr 130px 110px 80px 90px 80px;
+          gap: 12px; align-items: center;
+          cursor: pointer; transition: all 0.15s;
+        }
+        .list-row:hover { border-color: #D72660; box-shadow: 0 2px 8px rgba(215,38,96,0.06); }
+
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 80px 24px; }
+        .empty-icon {
+          width: 68px; height: 68px; border-radius: 18px;
+          background: #F4E7EC; border: 1.5px solid #F9D0DC;
+          display: flex; align-items: center; justify-content: center;
+          margin: 0 auto 16px; font-size: 28px;
+        }
+        .empty-title { color: #374151; font-size: 16px; font-weight: 700; margin: 0 0 8px; }
+        .empty-sub { color: #9CA3AF; font-size: 13px; margin: 0 0 22px; }
+
+        /* ── Skeleton ── */
+        .skeleton-pulse {
+          background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+          background-size: 200% 100%;
+          animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* ── Context menu ── */
+        .ctx-item {
+          width: 100%; text-align: left; padding: 8px 12px;
+          background: transparent; border: none;
+          color: #374151; font-size: 13px; cursor: pointer;
+          border-radius: 8px; transition: background 0.1s;
+          display: block; font-family: inherit;
+        }
+        .ctx-item:hover { background: #F9FAFB; }
+        .ctx-danger { color: #DC2626 !important; }
+        .ctx-danger:hover { background: #FEF2F2 !important; }
+
+        /* ── Modal inputs ── */
+        .modal-label {
+          display: block; font-size: 12px; font-weight: 600;
+          color: #374151; margin-bottom: 6px; letter-spacing: 0.01em;
+        }
+        .modal-input {
+          width: 100%; padding: 9px 12px;
+          background: #F9FAFB; border: 1.5px solid #E5E7EB;
+          border-radius: 10px; color: #1F2937; font-size: 13px;
+          outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+          font-family: inherit;
+        }
+        .modal-input:focus { border-color: #D72660; background: #fff; box-shadow: 0 0 0 3px rgba(215,38,96,0.08); }
+        .modal-input::placeholder { color: #9CA3AF; }
+        select.modal-input { appearance: none; cursor: pointer; }
+        select.modal-input option { background: #fff; color: #1F2937; }
+        input[type="date"].modal-input { color-scheme: light; }
+
+        .modal-select-wrap { position: relative; }
+        .modal-select-chevron {
+          position: absolute; right: 11px; top: 50%;
+          transform: translateY(-50%); pointer-events: none; color: #9CA3AF;
+        }
+
+        .modal-btn-cancel {
+          flex: 1; padding: 11px;
+          background: #F3F4F6; border: 1.5px solid #E5E7EB;
+          border-radius: 10px; color: #6B7280; font-size: 14px;
+          cursor: pointer; font-weight: 600; transition: all 0.15s;
+          font-family: inherit;
+        }
+        .modal-btn-cancel:hover { background: #E5E7EB; color: #374151; }
+
+        .modal-btn-primary {
+          flex: 1; padding: 11px;
+          background: #D72660; border: none;
+          border-radius: 10px; color: #fff; font-size: 14px;
+          cursor: pointer; font-weight: 700; transition: background 0.15s;
+          font-family: inherit;
+          box-shadow: 0 2px 8px rgba(215,38,96,0.25);
+        }
+        .modal-btn-primary:hover:not(:disabled) { background: #B91C4C; }
+        .modal-btn-primary:disabled { cursor: not-allowed; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+        /* ── Coming soon ── */
+        .coming-soon {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          padding: 80px 24px; text-align: center; gap: 12px;
+        }
+        .coming-soon-icon { font-size: 40px; margin-bottom: 4px; }
+        .coming-soon h2 { font-size: 18px; font-weight: 700; color: #1F2937; }
+        .coming-soon p { font-size: 14px; color: #9CA3AF; }
+      `}</style>
+
+      <div className="admin-root">
+        {/* ── Sidebar ── */}
+        <aside className="sidebar">
+          {/* Logo */}
+          <div className="sidebar-logo">
+            <div className="sidebar-logo-icon">
+              <Icon.Heart />
+            </div>
+            <div>
+              <div className="sidebar-logo-text">InviteOS</div>
+              <div className="sidebar-logo-badge">ADMIN</div>
+            </div>
+          </div>
+
+          {/* Nav */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
+                onClick={() => setActiveNav(item.id)}
+              >
+                <item.Icon />
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Bottom */}
+          <div className="sidebar-bottom">
+            <div className="user-chip">
+              <div className="user-avatar">A</div>
               <div>
-                <h1 className="text-sm md:text-base font-semibold text-gray-900 leading-tight tracking-tight">
-                  Digital Invitation
-                </h1>
-                <p className="text-[11px] text-gray-400 leading-tight">
-                  Admin Dashboard · Invitation &amp; RSVP Management
-                </p>
+                <div className="user-name">Admin</div>
+                <div className="user-role">Workspace owner</div>
               </div>
-              {/* Event badge — subtle, not the primary identity */}
-              {event && (
-                <div className="hidden md:flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-100">
-                  <span className="text-[10px] text-rose-500 font-medium">
-                    {event.couple_1} &amp; {event.couple_2}
-                  </span>
-                  {eventDateStr && (
-                    <span className="text-[10px] text-rose-300">· {eventDateStr}</span>
-                  )}
-                </div>
-              )}
             </div>
+            <button className="logout-btn" onClick={handleLogout}>
+              <Icon.Logout /> Sign out
+            </button>
+          </div>
+        </aside>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              {lastUpdated && (
-                <span className="text-[11px] text-gray-400 hidden lg:block">
-                  Updated {lastUpdated.toLocaleTimeString()}
-                </span>
-              )}
-              <button
-                onClick={fetchData}
-                disabled={refreshing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 transition-all disabled:opacity-50"
-              >
-                <span className={`text-base ${refreshing ? 'animate-spin' : ''}`}>↻</span>
-                {refreshing ? 'Refreshing…' : 'Refresh'}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
-              >
-                Logout
-              </button>
+        {/* ── Main ── */}
+        <div className="main-content">
+          {/* Topbar */}
+          <header className="topbar">
+            <div className="topbar-crumb">
+              <span style={{ color: '#D72660', fontSize: 16 }}>✦</span>
+              <span style={{ color: '#D4D4D8' }}>/</span>
+              <span className="topbar-title">{pageTitle}</span>
             </div>
+            <div className="topbar-spacer" />
+            <NotificationSystem />
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>A</div>
+          </header>
+
+          {/* Page body */}
+          <div className="page-body">
+            {/* ── Dashboard ── */}
+            {activeNav === 'dashboard' && (
+              <>
+
+                {loading ? (
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+                    {[1,2,3,4].map(i => (
+                      <div key={i} style={{ flex: 1, minWidth: 180, background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 22 }}>
+                        <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10, marginBottom: 16 }} />
+                        <div className="skeleton-pulse" style={{ height: 28, width: '60%', borderRadius: 6, marginBottom: 8 }} />
+                        <div className="skeleton-pulse" style={{ height: 13, width: '50%', borderRadius: 6 }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <DashboardView projects={projects} />
+                )}
+              </>
+            )}
+
+            {/* ── Projects ── */}
+            {activeNav === 'projects' && (
+              <>
+                <div className="page-header">
+                  <h1>Projects</h1>
+                  <p>Manage all your digital invitation projects.</p>
+                </div>
+
+                {/* Toolbar */}
+                <div className="toolbar">
+                  <div className="search-wrap">
+                    <span className="search-icon-pos"><Icon.Search /></span>
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search projects…"
+                    />
+                  </div>
+
+                  <div className="filter-select-wrap">
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className="filter-sel">
+                      <option value="all">All statuses</option>
+                      <option value="active">Active</option>
+                      <option value="paused">Paused</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                    <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+                  </div>
+
+                  <div className="filter-select-wrap">
+                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="filter-sel">
+                      <option value="created">Sort: Recent</option>
+                      <option value="name">Sort: Name A–Z</option>
+                      <option value="date">Sort: Event date</option>
+                    </select>
+                    <span className="filter-sel-chev"><Icon.ChevronDown /></span>
+                  </div>
+
+                  <div className="toolbar-spacer" />
+
+                  <div className="view-toggle">
+                    <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')} title="Grid view">
+                      <Icon.Grid />
+                    </button>
+                    <button className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')} title="List view">
+                      <Icon.List />
+                    </button>
+                  </div>
+
+                  <button className="create-btn" onClick={() => setShowNewModal(true)}>
+                    <Icon.Plus /> Create Project
+                  </button>
+                </div>
+
+                {/* Content */}
+                {loading ? (
+                  <div className="projects-grid">
+                    {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
+                  </div>
+                ) : filtered.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">💍</div>
+                    <p className="empty-title">
+                      {search || statusFilter !== 'all' ? 'No projects match your filters' : 'No projects yet'}
+                    </p>
+                    <p className="empty-sub">
+                      {search || statusFilter !== 'all'
+                        ? 'Try adjusting your search or filter criteria.'
+                        : 'Create your first digital invitation project to get started.'}
+                    </p>
+                    {!search && statusFilter === 'all' && (
+                      <button className="create-btn" style={{ margin: '0 auto' }} onClick={() => setShowNewModal(true)}>
+                        <Icon.Plus /> Create Project
+                      </button>
+                    )}
+                  </div>
+                ) : viewMode === 'grid' ? (
+                  <div className="projects-grid">
+                    {filtered.map((project) => (
+                      <ProjectCard
+                        key={project.id}
+                        project={project}
+                        onOpen={() => router.push(`/admin/projects/${project.id}`)}
+                        onToggleStatus={() => handleToggleStatus(project)}
+                        onDelete={() => handleDelete(project)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* List view */
+                  <div className="projects-list">
+                    <div className="list-header">
+                      <span>Project</span>
+                      <span>Event type</span>
+                      <span>Status</span>
+                      <span style={{ textAlign: 'right' }}>Guests</span>
+                      <span style={{ textAlign: 'right' }}>Confirmed</span>
+                      <span style={{ textAlign: 'right' }}>Actions</span>
+                    </div>
+                    {filtered.map((project) => {
+                      const et = getEventType(project.event_template)
+                      return (
+                        <div
+                          key={project.id}
+                          className="list-row"
+                          onClick={() => router.push(`/admin/projects/${project.id}`)}
+                        >
+                          <div className="min-w-0">
+                            <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</p>
+                            {project.date && (
+                              <p style={{ color: '#9CA3AF', fontSize: 12, marginTop: 2 }}>
+                                {new Date(project.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </p>
+                            )}
+                          </div>
+                          <span style={{
+                            background: et.bg, color: et.color,
+                            fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999,
+                            display: 'inline-flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginTop: 2,
+                          }}>
+                            {et.emoji} {et.label}
+                          </span>
+                          <StatusBadge status={project.status} />
+                          <span style={{ color: '#6B7280', fontSize: 13, textAlign: 'right', fontWeight: 500 }}>{project._stats.total}</span>
+                          <span style={{ color: '#16A34A', fontSize: 13, textAlign: 'right', fontWeight: 700 }}>{project._stats.confirmed}</span>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => router.push(`/admin/projects/${project.id}`)}
+                              style={{
+                                padding: '5px 12px', background: '#F3F4F6', border: '1.5px solid #E5E7EB',
+                                borderRadius: 8, color: '#6B7280', fontSize: 12, cursor: 'pointer',
+                                fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#F4E7EC'; e.currentTarget.style.color = '#D72660'; e.currentTarget.style.borderColor = '#D72660' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                            >
+                              Open →
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Guests / Analytics / Templates (coming soon) ── */}
+            {['guests', 'analytics', 'templates'].includes(activeNav) && (
+              <div className="coming-soon">
+                <div className="coming-soon-icon">
+                  {activeNav === 'guests' ? '👥' : activeNav === 'analytics' ? '📊' : '🎨'}
+                </div>
+                <h2>{pageTitle}</h2>
+                <p>This section is coming soon. Stay tuned for updates.</p>
+              </div>
+            )}
+
+            {/* ── Settings ── */}
+            {activeNav === 'settings' && (
+              <SettingsPanel onLogout={handleLogout} />
+            )}
+
           </div>
         </div>
       </div>
 
-      {/* ── Main content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="overview" className="w-full">
-
-          {/* Tab bar */}
-          <TabsList className="flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border border-rose-100 rounded-2xl p-1 mb-6">
-            <TabsTrigger
-              value="overview"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="guests"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Guest List
-              {stats.total > 0 && (
-                <span className="ml-1.5 text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded-full font-semibold data-[state=active]:bg-rose-600 data-[state=active]:text-white">
-                  {stats.total}
-                </span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              value="add-guest"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Add Guest
-            </TabsTrigger>
-            <TabsTrigger
-              value="import-export"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Import / Export
-            </TabsTrigger>
-            <TabsTrigger
-              value="event"
-              className="flex-shrink-0 px-4 rounded-xl text-sm data-[state=active]:bg-rose-700 data-[state=active]:text-white data-[state=active]:shadow-sm transition-all"
-            >
-              Event Details
-            </TabsTrigger>
-          </TabsList>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              OVERVIEW TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="space-y-6">
-
-            {/* Hero — Response Rate */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-700 via-rose-800 to-rose-900 text-white shadow-xl p-6">
-              {/* Decorative blobs */}
-              <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
-              <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5" />
-
-              <div className="relative flex flex-col md:flex-row md:items-center gap-6">
-                {/* Rate */}
-                <div className="flex-1">
-                  <p className="text-rose-300 text-xs font-semibold uppercase tracking-widest mb-1">Overall Response Rate</p>
-                  <div className="flex items-end gap-3 mb-4">
-                    <span className="text-6xl font-bold tabular-nums">{stats.responseRate}%</span>
-                    <span className="text-rose-300 text-sm mb-2">{responded} of {stats.total} guests responded</span>
-                  </div>
-                  {/* Stacked bar */}
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden flex gap-0.5">
-                    {stats.confirmed > 0 && (
-                      <div
-                        className="bg-emerald-400 rounded-l-full transition-all duration-700"
-                        style={{ width: `${stats.confirmedRate}%` }}
-                        title={`Confirmed: ${stats.confirmed}`}
-                      />
-                    )}
-                    {stats.declined > 0 && (
-                      <div
-                        className="bg-red-400 transition-all duration-700"
-                        style={{ width: `${stats.declinedRate}%` }}
-                        title={`Declined: ${stats.declined}`}
-                      />
-                    )}
-                    {stats.pending > 0 && (
-                      <div
-                        className="bg-amber-300 rounded-r-full transition-all duration-700"
-                        style={{ width: `${stats.pendingRate}%` }}
-                        title={`Pending: ${stats.pending}`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex gap-4 mt-2">
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
-                    <span className="text-xs text-rose-300 flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
-                  </div>
-                </div>
-
-                {/* Quick counts */}
-                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
-                  {[
-                    { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
-                    { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
-                    { label: 'Pending', value: stats.pending, color: 'text-amber-300', bg: 'bg-white/5' },
-                    { label: 'Attendees', value: stats.totalPax, color: 'text-white', bg: 'bg-white/10' },
-                  ].map((item) => (
-                    <div key={item.label} className={`${item.bg} px-6 py-3 text-center flex md:flex-row items-center gap-3`}>
-                      <span className={`text-2xl font-bold tabular-nums ${item.color}`}>{item.value}</span>
-                      <span className="text-rose-300 text-xs">{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* 6 Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
-              <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
-              <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
-              <StatCard label="Declined" value={stats.declined} sub="Sent their regrets" icon="❌" accent="border-red-400" textColor="text-red-600" iconBg="bg-red-50" />
-              <StatCard label="Awaiting Reply" value={stats.pending} sub="Haven't responded yet" icon="⏳" accent="border-amber-400" textColor="text-amber-600" iconBg="bg-amber-50" />
-              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent="border-rose-400" textColor="text-rose-700" iconBg="bg-rose-50" />
-            </div>
-
-            {/* Category breakdown + Recent activity */}
-            <div className="grid md:grid-cols-2 gap-6">
-
-              {/* Category breakdown */}
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs">{categories.length} group{categories.length !== 1 ? 's' : ''}</CardDescription>
-                    </div>
-                    <span className="text-2xl">📊</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {categories.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-6">No guests added yet</p>
-                  )}
-                  {categories.map(([cat, data]) => (
-                    <div key={cat}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-emerald-600 font-semibold">✓{data.yes}</span>
-                          <span className="text-red-500 font-semibold">✗{data.no}</span>
-                          <span className="text-amber-600 font-semibold">⏳{data.pending}</span>
-                          <span className="text-gray-400 font-bold w-5 text-right">{data.total}</span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                        {data.yes > 0 && (
-                          <div className="bg-emerald-400 transition-all" style={{ width: `${(data.yes / data.total) * 100}%` }} />
-                        )}
-                        {data.no > 0 && (
-                          <div className="bg-red-300 transition-all" style={{ width: `${(data.no / data.total) * 100}%` }} />
-                        )}
-                        {data.pending > 0 && (
-                          <div className="bg-amber-200 transition-all" style={{ width: `${(data.pending / data.total) * 100}%` }} />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Recent responses */}
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-base">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs">Latest guest replies</CardDescription>
-                    </div>
-                    <span className="text-2xl">🔔</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {recentActivity.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-6">No responses yet</p>
-                  )}
-                  {recentActivity.map((g) => (
-                    <div key={g.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
-                      <GuestAvatar name={g.name} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {g.guest_category || 'Other'}
-                          {g.responded_at
-                            ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                            : ''}
-                        </p>
-                      </div>
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
-                          g.rsvp_status === 'yes'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : g.rsvp_status === 'no'
-                            ? 'bg-red-100 text-red-600'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {g.rsvp_status === 'yes'
-                          ? '✓ Attending'
-                          : g.rsvp_status === 'no'
-                          ? '✗ Declined'
-                          : '⏳ Pending'}
-                      </span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Not-opened banner */}
-            {guests.filter((g) => !g.opened_at).length > 0 && (
-              <Card className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <span className="text-2xl shrink-0">📭</span>
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      {guests.filter((g) => !g.opened_at).length} guest{guests.filter((g) => !g.opened_at).length !== 1 ? 's' : ''} haven't opened their invite yet
-                    </p>
-                    <p className="text-xs text-amber-600 mt-0.5">
-                      Consider sending a reminder via WhatsApp or SMS.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              GUEST LIST TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="guests" className="space-y-4">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-              <CardHeader className="pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">Guest List</CardTitle>
-                    <CardDescription className="text-xs mt-0.5">
-                      Showing <span className="font-semibold text-gray-700">{filteredGuests.length}</span> of <span className="font-semibold text-gray-700">{guests.length}</span> guests
-                    </CardDescription>
-                  </div>
-                  {/* Search */}
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none">🔍</span>
-                    <Input
-                      placeholder="Search name, phone, category…"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="pl-8 w-64 h-9 text-sm border-gray-200 focus:border-rose-300 rounded-xl"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {/* Filter pills */}
-                <div className="flex gap-2 flex-wrap">
-                  {(
-                    [
-                      { key: 'all', label: 'All', count: guests.length },
-                      { key: 'pending', label: 'Pending', count: stats.pending },
-                      { key: 'yes', label: 'Confirmed', count: stats.confirmed },
-                      { key: 'no', label: 'Declined', count: stats.declined },
-                    ] as const
-                  ).map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                        filter === f.key
-                          ? 'bg-rose-700 text-white shadow-sm'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {f.label}
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                          filter === f.key ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-500'
-                        }`}
-                      >
-                        {f.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Table */}
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Responded</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredGuests.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center py-16 text-gray-400">
-                            <div className="flex flex-col items-center gap-2">
-                              <span className="text-4xl">🔍</span>
-                              <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {filteredGuests.map((guest) => (
-                        <TableRow
-                          key={guest.id}
-                          className="hover:bg-rose-50/40 transition-colors group border-gray-50"
-                        >
-                          {/* Guest name + phone */}
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <GuestAvatar name={guest.name} />
-                              <div className="min-w-0">
-                                <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
-                                {guest.phone && (
-                                  <p className="text-xs text-gray-400 font-mono">{guest.phone}</p>
-                                )}
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          {/* Category */}
-                          <TableCell>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
-                              {guest.guest_category || 'Other'}
-                            </span>
-                          </TableCell>
-
-                          {/* Status */}
-                          <TableCell>
-                            <span
-                              className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                                guest.rsvp_status === 'yes'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : guest.rsvp_status === 'no'
-                                  ? 'bg-red-100 text-red-600'
-                                  : 'bg-amber-100 text-amber-700'
-                              }`}
-                            >
-                              {guest.rsvp_status === 'yes'
-                                ? '✓ Yes'
-                                : guest.rsvp_status === 'no'
-                                ? '✗ No'
-                                : '⏳ Pending'}
-                            </span>
-                          </TableCell>
-
-                          {/* Pax */}
-                          <TableCell>
-                            {guest.rsvp_status === 'yes' ? (
-                              <span className="text-sm font-semibold text-emerald-700">
-                                {guest.pax_count}
-                                <span className="text-xs font-normal text-gray-400 ml-1">
-                                  {guest.pax_count === 1 ? 'person' : 'people'}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 text-sm">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Opened */}
-                          <TableCell>
-                            {guest.opened_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">
-                                  {new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </p>
-                                <p className="text-gray-400">
-                                  {new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-300 italic">Not yet</span>
-                            )}
-                          </TableCell>
-
-                          {/* Responded */}
-                          <TableCell>
-                            {guest.responded_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">
-                                  {new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </p>
-                                <p className="text-gray-400">
-                                  {new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-300">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Actions */}
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={`text-xs h-7 px-3 rounded-lg transition-all ${
-                                  copiedId === guest.id
-                                    ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
-                                    : 'border-rose-200 text-rose-700 hover:bg-rose-50'
-                                }`}
-                                onClick={() => {
-                                  const link = `${window.location.origin}/invite/${guest.unique_token}`
-                                  navigator.clipboard.writeText(link)
-                                  setCopiedId(guest.id)
-                                  setTimeout(() => setCopiedId(null), 2000)
-                                }}
-                              >
-                                {copiedId === guest.id ? '✓ Copied!' : 'Copy Link'}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-xs h-7 px-3 text-red-400 hover:text-red-700 hover:bg-red-50 rounded-lg"
-                                disabled={deletingId === guest.id}
-                                onClick={() => deleteGuest(guest.id, guest.name)}
-                              >
-                                {deletingId === guest.id ? 'Deleting…' : 'Delete'}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Delete error toast */}
-          {deleteError && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium text-red-700 bg-red-50 border border-red-200 animate-fade-in-up">
-              <span>⚠</span> {deleteError}
-            </div>
-          )}
-
-          {/* ══════════════════════════════════════════════════════════════════
-              ADD GUEST TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="add-guest" className="mt-0">
-            <div className="max-w-md">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">👤</span>
-                    <div>
-                      <CardTitle>Add New Guest</CardTitle>
-                      <CardDescription>Create a personalised invitation</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={addGuest} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Guest Name *</Label>
-                      <Input
-                        id="name"
-                        value={newGuestName}
-                        onChange={(e) => setNewGuestName(e.target.value)}
-                        placeholder="Full name"
-                        className="mt-2 rounded-xl"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={newGuestPhone}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
-                          setNewGuestPhone(digits)
-                          setPhoneError(
-                            digits.length > 0 && digits.length < 10
-                              ? 'Phone number must be exactly 10 digits'
-                              : ''
-                          )
-                        }}
-                        placeholder="10-digit number"
-                        maxLength={10}
-                        inputMode="numeric"
-                        className={`mt-2 rounded-xl font-mono ${
-                          phoneError ? 'border-red-400 focus-visible:ring-red-300' : ''
-                        }`}
-                      />
-                      {phoneError && (
-                        <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                          <span>⚠</span> {phoneError}
-                        </p>
-                      )}
-                      {newGuestPhone.length === 10 && !phoneError && (
-                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                          <span>✓</span> Valid number
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
-                        <SelectTrigger className="mt-2 rounded-xl">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Family">Family</SelectItem>
-                          <SelectItem value="Friends">Friends</SelectItem>
-                          <SelectItem value="Bride Side">Bride Side</SelectItem>
-                          <SelectItem value="Groom Side">Groom Side</SelectItem>
-                          <SelectItem value="Neighbours">Neighbours</SelectItem>
-                          <SelectItem value="Office">Office</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {/* Duplicate / error message */}
-                    {addGuestError && (
-                      <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-                        <span className="shrink-0 mt-0.5">⚠</span>
-                        <span>{addGuestError}</span>
-                      </div>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={!newGuestName || adding || !!phoneError || (newGuestPhone.length > 0 && newGuestPhone.length < 10)}
-                      className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
-                    >
-                      {adding ? 'Adding…' : '+ Add Guest'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              IMPORT / EXPORT TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="import-export" className="mt-0 space-y-6">
-
-            {/* Import */}
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📥</span>
-                  <div>
-                    <CardTitle>Import from Excel / CSV</CardTitle>
-                    <CardDescription>
-                      Upload a spreadsheet — tokens and links are auto-generated.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <label
-                  htmlFor="import-file"
-                  className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-rose-200 rounded-2xl p-10 cursor-pointer hover:bg-rose-50/40 transition-colors"
-                >
-                  <span className="text-4xl">📂</span>
-                  <p className="text-gray-700 font-light text-sm">
-                    {importFile ? importFile.name : 'Click to upload or drag & drop'}
-                  </p>
-                  <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
-                  <input
-                    id="import-file"
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    className="hidden"
-                    onChange={handleFileChange}
-                  />
-                </label>
-
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
-                  <p className="font-semibold text-amber-900 mb-1">Expected columns (case-insensitive):</p>
-                  <p className="font-mono text-amber-800 text-xs">Name · Phone · Email · Category</p>
-                  <p className="text-amber-700 text-xs mt-1">
-                    Only <strong>Name</strong> is required. All other columns are optional.
-                  </p>
-                </div>
-
-                {importPreview.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2 font-medium">
-                      Preview — first {importPreview.length} rows:
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="text-xs w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            {importPreviewCols.map((col) => (
-                              <th key={col} className="px-3 py-2 text-left text-gray-700 font-semibold border-b border-gray-200">
-                                {col}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importPreview.map((row, i) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                              {importPreviewCols.map((col) => (
-                                <td key={col} className="px-3 py-2 text-gray-700">
-                                  {String(row[col] ?? '')}
-                                </td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {importResult && (
-                  <p
-                    className={`text-sm font-semibold px-4 py-3 rounded-xl ${
-                      importResult.startsWith('✓')
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-red-50 text-red-700'
-                    }`}
-                  >
-                    {importResult}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleBulkImport}
-                  disabled={!importFile || importing}
-                  className="w-full bg-rose-700 hover:bg-rose-800 text-white rounded-xl"
-                >
-                  {importing
-                    ? 'Importing…'
-                    : importFile
-                    ? `Import "${importFile.name}"`
-                    : 'Select a file first'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Export */}
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📤</span>
-                  <div>
-                    <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>
-                      Download the full guest list with unique invite URLs.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-gray-50 rounded-xl p-4 text-sm">
-                  <p className="text-gray-700">
-                    <strong>{guests.length}</strong> guests · links will use:
-                  </p>
-                  <p className="font-mono text-xs text-gray-500 mt-1 break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}
-                    /invite/<em>TOKEN</em>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    onClick={handleExportExcel}
-                    disabled={guests.length === 0}
-                    className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl"
-                  >
-                    ⬇ Export Excel (.xlsx)
-                  </Button>
-                  <Button
-                    onClick={handleExportCSV}
-                    disabled={guests.length === 0}
-                    variant="outline"
-                    className="border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-xl"
-                  >
-                    ⬇ Export CSV
-                  </Button>
-                </div>
-                {guests.length === 0 && (
-                  <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ══════════════════════════════════════════════════════════════════
-              EVENT DETAILS TAB
-          ═════════════════════════════════════════════════════════════════════ */}
-          <TabsContent value="event" className="mt-0">
-            {event && (
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🎊</span>
-                    <div>
-                      <CardTitle>Event Details</CardTitle>
-                      <CardDescription>
-                        {event.event_template === 'Engagement'
-                          ? 'Update your engagement ceremony information'
-                          : 'Update your wedding information'}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-
-                  {/* ── Event Type selector ───────────────────────────────── */}
-                  <div>
-                    <Label htmlFor="event-type">Event Type</Label>
-                    <Select
-                      value={event.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateEvent({ event_template: val as 'Wedding' | 'Engagement' })}
-                    >
-                      <SelectTrigger id="event-type" className="mt-2 rounded-xl">
-                        <SelectValue placeholder="Select event type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* ── Add new event types here ── */}
-                        <SelectItem value="Wedding">💍 Wedding</SelectItem>
-                        <SelectItem value="Engagement">💑 Engagement</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      Changes all wording on the invitation cards automatically.
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Partner 1</Label>
-                      <Input
-                        defaultValue={event.couple_1}
-                        onChange={(e) => updateEvent({ couple_1: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Partner 2</Label>
-                      <Input
-                        defaultValue={event.couple_2}
-                        onChange={(e) => updateEvent({ couple_2: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Date</Label>
-                      <Input
-                        type="date"
-                        min={new Date().toISOString().split('T')[0]}
-                        defaultValue={event.date}
-                        onChange={(e) => updateEvent({ date: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Time</Label>
-                      <Input
-                        type="time"
-                        defaultValue={event.time}
-                        onChange={(e) => updateEvent({ time: e.target.value })}
-                        className="mt-2 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Venue</Label>
-                    <Input
-                      defaultValue={event.venue}
-                      onChange={(e) => updateEvent({ venue: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Location / City</Label>
-                    <Input
-                      defaultValue={event.location}
-                      onChange={(e) => updateEvent({ location: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Contact Number</Label>
-                    <Input
-                      defaultValue={event.contact}
-                      onChange={(e) => updateEvent({ contact: e.target.value })}
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <div>
-                    <Label>Google Maps URL</Label>
-                    <Input
-                      defaultValue={event.maps_url || ''}
-                      onChange={(e) => updateEvent({ maps_url: e.target.value })}
-                      placeholder="https://maps.google.com/…"
-                      className="mt-2 rounded-xl"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5">
-                    <span>✓</span> Changes are saved automatically
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-    </main>
+      {/* New project modal */}
+      {showNewModal && (
+        <NewProjectModal
+          onClose={() => setShowNewModal(false)}
+          onCreate={(project) => {
+            setProjects((prev) => [project, ...prev])
+            addNotification({
+              type: 'project_created',
+              title: 'Project Created! 🎉',
+              message: `${project.name} has been set up and is ready to use.`,
+              projectName: project.name,
+              projectId: project.id,
+            })
+            playNotificationSound('success')
+          }}
+        />
+      )}
+    </>
   )
 }
