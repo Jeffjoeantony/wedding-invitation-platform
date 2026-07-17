@@ -22,12 +22,19 @@ import {
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
+import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
+import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
   parseMediaList,
   type MediaItem,
 } from '@/lib/invite-media'
+import {
+  invitedToLabels,
+  resetEventsToPrimary,
+  type ProjectEvent,
+} from '@/lib/project-events'
 
 interface Guest {
   id: string
@@ -43,6 +50,11 @@ interface Guest {
   moments?: MediaItem[] | unknown
   /** Count from Storage — set by guests list API */
   moments_count?: number
+  invited_to?: string[] | unknown
+  rsvp_by_event?: unknown
+  rsvp_headline?: string | null
+  greeting_line?: string | null
+  hide_greeting?: boolean | null
 }
 
 interface Project {
@@ -60,6 +72,7 @@ interface Project {
     'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
   status: string
   gallery_images?: MediaItem[] | unknown
+  events?: ProjectEvent[] | unknown
 }
 
 
@@ -1284,6 +1297,7 @@ export default function ProjectDashboardPage() {
   const [momentsUploading, setMomentsUploading] = useState(false)
   const [momentsError, setMomentsError] = useState('')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
+  const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
@@ -1496,11 +1510,16 @@ export default function ProjectDashboardPage() {
   }
 
   const updateProject = async (updates: Partial<Project>) => {
-    await fetch(`/api/projects/${projectId}/event`, {
+    const res = await fetch(`/api/projects/${projectId}/event`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || 'Failed to update project')
+      return
+    }
     setProject({ ...project!, ...updates })
   }
 
@@ -2071,6 +2090,7 @@ export default function ProjectDashboardPage() {
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Invited to</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
@@ -2081,7 +2101,7 @@ export default function ProjectDashboardPage() {
                     <TableBody>
                       {filteredGuests.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-16 text-gray-400">
+                          <TableCell colSpan={8} className="text-center py-16 text-gray-400">
                             <div className="flex flex-col items-center gap-2">
                               <span className="text-4xl">🔍</span>
                               <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
@@ -2094,8 +2114,15 @@ export default function ProjectDashboardPage() {
                           typeof guest.moments_count === 'number'
                             ? guest.moments_count
                             : parseMediaList(guest.moments).length
+                        const invitedLabels = project
+                          ? invitedToLabels(guest.invited_to, project)
+                          : []
                         return (
-                        <TableRow key={guest.id} className={`transition-colors group border-gray-50 ${theme.tableRowHover}`}>
+                        <TableRow
+                          key={guest.id}
+                          className={`transition-colors group border-gray-50 cursor-pointer ${theme.tableRowHover}`}
+                          onClick={() => setInviteGuest(guest)}
+                        >
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <GuestAvatar name={guest.name} />
@@ -2109,6 +2136,18 @@ export default function ProjectDashboardPage() {
                             <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
                               {guest.guest_category || 'Other'}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                              {invitedLabels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
@@ -2142,7 +2181,10 @@ export default function ProjectDashboardPage() {
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <div
+                              className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <Button
                                 variant="outline" size="sm"
                                 className="text-xs h-7 px-3 rounded-lg border-amber-200 text-amber-800 hover:bg-amber-50"
@@ -2403,7 +2445,12 @@ export default function ProjectDashboardPage() {
                     <Label htmlFor="event-type">Event Type</Label>
                     <Select
                       value={project.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateProject({ event_template: val as Project['event_template'] })}
+                      onValueChange={(val) => {
+                        const nextTemplate = val as Project['event_template']
+                        // Reset Events included to ONLY the new primary (drop previous extras)
+                        const nextEvents = resetEventsToPrimary(project, nextTemplate || 'Wedding')
+                        updateProject({ event_template: nextTemplate, events: nextEvents })
+                      }}
                     >
                       <SelectTrigger id="event-type" className="mt-2 rounded-xl">
                         <SelectValue placeholder="Select event type" />
@@ -2421,7 +2468,9 @@ export default function ProjectDashboardPage() {
                         <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">Changes all wording on the invitation cards automatically.</p>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Theme/wording preset. Use &quot;Events included&quot; below to invite for Engagement and Wedding together.
+                    </p>
                   </div>
 
                   {project.event_template === 'Birthday' ? (
@@ -2444,35 +2493,47 @@ export default function ProjectDashboardPage() {
                       </div>
                     </div>
                   )}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Date</Label>
-                      <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
-                        onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
-                    </div>
-                    <div>
-                      <Label>Time</Label>
-                      <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Venue</Label>
-                    <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
-                  <div>
-                    <Label>Location / City</Label>
-                    <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
+
+                  {project.event_template !== 'Birthday' ? (
+                    <EventsIncludedEditor
+                      project={project}
+                      onChange={(events) => updateProject({ events })}
+                    />
+                  ) : (
+                    <>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <Label>Date</Label>
+                          <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
+                            onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
+                        </div>
+                        <div>
+                          <Label>Time</Label>
+                          <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Venue</Label>
+                        <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
+                      <div>
+                        <Label>Location / City</Label>
+                        <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label>Contact Number</Label>
                     <Input defaultValue={project.contact} onChange={(e) => updateProject({ contact: e.target.value })} className="mt-2 rounded-xl" />
                   </div>
+                  {project.event_template === 'Birthday' ? (
                   <div>
                     <Label>Maps Link or Address</Label>
                     <Input defaultValue={project.maps_url || ''} onChange={(e) => updateProject({ maps_url: e.target.value })}
                       placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
                     <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
                   </div>
+                  ) : null}
 
                   <div className="border-t border-gray-100 pt-5">
                     <MediaUploader
@@ -2549,6 +2610,20 @@ export default function ProjectDashboardPage() {
           if (lastAddedGuest?.id === momentsGuest.id) setLastAddedMoments(moments)
         }}
       />
+
+      {project ? (
+        <GuestInvitePanel
+          open={!!inviteGuest}
+          guest={inviteGuest}
+          project={project}
+          projectId={projectId}
+          onClose={() => setInviteGuest(null)}
+          onSaved={(updated) => {
+            setGuests((prev) => prev.map((g) => (g.id === updated.id ? { ...g, ...updated } : g)))
+            setInviteGuest(null)
+          }}
+        />
+      ) : null}
     </main>
   )
 }

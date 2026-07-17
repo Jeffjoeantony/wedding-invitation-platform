@@ -1,5 +1,31 @@
 import { getEventCopy } from '@/lib/eventCopy'
 import { parseMediaList, type MediaItem } from '@/lib/invite-media'
+import {
+  buildEventDateISO,
+  eventLabel,
+  formatEventDateLabel,
+  formatEventTime,
+  getMapsUrl,
+  guestVisibleEvents,
+  parseRsvpByEvent,
+  resolveProjectEvents,
+  type ProjectEvent,
+  type RsvpByEvent,
+} from '@/lib/project-events'
+
+export type InvitationEventConfig = {
+  id: string
+  type: string
+  label: string
+  dateISO: string
+  dateLabel: string
+  time: string
+  venue: string
+  location: string
+  address: string
+  mapsUrl: string
+  rsvpStatus?: 'pending' | 'yes' | 'no'
+}
 
 export type InvitationConfig = {
   guestName: string
@@ -32,6 +58,12 @@ export type InvitationConfig = {
   guestMoments: MediaItem[]
   /** Optional custom RSVP question (personal invites) */
   rsvpHeadline?: string
+  /** Hero greeting line; null when hidden */
+  heroGreeting?: string | null
+  /** Events visible to this guest (filtered by invited_to) */
+  events: InvitationEventConfig[]
+  /** Raw per-event RSVP map */
+  rsvpByEvent: RsvpByEvent
 }
 
 /** Guest-specific RSVP headings (matched case-insensitively on guest name). */
@@ -47,48 +79,70 @@ function rsvpHeadlineForGuest(guest?: { name?: string; rsvp_headline?: string | 
   return undefined
 }
 
+function heroGreetingForGuest(
+  guest?: { name?: string; greeting_line?: string | null; hide_greeting?: boolean | null } | null,
+): string | null {
+  if (guest?.hide_greeting) return null
+  const custom = guest?.greeting_line?.trim()
+  if (custom) return custom
+  const name = guest?.name?.trim()
+  if (name) return `Dear ${name}`
+  return null
+}
+
+/** Split RSVP headline for styled display (default: Will you join us?). */
+export function rsvpHeadlineParts(headline?: string | null): {
+  mode: 'default' | 'will-you' | 'full'
+  prefix?: string
+  emphasis?: string
+  full?: string
+} {
+  const h = headline?.trim()
+  if (!h) return { mode: 'default' }
+  if (/^will you\s+/i.test(h)) {
+    const rest = h.replace(/^will you\s+/i, '').replace(/\?$/, '').trim()
+    return { mode: 'will-you', prefix: 'Will you', emphasis: `${rest}?` }
+  }
+  return { mode: 'full', full: h.endsWith('?') ? h : `${h}?` }
+}
+
 const DEFAULT_IMAGES = {
   hero: '/invitations/couple-standing.png',
   accent: '/invitations/couple-sitting.png',
   portrait: '/invitations/couple-portrait.png',
 }
 
-function formatTime(time: string | undefined): string {
-  if (!time) return ''
-  const [h, m] = time.split(':').map(Number)
-  if (Number.isNaN(h) || Number.isNaN(m)) return time
-  const period = h >= 12 ? 'PM' : 'AM'
-  const hour = h % 12 || 12
-  return `${hour}:${String(m).padStart(2, '0')} ${period}`
+function toInviteEvent(
+  event: ProjectEvent,
+  rsvpByEvent: RsvpByEvent,
+): InvitationEventConfig {
+  const venue = event.venue?.trim() || ''
+  const location = event.location?.trim() || ''
+  const address = [venue, location].filter(Boolean).join(', ')
+  return {
+    id: event.id,
+    type: event.type,
+    label: eventLabel(event),
+    dateISO: buildEventDateISO(event.date, event.time),
+    dateLabel: formatEventDateLabel(event.date),
+    time: formatEventTime(event.time),
+    venue,
+    location,
+    address,
+    mapsUrl: getMapsUrl(event.maps_url, address),
+    rsvpStatus: rsvpByEvent[event.id]?.status,
+  }
 }
 
-function formatDateLabel(date: string | undefined): string {
-  if (!date) return ''
-  const parsed = new Date(`${date}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return date
-  return parsed.toLocaleDateString('en-IN', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
-}
-
-function getMapsUrl(raw: string | undefined, fallbackAddress: string): string {
-  if (raw && /^https?:\/\//i.test(raw)) return raw
-  const query = raw || fallbackAddress
-  if (!query) return 'https://maps.google.com'
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-}
-
-function buildDateISO(date: string | undefined, time: string | undefined): string {
-  if (!date) return new Date().toISOString()
-  const clock = time && /^\d{1,2}:\d{2}/.test(time) ? time.slice(0, 5) : '17:00'
-  const iso = new Date(`${date}T${clock}:00+05:30`)
-  return Number.isNaN(iso.getTime()) ? `${date}T17:00:00+05:30` : iso.toISOString()
-}
-
-function storyLineFor(template: string | null | undefined, couple1: string, couple2: string) {
+function storyLineFor(
+  template: string | null | undefined,
+  couple1: string,
+  couple2: string,
+  eventCount: number,
+) {
+  if (eventCount > 1) {
+    return `From a chance meeting to a lifetime of togetherness, ${couple1} and ${couple2} invite you to celebrate their engagement and wedding.`
+  }
   if (template === 'Engagement') {
     return `From a chance meeting to a promise of forever, ${couple1} and ${couple2} invite you to celebrate their engagement.`
   }
@@ -96,6 +150,20 @@ function storyLineFor(template: string | null | undefined, couple1: string, coup
     return `Join us as we celebrate ${couple1} with love, joy, and cherished memories.`
   }
   return `From a chance meeting to a lifetime of togetherness, ${couple1} and ${couple2} invite you to witness the beginning of their forever.`
+}
+
+function atLineFor(events: InvitationEventConfig[], fallback: string) {
+  if (events.length > 1) {
+    const labels = events.map((e) => e.label.toLowerCase())
+    if (labels.includes('engagement') && labels.includes('wedding')) {
+      return 'at their engagement and wedding celebrations'
+    }
+    return `at their ${labels.join(' & ')}`
+  }
+  if (events.length === 1) {
+    return `at their ${events[0].label.toLowerCase()}`
+  }
+  return fallback
 }
 
 /** Map platform event (+ optional guest) into the invitation UI config. */
@@ -112,6 +180,7 @@ export function buildInvitationConfig(
     maps_url?: string
     event_template?: string
     gallery_images?: unknown
+    events?: unknown
   },
   guest?: {
     name?: string
@@ -119,6 +188,10 @@ export function buildInvitationConfig(
     project_id?: string
     moments?: unknown
     rsvp_headline?: string | null
+    greeting_line?: string | null
+    hide_greeting?: boolean | null
+    invited_to?: unknown
+    rsvp_by_event?: unknown
   } | null,
 ): InvitationConfig {
   const couple1 = event.couple_1?.trim() || 'Partner'
@@ -129,29 +202,42 @@ export function buildInvitationConfig(
   const template = event.event_template || 'Wedding'
   const copy = getEventCopy(template)
 
+  const projectEvents = resolveProjectEvents(event)
+  const rsvpByEvent = parseRsvpByEvent(guest?.rsvp_by_event)
+  const visible = guest
+    ? guestVisibleEvents(event, guest.invited_to)
+    : projectEvents
+  const inviteEvents = visible.map((e) => toInviteEvent(e, rsvpByEvent))
+  const primary = inviteEvents[0]
+
   return {
     guestName: guest?.name?.trim() || 'Guest',
     guestToken: guest?.unique_token,
     projectId: event.id || guest?.project_id,
     couple1,
     couple2,
-    dateISO: buildDateISO(event.date, event.time),
-    dateLabel: formatDateLabel(event.date),
-    time: formatTime(event.time),
-    venue,
-    location,
-    address,
-    mapsUrl: getMapsUrl(event.maps_url, address),
+    dateISO: primary?.dateISO || buildEventDateISO(event.date, event.time),
+    dateLabel: primary?.dateLabel || formatEventDateLabel(event.date),
+    time: primary?.time || formatEventTime(event.time),
+    venue: primary?.venue || venue,
+    location: primary?.location || location,
+    address: primary?.address || address,
+    mapsUrl: primary?.mapsUrl || getMapsUrl(event.maps_url, address),
     contact: event.contact?.trim() || '',
     eventTemplate: template,
     requestLine: copy.requestLine,
-    atLine: copy.atLine,
-    countdownLabel: copy.countdownLabel,
-    footerTagline: copy.footerTagline,
-    storyLine: storyLineFor(template, couple1, couple2),
+    atLine: atLineFor(inviteEvents, copy.atLine),
+    countdownLabel:
+      inviteEvents.length > 1 ? 'Counting down to the celebrations' : copy.countdownLabel,
+    footerTagline:
+      inviteEvents.length > 1 ? 'A Celebration of Love' : copy.footerTagline,
+    storyLine: storyLineFor(template, couple1, couple2, inviteEvents.length),
     images: DEFAULT_IMAGES,
     galleryImages: parseMediaList(event.gallery_images),
     guestMoments: parseMediaList(guest?.moments),
     rsvpHeadline: rsvpHeadlineForGuest(guest),
+    heroGreeting: heroGreetingForGuest(guest),
+    events: inviteEvents,
+    rsvpByEvent,
   }
 }
