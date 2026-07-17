@@ -2,10 +2,12 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
+import { useMobileMotion } from './use-mobile-motion'
 
 // Elegant opening-envelope loader that transitions into the hero.
 export function Loader({ onDone }: { onDone: () => void }) {
   const reduce = useReducedMotion()
+  const mobile = useMobileMotion()
   const [open, setOpen] = useState(false)
   const [hidden, setHidden] = useState(false)
   const doneRef = useRef(false)
@@ -25,13 +27,13 @@ export function Loader({ onDone }: { onDone: () => void }) {
       return () => clearTimeout(t)
     }
 
-    const t1 = setTimeout(() => setOpen(true), 900)
-    const t2 = setTimeout(finish, 2600)
+    const t1 = setTimeout(() => setOpen(true), mobile ? 450 : 900)
+    const t2 = setTimeout(finish, mobile ? 1200 : 2600)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
     }
-  }, [reduce])
+  }, [reduce, mobile])
 
   return (
     <AnimatePresence>
