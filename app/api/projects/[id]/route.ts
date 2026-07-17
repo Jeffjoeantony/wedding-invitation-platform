@@ -55,11 +55,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     ] as const
     type AllowedKey = typeof ALLOWED_FIELDS[number]
 
-    const updates: Partial<Record<AllowedKey, string>> = {}
+    const updates: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
       if (key in body && typeof body[key] === 'string') {
         updates[key] = String(body[key]).slice(0, 500)
       }
+    }
+
+    if ('events' in body) {
+      const { sanitizeEventsPayload, syncLegacyFieldsFromEvents } = await import('@/lib/project-events')
+      const events = sanitizeEventsPayload(body.events)
+      updates.events = events
+      const legacy = syncLegacyFieldsFromEvents(events)
+      updates.date = legacy.date
+      updates.time = legacy.time
+      updates.venue = legacy.venue
+      updates.location = legacy.location
+      updates.maps_url = legacy.maps_url
     }
 
     if (Object.keys(updates).length === 0) {
@@ -72,7 +84,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
 
-    if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+    if (error) {
+      if (/events/i.test(error.message || '')) {
+        return NextResponse.json(
+          {
+            error:
+              'Multi-event columns are missing. Run db/migrations/multi-event-schema.sql in Supabase, then try again.',
+          },
+          { status: 500 },
+        )
+      }
+      return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
   } catch {

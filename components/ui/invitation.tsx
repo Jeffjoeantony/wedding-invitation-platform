@@ -16,7 +16,7 @@ import { SmoothScroll } from './smooth-scroll'
 import { StoryBento } from './story-bento'
 import { useMobileMotion } from './use-mobile-motion'
 
-// `openInvite` = public open link: hide personalized greeting + guest moments.
+// `openInvite` = public open link: hide greeting, guest moments, and RSVP.
 export function Invitation({
   config,
   openInvite = false,
@@ -33,7 +33,7 @@ export function Invitation({
     <SmoothScroll>
       <Loader onDone={onLoaderDone} />
       <AmbientGlow />
-      <Hearts count={mobile ? 12 : 28} />
+      <Hearts count={mobile ? 8 : 24} />
       <main
         className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'
@@ -82,7 +82,7 @@ export function Invitation({
 
         <Countdown dateISO={config.dateISO} label={config.countdownLabel} />
 
-        <RsvpPanel config={config} />
+        {!openInvite && <RsvpPanel config={config} />}
 
         <Footer config={config} />
       </main>

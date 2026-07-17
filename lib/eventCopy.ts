@@ -25,7 +25,7 @@ interface EventCopy {
 
 const copy: Record<EventTemplate, EventCopy> = {
   Wedding: {
-    splashTag: 'You are cordially invited',
+    splashTag: 'Cordially invites you',
     splashHeading: 'A Celebration of Love',
     preHeading: 'Together with their families',
     requestLine: 'Request the honour of your presence',
