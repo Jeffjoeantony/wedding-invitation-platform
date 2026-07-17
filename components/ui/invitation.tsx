@@ -33,7 +33,7 @@ export function Invitation({
     <SmoothScroll>
       <Loader onDone={onLoaderDone} />
       <AmbientGlow />
-      <Hearts count={mobile ? 12 : 28} />
+      <Hearts count={mobile ? 8 : 24} />
       <main
         className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'

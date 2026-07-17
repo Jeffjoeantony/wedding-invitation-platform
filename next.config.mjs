@@ -42,7 +42,17 @@ const nextConfig = {
 
   // ── Images ───────────────────────────────────────────────────────────────────
   images: {
-    unoptimized: false, // use Next.js built-in optimiser in production
+    unoptimized: false,
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [384, 540, 640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
   },
 
   // ── Compression / performance ─────────────────────────────────────────────────
