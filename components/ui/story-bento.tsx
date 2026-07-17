@@ -24,9 +24,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
         <p className="font-sans text-[0.6rem] uppercase tracking-[0.4em] text-gold">Our Story</p>
         <h2 className="mt-3 font-serif text-[2rem] font-light leading-tight text-foreground sm:text-4xl">
           Two hearts,{' '}
-          <span className="italic text-gilded">
-            {multi ? 'two celebrations' : 'one celebration'}
-          </span>
+          <span className="italic text-gilded">one celebration</span>
         </h2>
         <div className="mt-6">
           <Ornament />

@@ -172,7 +172,7 @@ export function Hero({
             </motion.span>
             <LetterReveal
               text={config.couple2}
-              className="font-serif text-4xl font-light tracking-[0.04em]"
+              className="font-serif text-4xl font-semibold tracking-[0.04em]"
               gilded
             />
           </h1>
