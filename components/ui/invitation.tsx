@@ -16,7 +16,7 @@ import { SmoothScroll } from './smooth-scroll'
 import { StoryBento } from './story-bento'
 import { useMobileMotion } from './use-mobile-motion'
 
-// `openInvite` = public open link: hide personalized greeting + guest moments.
+// `openInvite` = public open link: hide greeting, guest moments, and RSVP.
 export function Invitation({
   config,
   openInvite = false,
@@ -82,7 +82,7 @@ export function Invitation({
 
         <Countdown dateISO={config.dateISO} label={config.countdownLabel} />
 
-        <RsvpPanel config={config} />
+        {!openInvite && <RsvpPanel config={config} />}
 
         <Footer config={config} />
       </main>

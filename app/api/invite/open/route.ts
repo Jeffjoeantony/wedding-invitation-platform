@@ -21,18 +21,31 @@ export async function GET(req: NextRequest) {
 
     const { data: event, error } = await supabase
       .from('projects')
-      .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+      .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template,events')
       .eq('id', projectId)
       .single()
 
+    let eventRow = event
     if (error || !event) {
-      return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+      if (error && /events/i.test(error.message || '')) {
+        const retry = await supabase
+          .from('projects')
+          .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+          .eq('id', projectId)
+          .single()
+        if (retry.error || !retry.data) {
+          return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+        }
+        eventRow = { ...retry.data, events: [] }
+      } else {
+        return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
+      }
     }
 
     const galleryImages = await getProjectGallery(projectId).catch(() => [])
 
     return NextResponse.json({
-      event: { ...event, gallery_images: galleryImages },
+      event: { ...eventRow, gallery_images: galleryImages },
     })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

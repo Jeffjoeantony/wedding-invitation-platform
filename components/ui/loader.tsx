@@ -92,7 +92,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4, duration: 0.8 }}
             >
-              Cordially Invited
+              Cordially invites you
             </motion.span>
           </div>
         </motion.div>

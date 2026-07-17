@@ -19,5 +19,8 @@ node_modules
 *.xlsx
 *.csv
 
+# Supabase CLI / local project config (SQL migrations live in db/migrations/)
+/supabase/
+
 # Dev proxy
 proxy.ts
