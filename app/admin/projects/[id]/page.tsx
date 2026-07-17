@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as XLSX from 'xlsx'
+import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -172,7 +173,9 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
   accent: string; textColor: string; iconBg: string
 }) {
   return (
-    <Card className={`bg-white/90 border-l-4 ${accent} shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5`}>
+    <Card
+      className={`bg-white/50 backdrop-blur-xl border border-white/70 border-l-4 ${accent} shadow-[0_8px_28px_rgba(31,41,55,0.07)] hover:shadow-[0_12px_36px_rgba(31,41,55,0.12)] hover:bg-white/65 transition-all duration-300 hover:-translate-y-0.5`}
+    >
       <CardContent className="pt-5 pb-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -184,6 +187,30 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** Soft enter animation when switching dashboard tabs */
+function AnimatedTabsContent({
+  value,
+  className,
+  children,
+}: {
+  value: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <TabsContent value={value} className={`mt-0 outline-none ${className ?? ''}`}>
+      <motion.div
+        key={value}
+        initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {children}
+      </motion.div>
+    </TabsContent>
   )
 }
 
@@ -1300,6 +1327,7 @@ export default function ProjectDashboardPage() {
   const [lastAddedMoments, setLastAddedMoments] = useState<MediaItem[]>([])
   const [momentsUploading, setMomentsUploading] = useState(false)
   const [momentsError, setMomentsError] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
 
@@ -1707,8 +1735,8 @@ export default function ProjectDashboardPage() {
     <main className={theme.pageBg}>
 
       {/* ── Sticky header ── */}
-      <div className={`bg-white/95 backdrop-blur-xl border-b-2 sticky top-0 z-20 ${theme.headerBorder}`}
-        style={{ boxShadow: '0 4px 24px rgba(31,41,55,0.08), 0 1px 4px rgba(31,41,55,0.04)' }}>
+      <div className={`bg-white/60 backdrop-blur-2xl border-b sticky top-0 z-20 ${theme.headerBorder}`}
+        style={{ boxShadow: '0 8px 32px rgba(31,41,55,0.06), inset 0 1px 0 rgba(255,255,255,0.7)' }}>
 
         {/* Top accent line */}
         <div style={{
@@ -1885,10 +1913,12 @@ export default function ProjectDashboardPage() {
 
       {/* ── Main content ── */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="overview" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
           {/* Tab bar */}
-          <TabsList className={`flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border rounded-2xl p-1 mb-6 ${theme.tabsListBorder}`}>
+          <TabsList
+            className={`flex w-full overflow-x-auto justify-start sm:justify-center bg-white/45 backdrop-blur-xl shadow-[0_8px_28px_rgba(31,41,55,0.06)] border rounded-2xl p-1.5 mb-6 gap-0.5 ${theme.tabsListBorder}`}
+          >
             {[
               { value: 'overview', label: 'Overview' },
               { value: 'guests', label: `Guest List${stats.total > 0 ? ` (${stats.total})` : ''}` },
@@ -1900,7 +1930,7 @@ export default function ProjectDashboardPage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all ${theme.tabActive}`}
+                className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all duration-300 data-[state=inactive]:hover:bg-white/50 ${theme.tabActive}`}
               >
                 {tab.label}
               </TabsTrigger>
@@ -1908,7 +1938,7 @@ export default function ProjectDashboardPage() {
           </TabsList>
 
           {/* ══ OVERVIEW ══════════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="space-y-6">
+          <AnimatedTabsContent value="overview" className="space-y-6">
 
             {/* Hero — Response Rate */}
             <div className={theme.heroClassName} style={theme.heroStyle}>
@@ -1932,7 +1962,7 @@ export default function ProjectDashboardPage() {
                     <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
                   </div>
                 </div>
-                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
+                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/25 bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
                   {[
                     { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
                     { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
@@ -1960,7 +1990,7 @@ export default function ProjectDashboardPage() {
 
             {/* Category breakdown + Recent activity */}
             <div className="grid md:grid-cols-2 gap-6">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1993,7 +2023,7 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -2029,7 +2059,7 @@ export default function ProjectDashboardPage() {
 
             {/* Not-opened banner */}
             {guests.filter((g) => !g.opened_at).length > 0 && (
-              <Card className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
+              <Card className="bg-amber-50/70 backdrop-blur-xl border border-amber-200/80 rounded-2xl shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
                 <CardContent className="p-4 flex items-center gap-4">
                   <span className="text-2xl shrink-0">📭</span>
                   <div>
@@ -2041,11 +2071,11 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ GUEST LIST ════════════════════════════════════════════════════ */}
-          <TabsContent value="guests" className="space-y-4">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+          <AnimatedTabsContent value="guests" className="space-y-4">
+            <Card className={theme.glassCard}>
               <CardHeader className="pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1">
@@ -2229,7 +2259,7 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* Delete error toast */}
           {deleteError && (
@@ -2239,9 +2269,9 @@ export default function ProjectDashboardPage() {
           )}
 
           {/* ══ ADD GUEST ═════════════════════════════════════════════════════ */}
-          <TabsContent value="add-guest" className="mt-0">
+          <AnimatedTabsContent value="add-guest" className="mt-0">
             <div className="max-w-md space-y-4">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">👤</span>
@@ -2301,7 +2331,7 @@ export default function ProjectDashboardPage() {
               </Card>
 
               {lastAddedGuest && (
-                <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+                <Card className={theme.glassCard}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Moments with {lastAddedGuest.name}</CardTitle>
                     <CardDescription>
@@ -2326,11 +2356,11 @@ export default function ProjectDashboardPage() {
                 </Card>
               )}
             </div>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ IMPORT / EXPORT ═══════════════════════════════════════════════ */}
-          <TabsContent value="import-export" className="mt-0 space-y-6">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+          <AnimatedTabsContent value="import-export" className="mt-0 space-y-6">
+            <Card className={`${theme.glassCard} max-w-2xl`}>
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📥</span>
@@ -2382,7 +2412,7 @@ export default function ProjectDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+            <Card className={`${theme.glassCard} max-w-2xl`}>
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📤</span>
@@ -2412,21 +2442,21 @@ export default function ProjectDashboardPage() {
                 {guests.length === 0 && <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>}
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ SEND INVITATIONS ══════════════════════════════════════════════ */}
-          <TabsContent value="send" className="mt-0">
+          <AnimatedTabsContent value="send" className="mt-0">
             <SendInvitationsPanel
               guests={guests}
               project={project}
               theme={theme}
             />
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
-          <TabsContent value="event" className="mt-0 space-y-6">
+          <AnimatedTabsContent value="event" className="mt-0 space-y-6">
             {project && (
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+              <Card className={`${theme.glassCard} max-w-2xl`}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🎊</span>
@@ -2592,7 +2622,7 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
         </Tabs>
       </div>
