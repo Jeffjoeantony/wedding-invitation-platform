@@ -53,7 +53,15 @@ export function MediaUploader({
               className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50 group"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.url} alt="" className="h-full w-full object-cover" />
+              <img
+                src={img.url}
+                alt=""
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.style.opacity = '0.35'
+                }}
+              />
               <button
                 type="button"
                 disabled={busyId === img.id}
