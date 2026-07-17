@@ -5,6 +5,7 @@ import {
   eventLabel,
   formatEventDateLabel,
   formatEventTime,
+  fullEventAddress,
   getMapsUrl,
   guestVisibleEvents,
   parseRsvpByEvent,
@@ -66,17 +67,9 @@ export type InvitationConfig = {
   rsvpByEvent: RsvpByEvent
 }
 
-/** Guest-specific RSVP headings (matched case-insensitively on guest name). */
-const RSVP_HEADLINE_BY_GUEST_NAME: Record<string, string> = {
-  ponnambili: 'Will you be my maid of honor?',
-}
-
-function rsvpHeadlineForGuest(guest?: { name?: string; rsvp_headline?: string | null } | null) {
+function rsvpHeadlineForGuest(guest?: { rsvp_headline?: string | null } | null) {
   const fromField = guest?.rsvp_headline?.trim()
-  if (fromField) return fromField
-  const key = guest?.name?.trim().toLowerCase()
-  if (key && RSVP_HEADLINE_BY_GUEST_NAME[key]) return RSVP_HEADLINE_BY_GUEST_NAME[key]
-  return undefined
+  return fromField || undefined
 }
 
 function heroGreetingForGuest(
@@ -118,7 +111,7 @@ function toInviteEvent(
 ): InvitationEventConfig {
   const venue = event.venue?.trim() || ''
   const location = event.location?.trim() || ''
-  const address = [venue, location].filter(Boolean).join(', ')
+  const address = fullEventAddress(venue, location)
   return {
     id: event.id,
     type: event.type,
@@ -198,7 +191,7 @@ export function buildInvitationConfig(
   const couple2 = event.couple_2?.trim() || 'Partner'
   const venue = event.venue?.trim() || ''
   const location = event.location?.trim() || ''
-  const address = [venue, location].filter(Boolean).join(', ')
+  const address = fullEventAddress(venue, location)
   const template = event.event_template || 'Wedding'
   const copy = getEventCopy(template)
 

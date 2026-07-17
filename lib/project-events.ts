@@ -374,3 +374,119 @@ export function getMapsUrl(raw: string | undefined, fallbackAddress: string): st
   if (!query) return 'https://maps.google.com'
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
 }
+
+/** Full address for maps links — prefers location when it already includes venue. */
+export function fullEventAddress(venue: string, location: string): string {
+  const v = venue.trim()
+  const loc = location.trim()
+  if (!v) return loc
+  if (!loc) return v
+  if (loc.toLowerCase().startsWith(v.toLowerCase())) return loc
+  return [v, loc].filter(Boolean).join(', ')
+}
+
+/** Where-block display — venue name once, extra detail below when needed. */
+export function venueWhereDisplay(
+  venue: string,
+  location: string,
+): { title: string; detail?: string } {
+  const v = venue.trim()
+  const loc = location.trim()
+
+  if (!v && !loc) return { title: 'Venue to be announced' }
+  if (!v) return { title: loc }
+  if (!loc) return { title: v }
+  if (loc.toLowerCase() === v.toLowerCase()) return { title: v }
+
+  const vLower = v.toLowerCase()
+  const locLower = loc.toLowerCase()
+  if (locLower.startsWith(vLower)) {
+    const rest = loc.slice(v.length).replace(/^[\s,.-–—]+/, '').trim()
+    return rest ? { title: v, detail: rest } : { title: v }
+  }
+
+  return { title: v, detail: loc }
+}
+
+export type GuestExportInput = {
+  name: string
+  phone?: string | null
+  email?: string | null
+  guest_category?: string | null
+  rsvp_status: 'pending' | 'yes' | 'no'
+  pax_count: number
+  unique_token: string
+  invited_to?: unknown
+  rsvp_by_event?: unknown
+}
+
+function formatExportRsvpStatus(status: 'pending' | 'yes' | 'no' | undefined): string {
+  if (status === 'yes') return 'Yes'
+  if (status === 'no') return 'No'
+  return 'Pending'
+}
+
+/** Column order for guest list Excel/CSV export. */
+export function guestExportColumnOrder(
+  project: Parameters<typeof resolveProjectEvents>[0],
+): string[] {
+  const cols = [
+    'Name',
+    'Phone',
+    'Email',
+    'Category',
+    'Invited To',
+    'Overall Status',
+    'Pax Count',
+  ]
+  for (const ev of resolveProjectEvents(project)) {
+    cols.push(`${eventLabel(ev)} RSVP`)
+  }
+  cols.push('Invite Link')
+  return cols
+}
+
+export function buildGuestExportRow(
+  guest: GuestExportInput,
+  project: Parameters<typeof resolveProjectEvents>[0],
+  origin: string,
+  projectEvents?: ProjectEvent[],
+): Record<string, string | number> {
+  const events = projectEvents ?? resolveProjectEvents(project)
+  const invitedSet = new Set(effectiveInvitedTo(project, guest.invited_to))
+  const rsvpByEvent = parseRsvpByEvent(guest.rsvp_by_event)
+  const invitedLabels = invitedToLabels(guest.invited_to, project)
+
+  const row: Record<string, string | number> = {
+    Name: guest.name,
+    Phone: guest.phone?.trim() || '',
+    Email: guest.email?.trim() || '',
+    Category: guest.guest_category?.trim() || '',
+    'Invited To': invitedLabels.join(', '),
+    'Overall Status': guest.rsvp_status,
+    'Pax Count': guest.pax_count,
+  }
+
+  for (const ev of events) {
+    const label = eventLabel(ev)
+    if (!invitedSet.has(ev.id)) {
+      row[`${label} RSVP`] = 'Not invited'
+      continue
+    }
+    const entry = rsvpByEvent[ev.id]
+    const status = entry?.status ?? 'pending'
+    row[`${label} RSVP`] = formatExportRsvpStatus(status)
+  }
+
+  row['Invite Link'] = `${origin}/invite/${guest.unique_token}`
+  return row
+}
+
+export function buildGuestExportRows(
+  guests: GuestExportInput[],
+  project: Parameters<typeof resolveProjectEvents>[0],
+  origin: string,
+): Record<string, string | number>[] {
+  const projectEvents = resolveProjectEvents(project)
+  return guests.map((g) => buildGuestExportRow(g, project, origin, projectEvents))
+}

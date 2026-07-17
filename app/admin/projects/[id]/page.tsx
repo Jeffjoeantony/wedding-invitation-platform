@@ -31,8 +31,12 @@ import {
   type MediaItem,
 } from '@/lib/invite-media'
 import {
+  buildGuestExportRows,
+  guestExportColumnOrder,
   invitedToLabels,
+  parseRsvpByEvent,
   resetEventsToPrimary,
+  resolveProjectEvents,
   type ProjectEvent,
 } from '@/lib/project-events'
 
@@ -1610,27 +1614,29 @@ export default function ProjectDashboardPage() {
   }
 
   const handleExportExcel = () => {
+    if (!project) return
     const origin = window.location.origin
-    const rows = guests.map((g) => ({
-      Name: g.name, Phone: g.phone || '', Email: g.email || '',
-      Category: g.guest_category || '', Status: g.rsvp_status,
-      'Pax Count': g.pax_count, 'Invite Link': `${origin}/invite/${g.unique_token}`,
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
+    const columns = guestExportColumnOrder(project)
+    const rows = buildGuestExportRows(guests, project, origin).map((row) => {
+      const ordered: Record<string, string | number> = {}
+      for (const col of columns) ordered[col] = row[col] ?? ''
+      return ordered
+    })
+    const ws = XLSX.utils.json_to_sheet(rows, { header: columns })
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Guests')
     XLSX.writeFile(wb, `${project?.name ?? 'guests'}-links.xlsx`)
   }
 
   const handleExportCSV = () => {
+    if (!project) return
     const origin = window.location.origin
-    const header = 'Name,Phone,Email,Category,Status,Guests,Invite Link'
-    const rows = guests.map((g) =>
-      [`"${g.name}"`, `"${g.phone || ''}"`, `"${g.email || ''}"`,
-       `"${g.guest_category || ''}"`, g.rsvp_status, g.pax_count,
-       `${origin}/invite/${g.unique_token}`].join(',')
-    )
-    const csv = [header, ...rows].join('\n')
+    const columns = guestExportColumnOrder(project)
+    const rows = buildGuestExportRows(guests, project, origin)
+    const escape = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const header = columns.join(',')
+    const body = rows.map((row) => columns.map((col) => escape(row[col] ?? '')).join(','))
+    const csv = [header, ...body].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -2382,7 +2388,9 @@ export default function ProjectDashboardPage() {
                   <span className="text-2xl">📤</span>
                   <div>
                     <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>Download the full guest list with unique invite URLs.</CardDescription>
+                    <CardDescription>
+                      Download the full guest list with invite links and per-event RSVP status.
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>

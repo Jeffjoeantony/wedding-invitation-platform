@@ -1,6 +1,7 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
+import { venueWhereDisplay } from '@/lib/project-events'
 import { motion } from 'framer-motion'
 import { Clock, MapPin, Navigation } from 'lucide-react'
 import { Ornament, Sparkles } from './ornament'
@@ -9,6 +10,7 @@ import { Reveal, RevealStagger } from './reveal'
 export function StoryBento({ config }: { config: InvitationConfig }) {
   const events = config.events?.length ? config.events : null
   const multi = (events?.length ?? 0) > 1
+  const where = venueWhereDisplay(config.venue, config.location)
 
   return (
     <section className="invite-section relative overflow-hidden px-6 py-16 sm:py-24">
@@ -36,7 +38,9 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
 
       {multi && events ? (
         <div className="relative mx-auto mt-14 flex max-w-md flex-col gap-8">
-          {events.map((ev, index) => (
+          {events.map((ev, index) => {
+            const where = venueWhereDisplay(ev.venue, ev.location)
+            return (
             <Reveal key={ev.id} direction="up" delay={0.08 + index * 0.08}>
               <div className="overflow-hidden rounded-2xl border border-gold/25 bg-gradient-to-br from-card via-card to-gold-soft/20 p-6 shadow-[0_18px_40px_-30px_rgba(60,45,25,0.45)]">
                 <p className="font-sans text-[0.6rem] uppercase tracking-[0.32em] text-gold">
@@ -65,11 +69,11 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
                       Where
                     </p>
                     <p className="mt-1.5 font-serif text-xl font-light leading-tight text-foreground">
-                      {ev.venue || 'Venue to be announced'}
+                      {where.title}
                     </p>
-                    {ev.address ? (
+                    {where.detail ? (
                       <p className="mt-1 font-sans text-sm leading-relaxed text-muted-foreground">
-                        {ev.address}
+                        {where.detail}
                       </p>
                     ) : null}
                     <a
@@ -85,7 +89,7 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
                 </div>
               </div>
             </Reveal>
-          ))}
+          )})}
         </div>
       ) : (
         <div className="relative mx-auto mt-14 grid max-w-md grid-cols-1 gap-5 sm:grid-cols-2">
@@ -132,11 +136,13 @@ export function StoryBento({ config }: { config: InvitationConfig }) {
               <div className="mt-8">
                 <p className="font-sans text-[0.6rem] uppercase tracking-[0.28em] text-gold">Where</p>
                 <p className="mt-2 font-serif text-2xl font-light leading-tight text-foreground">
-                  {config.venue}
+                  {where.title}
                 </p>
-                <p className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
-                  {config.address}
-                </p>
+                {where.detail ? (
+                  <p className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
+                    {where.detail}
+                  </p>
+                ) : null}
                 <a
                   href={config.mapsUrl}
                   target="_blank"
