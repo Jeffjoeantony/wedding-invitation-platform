@@ -57,7 +57,7 @@ export function Hero({
   const monogram = `${config.couple1[0]}${config.couple2[0]}`
 
   return (
-    <header className="relative flex min-h-[92svh] flex-col items-center justify-center overflow-x-hidden px-6 pb-16 pt-14 text-center">
+    <header className="relative flex min-h-[92svh] flex-col items-center justify-start overflow-x-hidden px-6 pb-12 pt-5 text-center max-sm:min-h-0 sm:justify-center sm:pb-16 sm:pt-14">
       <Sparkles count={6} />
 
       {/* Soft radial wash behind the composition */}
@@ -72,7 +72,7 @@ export function Hero({
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="relative mb-5 flex h-16 w-16 items-center justify-center">
+        <div className="relative mb-3 flex h-16 w-16 items-center justify-center sm:mb-5">
           <span
             aria-hidden="true"
             className="animate-spin-slow absolute inset-0 rounded-full border border-dashed border-gold/45"
@@ -96,7 +96,7 @@ export function Hero({
 
       {showGreeting && config.heroGreeting ? (
         <motion.p
-          className="relative z-[1] mt-5 font-serif text-2xl font-light italic text-foreground/80"
+          className="relative z-[1] mt-3 font-serif text-2xl font-light italic text-foreground/80 sm:mt-5"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
@@ -105,7 +105,7 @@ export function Hero({
         </motion.p>
       ) : null}
 
-      <div className="relative z-[1] mt-8 w-full max-w-[300px]">
+      <div className="relative z-[1] mt-5 w-full max-w-[300px] sm:mt-8">
         <motion.div
           aria-hidden="true"
           className="absolute -inset-3 rounded-t-[999px] rounded-b-xl border border-gold/20"
