@@ -1,26 +1,50 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: light) {
-      .background { fill: black; }
-      .foreground { fill: white; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .background { fill: white; }
-      .foreground { fill: black; }
-    }
-  </style>
-  <g clip-path="url(#clip0_7960_43945)">
-    <rect class="background" width="180" height="180" rx="37" />
-    <g style="transform: scale(95%); transform-origin: center">
-      <path class="foreground"
-        d="M101.141 53H136.632C151.023 53 162.689 64.6662 162.689 79.0573V112.904H148.112V79.0573C148.112 78.7105 148.098 78.3662 148.072 78.0251L112.581 112.898C112.701 112.902 112.821 112.904 112.941 112.904H148.112V126.672H112.941C98.5504 126.672 86.5638 114.891 86.5638 100.5V66.7434H101.141V100.5C101.141 101.15 101.191 101.792 101.289 102.422L137.56 66.7816C137.255 66.7563 136.945 66.7434 136.632 66.7434H101.141V53Z" />
-      <path class="foreground"
-        d="M65.2926 124.136L14 66.7372H34.6355L64.7495 100.436V66.7372H80.1365V118.47C80.1365 126.278 70.4953 129.958 65.2926 124.136Z" />
-    </g>
+  <!-- Goldleaf monogram: serif G + leaf tip -->
+  <rect width="180" height="180" rx="40" fill="#FAF8F3"/>
+  <rect x="9" y="9" width="162" height="162" rx="34" stroke="#C4A46A" stroke-width="2" fill="none" opacity="0.5"/>
+
+  <!-- Soft gold wash -->
+  <circle cx="90" cy="90" r="62" fill="url(#wash)" opacity="0.35"/>
+
+  <!-- Serif G -->
+  <path
+    d="M118 72.5
+       C112 58 100 50 86 50
+       C66 50 50 66 50 90
+       C50 114 66 130 86 130
+       C102 130 114 122 120 108
+       L120 96 H92 V84 H134 V114
+       C126 128 108 142 86 142
+       C58 142 36 120 36 90
+       C36 60 58 38 86 38
+       C106 38 122 48 132 64
+       L118 72.5Z"
+    fill="url(#gold)"
+  />
+
+  <!-- Small leaf accent nestled in the G opening -->
+  <g transform="translate(108 98) rotate(-18)">
+    <path
+      d="M0 0
+         C6 -10 14 -16 18 -22
+         C14 -14 8 -6 0 0
+         C-4 -8 -6 -16 -4 -24
+         C0 -14 0 -6 0 0Z"
+      fill="#9E8348"
+      opacity="0.9"
+    />
+    <path d="M0 0 C6 -8 12 -14 16 -20" stroke="#E8D5B0" stroke-width="1" stroke-linecap="round" fill="none"/>
   </g>
+
   <defs>
-    <clipPath id="clip0_7960_43945">
-      <rect width="180" height="180" fill="white" />
-    </clipPath>
+    <linearGradient id="gold" x1="40" y1="40" x2="130" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E8D5B0"/>
+      <stop offset="48%" stop-color="#C4A46A"/>
+      <stop offset="100%" stop-color="#9E8348"/>
+    </linearGradient>
+    <radialGradient id="wash" cx="90" cy="90" r="62" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8D5B0"/>
+      <stop offset="1" stop-color="#FAF8F3" stop-opacity="0"/>
+    </radialGradient>
   </defs>
 </svg>

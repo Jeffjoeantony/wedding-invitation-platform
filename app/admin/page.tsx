@@ -34,7 +34,7 @@ interface Project {
 
 // ── Event type config ─────────────────────────────────────────────────────────
 const EVENT_TYPES = [
-  { value: 'Wedding',        label: 'Wedding',        emoji: '💍', color: '#D72660', bg: '#F4E7EC' },
+  { value: 'Wedding',        label: 'Wedding',        emoji: '💍', color: '#C4A46A', bg: '#F3EEE6' },
   { value: 'Engagement',     label: 'Engagement',     emoji: '💑', color: '#7C3AED', bg: '#EDE9FE' },
   { value: 'Reception',      label: 'Reception',      emoji: '🥂', color: '#0891B2', bg: '#E0F7FA' },
   { value: 'Mehendi',        label: 'Mehendi',        emoji: '🌿', color: '#059669', bg: '#D1FAE5' },
@@ -123,6 +123,26 @@ const Icon = {
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
   ),
+  GoldleafMark: () => (
+    <svg width="34" height="34" viewBox="0 0 64 64" fill="none" aria-hidden>
+      <rect width="64" height="64" rx="14" fill="#FAF8F3" />
+      <rect x="3" y="3" width="58" height="58" rx="12" stroke="#C4A46A" strokeWidth="1.5" fill="none" opacity="0.55" />
+      <path
+        d="M42 26C40 21 36 18 31 18C23.5 18 18 24 18 32C18 40 23.5 46 31 46C36.5 46 41 43 43 38L43 34H33V30H48V40.5C45 46 39 51 31 51C21 51 13 43 13 32C13 21 21 13 31 13C38 13 43.5 16.5 47 22L42 26Z"
+        fill="url(#adminGoldleafGrad)"
+      />
+      <g transform="translate(39 35) rotate(-20)">
+        <path d="M0 0C3-5 7-8 9-11C7-7 4-3 0 0C-2-4-3-8-2-12C0-7 0-3 0 0Z" fill="#9E8348" />
+      </g>
+      <defs>
+        <linearGradient id="adminGoldleafGrad" x1="14" y1="14" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#E8D5B0" />
+          <stop offset="0.5" stopColor="#C4A46A" />
+          <stop offset="1" stopColor="#9E8348" />
+        </linearGradient>
+      </defs>
+    </svg>
+  ),
   TrendUp: () => (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
@@ -146,6 +166,11 @@ const Icon = {
   Logout: () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  ),
+  Menu: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
     </svg>
   ),
   CheckCircle: () => (
@@ -210,14 +235,14 @@ function ProjectCard({ project, onOpen, onToggleStatus, onDelete }: {
     <div
       style={{
         background: '#FFFFFF',
-        border: hovered ? '1.5px solid #D72660' : '1.5px solid #E5E7EB',
+        border: hovered ? '1.5px solid #C4A46A' : '1.5px solid #E5E7EB',
         borderRadius: '16px',
         padding: '20px',
         cursor: 'pointer',
         position: 'relative',
         transition: 'all 0.22s ease',
         boxShadow: hovered
-          ? '0 8px 32px rgba(215,38,96,0.10), 0 2px 8px rgba(31,41,55,0.06)'
+          ? '0 8px 32px rgba(158,131,72,0.12), 0 2px 8px rgba(31,41,55,0.06)'
           : '0 1px 4px rgba(31,41,55,0.06), 0 0 0 0 transparent',
         transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
       }}
@@ -353,12 +378,14 @@ function StatCard({ label, value, icon, accent, trend }: {
   trend?: string
 }) {
   return (
-    <div style={{
+    <div
+      className="dashboard-stat-card"
+      style={{
       background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
-      padding: '22px 24px',
+      padding: '18px 16px',
       boxShadow: '0 1px 4px rgba(31,41,55,0.06)',
       transition: 'box-shadow 0.2s, transform 0.2s',
-      flex: 1, minWidth: 0,
+      minWidth: 0,
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 6px 24px rgba(31,41,55,0.09)'
@@ -823,34 +850,36 @@ function DashboardView({ projects }: { projects: Project[] }) {
     <div>
       {/* Welcome */}
       <div style={{
-        background: 'linear-gradient(135deg, #D72660 0%, #9B1C4C 100%)',
+        background: 'linear-gradient(135deg, #FAF8F3 0%, #F3EEE6 42%, #E8D5B0 100%)',
         borderRadius: 20, padding: '28px 32px', marginBottom: 28,
         position: 'relative', overflow: 'hidden',
+        border: '1.5px solid #E6DDD0',
+        boxShadow: '0 12px 40px -24px rgba(158,131,72,0.35)',
       }}>
         <div style={{
           position: 'absolute', top: -20, right: -20, width: 160, height: 160,
-          borderRadius: '50%', background: 'rgba(255,255,255,0.06)',
+          borderRadius: '50%', background: 'rgba(196,164,106,0.18)',
         }} />
         <div style={{
           position: 'absolute', bottom: -40, right: 60, width: 120, height: 120,
-          borderRadius: '50%', background: 'rgba(255,255,255,0.04)',
+          borderRadius: '50%', background: 'rgba(232,213,176,0.45)',
         }} />
-        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, margin: '0 0 6px', fontWeight: 500 }}>{dateLabel}</p>
-        <h2 style={{ color: '#FFFFFF', fontSize: 26, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
+        <p style={{ color: '#9E8348', fontSize: 13, margin: '0 0 6px', fontWeight: 500 }}>{dateLabel}</p>
+        <h2 style={{ color: '#1C1916', fontSize: 26, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
           {greeting} ✦
         </h2>
-        <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, margin: 0 }}>
+        <p style={{ color: '#6E6862', fontSize: 14, margin: 0 }}>
           You have {projects.filter(p => p.status === 'active').length} active project{projects.filter(p => p.status === 'active').length !== 1 ? 's' : ''} running.
         </p>
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+      <div className="dashboard-stats">
         <StatCard
           label="Total Projects"
           value={projects.length}
           icon={<Icon.Folder />}
-          accent="#D72660"
+          accent="#C4A46A"
         />
         <StatCard
           label="Total Guests"
@@ -976,14 +1005,14 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
     })
     // Load prefs from localStorage
     try {
-      const saved = JSON.parse(localStorage.getItem('inviteos_settings') || '{}')
+      const saved = JSON.parse(localStorage.getItem('goldleaf_settings') || localStorage.getItem('inviteos_settings') || '{}')
       if (saved.notifs) setNotifs((prev) => ({ ...prev, ...saved.notifs }))
       if (saved.compactMode !== undefined) setCompactMode(saved.compactMode)
     } catch { /* ignore */ }
   }, [])
 
   const savePrefs = (newNotifs = notifs, newCompact = compactMode) => {
-    localStorage.setItem('inviteos_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
+    localStorage.setItem('goldleaf_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
   }
 
   const toggleNotif = (key: keyof typeof notifs) => {
@@ -1037,7 +1066,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
       onClick={onChange}
       style={{
         width: 44, height: 24, borderRadius: 999, border: 'none', cursor: 'pointer',
-        background: on ? '#D72660' : '#E5E7EB',
+        background: on ? '#C4A46A' : '#E5E7EB',
         position: 'relative', transition: 'background 0.2s', flexShrink: 0,
       }}
     >
@@ -1077,10 +1106,9 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
   )
 
   return (
-    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+    <div className="settings-layout">
       {/* ── Settings sidebar ── */}
-      <div style={{
-        width: 210, flexShrink: 0,
+      <div className="settings-nav" style={{
         background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
         padding: 10, boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
       }}>
@@ -1091,8 +1119,8 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               width: '100%', padding: '10px 12px', border: 'none', borderRadius: 10,
-              background: section === item.id ? '#F4E7EC' : 'transparent',
-              color: section === item.id ? '#D72660' : '#4B5563',
+              background: section === item.id ? '#F3EEE6' : 'transparent',
+              color: section === item.id ? '#C4A46A' : '#4B5563',
               fontFamily: 'inherit', fontSize: 13, fontWeight: section === item.id ? 600 : 500,
               cursor: 'pointer', textAlign: 'left', marginBottom: 2,
               transition: 'all 0.15s',
@@ -1130,7 +1158,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
                 <div style={{
                   width: 64, height: 64, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
+                  background: 'linear-gradient(135deg, #C4A46A, #9E8348)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontSize: 24, fontWeight: 700, flexShrink: 0,
                 }}>
@@ -1139,7 +1167,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                 <div>
                   <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 16, margin: 0 }}>{displayName}</p>
                   <p style={{ color: '#9CA3AF', fontSize: 13, marginTop: 2 }}>{userEmail || 'Loading…'}</p>
-                  <span style={{ display: 'inline-block', marginTop: 4, background: '#F4E7EC', color: '#D72660', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em' }}>ADMIN</span>
+                  <span style={{ display: 'inline-block', marginTop: 4, background: '#F3EEE6', color: '#C4A46A', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, letterSpacing: '0.04em' }}>ADMIN</span>
                 </div>
               </div>
 
@@ -1170,11 +1198,11 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                 onClick={handleSaveProfile}
                 disabled={saving}
                 style={{
-                  padding: '10px 20px', background: '#D72660', border: 'none',
+                  padding: '10px 20px', background: '#C4A46A', border: 'none',
                   borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
                   fontFamily: 'inherit', transition: 'background 0.15s',
-                  boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                  boxShadow: '0 2px 8px rgba(158,131,72,0.28)',
                 }}
               >
                 {saving ? 'Saving…' : 'Save Changes'}
@@ -1183,12 +1211,12 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
 
             <SectionCard title="Account Details">
               <FieldRow label="Account type" desc="Your current plan">
-                <span style={{ background: '#F4E7EC', color: '#D72660', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>Workspace Owner</span>
+                <span style={{ background: '#F3EEE6', color: '#C4A46A', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999 }}>Workspace Owner</span>
               </FieldRow>
               <FieldRow label="Member since">
                 <span style={{ color: '#6B7280', fontSize: 13 }}>June 2026</span>
               </FieldRow>
-              <FieldRow label="Platform" desc="InviteOS Admin Dashboard">
+              <FieldRow label="Platform" desc="Goldleaf Admin Dashboard">
                 <span style={{ color: '#6B7280', fontSize: 13 }}>v1.0.0</span>
               </FieldRow>
             </SectionCard>
@@ -1245,12 +1273,12 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                   onClick={handleChangePassword}
                   disabled={pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8}
                   style={{
-                    padding: '10px 20px', background: '#D72660', border: 'none',
+                    padding: '10px 20px', background: '#C4A46A', border: 'none',
                     borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700,
                     cursor: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 'not-allowed' : 'pointer',
                     opacity: (pwSaving || !pwNew || pwNew !== pwConfirm || pwNew.length < 8) ? 0.6 : 1,
                     fontFamily: 'inherit', alignSelf: 'flex-start',
-                    boxShadow: '0 2px 8px rgba(215,38,96,0.25)',
+                    boxShadow: '0 2px 8px rgba(158,131,72,0.28)',
                   }}
                 >
                   {pwSaving ? 'Updating…' : 'Update Password'}
@@ -1293,7 +1321,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
             <FieldRow label="Color theme" desc="Premium light theme">
               <div style={{ display: 'flex', gap: 6 }}>
                 {[
-                  { color: '#D72660', label: 'Rose' },
+                  { color: '#C4A46A', label: 'Gold' },
                   { color: '#7C3AED', label: 'Violet' },
                   { color: '#2563EB', label: 'Blue' },
                   { color: '#16A34A', label: 'Green' },
@@ -1303,7 +1331,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                     title={t.label}
                     style={{
                       width: 22, height: 22, borderRadius: '50%', background: t.color,
-                      cursor: 'pointer', border: t.color === '#D72660' ? '2px solid #1F2937' : '2px solid transparent',
+                      cursor: 'pointer', border: t.color === '#C4A46A' ? '2px solid #1F2937' : '2px solid transparent',
                       transition: 'border 0.15s',
                     }}
                   />
@@ -1363,7 +1391,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                   const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), note: 'Full data export — coming soon.' }, null, 2)], { type: 'application/json' })
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
-                  a.href = url; a.download = 'inviteos-export.json'; a.click()
+                  a.href = url; a.download = 'goldleaf-export.json'; a.click()
                   URL.revokeObjectURL(url)
                 },
                 color: '#B45309',
@@ -1424,6 +1452,7 @@ export default function AdminHubPage() {
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'created'>('created')
   const [showNewModal, setShowNewModal] = useState(false)
   const [activeNav, setActiveNav] = useState('dashboard')
+  const [navOpen, setNavOpen] = useState(false)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -1433,6 +1462,13 @@ export default function AdminHubPage() {
   }, [])
 
   useEffect(() => { loadProjects() }, [loadProjects])
+
+  useEffect(() => {
+    if (!navOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [navOpen])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -1488,21 +1524,23 @@ export default function AdminHubPage() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #F8F7F4 !important; }
+        html, body { background: #FAF8F3 !important; }
 
         .admin-root {
           font-family: 'Inter', -apple-system, sans-serif;
           min-height: 100vh;
-          background: #F8F7F4;
+          background:
+            radial-gradient(ellipse 90% 50% at 50% -8%, rgba(232, 213, 176, 0.45), transparent 62%),
+            linear-gradient(180deg, #FAF8F3 0%, #F3EEE6 55%, #EDE6DA 100%);
           display: flex;
-          color: #1F2937;
+          color: #1C1916;
         }
 
         /* ── Sidebar ── */
         .sidebar {
           width: 224px;
-          background: #FFFFFF;
-          border-right: 1.5px solid #E5E7EB;
+          background: rgba(255, 252, 248, 0.92);
+          border-right: 1.5px solid #E6DDD0;
           display: flex;
           flex-direction: column;
           padding: 20px 12px;
@@ -1511,7 +1549,27 @@ export default function AdminHubPage() {
           height: 100vh;
           flex-shrink: 0;
           z-index: 10;
+          backdrop-filter: blur(12px);
         }
+        .sidebar-overlay {
+          display: none;
+          position: fixed; inset: 0;
+          background: rgba(15, 23, 42, 0.45);
+          z-index: 35;
+          border: none; padding: 0; cursor: pointer;
+        }
+        .menu-toggle {
+          display: none;
+          width: 40px; height: 40px; border-radius: 10px;
+          align-items: center; justify-content: center;
+          color: #374151; background: #FFFFFF;
+          border: 1.5px solid #E5E7EB; cursor: pointer;
+          flex-shrink: 0;
+        }
+        .settings-layout {
+          display: flex; gap: 24px; align-items: flex-start;
+        }
+        .settings-nav { width: 210px; flex-shrink: 0; }
 
         .sidebar-logo {
           display: flex;
@@ -1524,16 +1582,18 @@ export default function AdminHubPage() {
         .sidebar-logo-icon {
           width: 34px; height: 34px;
           border-radius: 9px;
-          background: linear-gradient(135deg, #D72660 0%, #9B1C4C 100%);
+          background: transparent;
           display: flex; align-items: center; justify-content: center;
-          color: #fff; flex-shrink: 0;
+          flex-shrink: 0;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(158, 131, 72, 0.18);
         }
         .sidebar-logo-text {
           font-size: 15px; font-weight: 800; color: #1F2937; letter-spacing: -0.2px;
         }
         .sidebar-logo-badge {
-          font-size: 9px; font-weight: 700; color: #D72660;
-          background: #F4E7EC; padding: 1px 5px; border-radius: 4px;
+          font-size: 9px; font-weight: 700; color: #9E8348;
+          background: #F3EEE6; padding: 1px 5px; border-radius: 4px;
           letter-spacing: 0.04em; margin-top: 1px;
         }
 
@@ -1555,15 +1615,15 @@ export default function AdminHubPage() {
         }
         .nav-item:hover { background: #F9FAFB; color: #1F2937; }
         .nav-item.active {
-          background: #F4E7EC;
-          color: #D72660;
+          background: #F3EEE6;
+          color: #C4A46A;
           font-weight: 600;
         }
         .nav-item.active::before {
           content: '';
           position: absolute; left: 0; top: 20%; bottom: 20%;
           width: 3px; border-radius: 0 3px 3px 0;
-          background: #D72660;
+          background: #C4A46A;
         }
 
         .sidebar-bottom {
@@ -1579,7 +1639,7 @@ export default function AdminHubPage() {
         .user-chip:hover { background: #F9FAFB; }
         .user-avatar {
           width: 32px; height: 32px; border-radius: 50%;
-          background: linear-gradient(135deg, #D72660, #9B1C4C);
+          background: linear-gradient(135deg, #C4A46A, #9E8348);
           display: flex; align-items: center; justify-content: center;
           color: #fff; font-size: 13px; font-weight: 700; flex-shrink: 0;
         }
@@ -1599,29 +1659,46 @@ export default function AdminHubPage() {
 
         .topbar {
           height: 60px;
-          background: rgba(248,247,244,0.85);
+          background: rgba(250,248,243,0.88);
           backdrop-filter: blur(12px);
-          border-bottom: 1.5px solid #E5E7EB;
+          border-bottom: 1.5px solid #E6DDD0;
           display: flex; align-items: center;
           padding: 0 32px; gap: 16px;
           position: sticky; top: 0; z-index: 5;
         }
-        .topbar-title { font-size: 16px; font-weight: 700; color: #1F2937; }
-        .topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #9CA3AF; }
+        .topbar-title { font-size: 16px; font-weight: 700; color: #1C1916; }
+        .topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6E6862; }
         .topbar-spacer { flex: 1; }
         .topbar-icon-btn {
           width: 36px; height: 36px; border-radius: 9px;
           display: flex; align-items: center; justify-content: center;
-          color: #6B7280; background: transparent; border: none; cursor: pointer;
+          color: #6E6862; background: transparent; border: none; cursor: pointer;
           transition: all 0.15s;
         }
-        .topbar-icon-btn:hover { background: #F3F4F6; color: #1F2937; }
+        .topbar-icon-btn:hover { background: #F3EEE6; color: #1C1916; }
 
         /* ── Page body ── */
-        .page-body { padding: 32px; flex: 1; overflow-y: auto; }
+        .page-body { padding: 32px; flex: 1; overflow-y: auto; overflow-x: hidden; }
         .page-header { margin-bottom: 24px; }
         .page-header h1 { font-size: 22px; font-weight: 800; color: #1F2937; letter-spacing: -0.3px; }
         .page-header p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+
+        .dashboard-hero-title { font-size: 22px; }
+        .dashboard-stats {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-bottom: 28px;
+        }
+        @media (min-width: 900px) {
+          .dashboard-hero { padding: 28px 32px !important; margin-bottom: 28px !important; }
+          .dashboard-hero-title { font-size: 26px; }
+          .dashboard-stats {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+          }
+          .dashboard-stat-card { padding: 22px 24px !important; }
+        }
 
         /* ── Toolbar ── */
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
@@ -1633,7 +1710,7 @@ export default function AdminHubPage() {
           outline: none; transition: border-color 0.2s, box-shadow 0.2s;
           font-family: inherit;
         }
-        .search-wrap input:focus { border-color: #D72660; box-shadow: 0 0 0 3px rgba(215,38,96,0.08); }
+        .search-wrap input:focus { border-color: #C4A46A; box-shadow: 0 0 0 3px rgba(158,131,72,0.12); }
         .search-wrap input::placeholder { color: #9CA3AF; }
         .search-icon-pos { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #9CA3AF; pointer-events: none; }
 
@@ -1656,18 +1733,18 @@ export default function AdminHubPage() {
           cursor: pointer; color: #9CA3AF; border: none; background: transparent; transition: all 0.15s;
         }
         .view-btn:hover { color: #6B7280; }
-        .view-btn.active { background: #F4E7EC; color: #D72660; }
+        .view-btn.active { background: #F3EEE6; color: #C4A46A; }
 
         .create-btn {
           padding: 9px 16px;
-          background: #D72660; border: none; border-radius: 10px;
-          color: #fff; font-size: 13px; font-weight: 700;
+          background: #C4A46A; border: 1px solid #9E8348; border-radius: 10px;
+          color: #1C1916; font-size: 13px; font-weight: 700;
           cursor: pointer; display: flex; align-items: center; gap: 6px;
           transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
           font-family: inherit; white-space: nowrap;
-          box-shadow: 0 2px 8px rgba(215,38,96,0.25);
+          box-shadow: 0 2px 8px rgba(158,131,72,0.28);
         }
-        .create-btn:hover { background: #B91C4C; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(215,38,96,0.35); }
+        .create-btn:hover { background: #9E8348; color: #FAF8F3; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(158,131,72,0.35); }
         .create-btn:active { transform: translateY(0); }
 
         /* ── Grid / List ── */
@@ -1690,13 +1767,13 @@ export default function AdminHubPage() {
           gap: 12px; align-items: center;
           cursor: pointer; transition: all 0.15s;
         }
-        .list-row:hover { border-color: #D72660; box-shadow: 0 2px 8px rgba(215,38,96,0.06); }
+        .list-row:hover { border-color: #C4A46A; box-shadow: 0 2px 8px rgba(158,131,72,0.10); }
 
         /* ── Empty state ── */
         .empty-state { text-align: center; padding: 80px 24px; }
         .empty-icon {
           width: 68px; height: 68px; border-radius: 18px;
-          background: #F4E7EC; border: 1.5px solid #F9D0DC;
+          background: #F3EEE6; border: 1.5px solid #E6DDD0;
           display: flex; align-items: center; justify-content: center;
           margin: 0 auto 16px; font-size: 28px;
         }
@@ -1735,7 +1812,7 @@ export default function AdminHubPage() {
           outline: none; transition: border-color 0.2s, box-shadow 0.2s;
           font-family: inherit;
         }
-        .modal-input:focus { border-color: #D72660; background: #fff; box-shadow: 0 0 0 3px rgba(215,38,96,0.08); }
+        .modal-input:focus { border-color: #C4A46A; background: #fff; box-shadow: 0 0 0 3px rgba(158,131,72,0.12); }
         .modal-input::placeholder { color: #9CA3AF; }
         select.modal-input { appearance: none; cursor: pointer; }
         select.modal-input option { background: #fff; color: #1F2937; }
@@ -1758,20 +1835,36 @@ export default function AdminHubPage() {
 
         .modal-btn-primary {
           flex: 1; padding: 11px;
-          background: #D72660; border: none;
-          border-radius: 10px; color: #fff; font-size: 14px;
+          background: #C4A46A; border: 1px solid #9E8348;
+          border-radius: 10px; color: #1C1916; font-size: 14px;
           cursor: pointer; font-weight: 700; transition: background 0.15s;
           font-family: inherit;
-          box-shadow: 0 2px 8px rgba(215,38,96,0.25);
+          box-shadow: 0 2px 8px rgba(158,131,72,0.28);
         }
-        .modal-btn-primary:hover:not(:disabled) { background: #B91C4C; }
+        .modal-btn-primary:hover:not(:disabled) { background: #9E8348; color: #FAF8F3; }
         .modal-btn-primary:disabled { cursor: not-allowed; }
 
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+        /* ── Scrollbar (visible, clean) ── */
+        .page-body,
+        .admin-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #D1D5DB transparent;
+        }
+        .page-body::-webkit-scrollbar,
+        .admin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .page-body::-webkit-scrollbar-track,
+        .admin-scroll::-webkit-scrollbar-track {
+          background: #F3F4F6;
+          border-radius: 999px;
+        }
+        .page-body::-webkit-scrollbar-thumb,
+        .admin-scroll::-webkit-scrollbar-thumb {
+          background: #D1D5DB;
+          border-radius: 999px;
+          border: 2px solid #F3F4F6;
+        }
+        .page-body::-webkit-scrollbar-thumb:hover,
+        .admin-scroll::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
         /* ── Coming soon ── */
         .coming-soon {
@@ -1781,20 +1874,71 @@ export default function AdminHubPage() {
         .coming-soon-icon { font-size: 40px; margin-bottom: 4px; }
         .coming-soon h2 { font-size: 18px; font-weight: 700; color: #1F2937; }
         .coming-soon p { font-size: 14px; color: #9CA3AF; }
+
+        /* ── Mobile / tablet ── */
+        @media (max-width: 900px) {
+          .sidebar {
+            position: fixed;
+            left: 0; top: 0;
+            transform: translateX(-100%);
+            box-shadow: 8px 0 32px rgba(15, 23, 42, 0.12);
+          }
+          .admin-root.nav-open .sidebar { transform: translateX(0); }
+          .admin-root.nav-open .sidebar-overlay { display: block; }
+          .menu-toggle { display: inline-flex; }
+          .topbar { padding: 0 14px; gap: 10px; height: 56px; }
+          .topbar-title { font-size: 15px; }
+          .page-body { padding: 16px 14px 28px; }
+          .page-header h1 { font-size: 20px; }
+          .search-wrap { min-width: 100%; max-width: none; flex: 1 1 100%; }
+          .toolbar-spacer { display: none; }
+          .create-btn { flex: 1 1 auto; justify-content: center; }
+          .projects-grid { grid-template-columns: 1fr; gap: 12px; }
+          .list-header { display: none; }
+          .list-row {
+            grid-template-columns: 1fr auto;
+            gap: 8px 12px;
+            padding: 12px 14px;
+          }
+          .list-row > *:nth-child(n+3) { display: none; }
+          .settings-layout { flex-direction: column; gap: 14px; }
+          .settings-nav { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+          .settings-nav button { width: auto !important; flex: 1 1 auto; margin-bottom: 0 !important; }
+        }
+        @media (max-width: 480px) {
+          .view-toggle { display: none; }
+          .page-body { padding: 14px 12px 24px; }
+        }
       `}</style>
 
-      <div className="admin-root">
+      <div className={`admin-root${navOpen ? ' nav-open' : ''}`}>
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+        />
+
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           {/* Logo */}
           <div className="sidebar-logo">
             <div className="sidebar-logo-icon">
-              <Icon.Heart />
+              <Icon.GoldleafMark />
             </div>
             <div>
-              <div className="sidebar-logo-text">InviteOS</div>
+              <div className="sidebar-logo-text">Goldleaf</div>
               <div className="sidebar-logo-badge">ADMIN</div>
             </div>
+            <button
+              type="button"
+              className="menu-toggle"
+              style={{ marginLeft: 'auto' }}
+              aria-label="Close menu"
+              onClick={() => setNavOpen(false)}
+            >
+              <Icon.X />
+            </button>
           </div>
 
           {/* Nav */}
@@ -1803,7 +1947,7 @@ export default function AdminHubPage() {
               <button
                 key={item.id}
                 className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => { setActiveNav(item.id); setNavOpen(false) }}
               >
                 <item.Icon />
                 {item.label}
@@ -1830,8 +1974,17 @@ export default function AdminHubPage() {
         <div className="main-content">
           {/* Topbar */}
           <header className="topbar">
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen(true)}
+            >
+              <Icon.Menu />
+            </button>
             <div className="topbar-crumb">
-              <span style={{ color: '#D72660', fontSize: 16 }}>✦</span>
+              <span style={{ color: '#C4A46A', fontSize: 16 }}>✦</span>
               <span style={{ color: '#D4D4D8' }}>/</span>
               <span className="topbar-title">{pageTitle}</span>
             </div>
@@ -1839,9 +1992,10 @@ export default function AdminHubPage() {
             <NotificationSystem />
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #D72660, #9B1C4C)',
+              background: 'linear-gradient(135deg, #C4A46A, #9E8348)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              flexShrink: 0,
             }}>A</div>
           </header>
 
@@ -1852,9 +2006,9 @@ export default function AdminHubPage() {
               <>
 
                 {loading ? (
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+                  <div className="dashboard-stats">
                     {[1,2,3,4].map(i => (
-                      <div key={i} style={{ flex: 1, minWidth: 180, background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 22 }}>
+                      <div key={i} className="dashboard-stat-card" style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 18 }}>
                         <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10, marginBottom: 16 }} />
                         <div className="skeleton-pulse" style={{ height: 28, width: '60%', borderRadius: 6, marginBottom: 8 }} />
                         <div className="skeleton-pulse" style={{ height: 13, width: '50%', borderRadius: 6 }} />
@@ -2000,7 +2154,7 @@ export default function AdminHubPage() {
                                 borderRadius: 8, color: '#6B7280', fontSize: 12, cursor: 'pointer',
                                 fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s',
                               }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = '#F4E7EC'; e.currentTarget.style.color = '#D72660'; e.currentTarget.style.borderColor = '#D72660' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#F3EEE6'; e.currentTarget.style.color = '#C4A46A'; e.currentTarget.style.borderColor = '#C4A46A' }}
                               onMouseLeave={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
                             >
                               Open →

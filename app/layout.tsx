@@ -18,21 +18,21 @@ const jost = Jost({
 })
 
 export const metadata: Metadata = {
-  title: 'InviteFlow — Create Beautiful Digital Invitations in Minutes',
+  title: 'Goldleaf — Create Beautiful Digital Invitations in Minutes',
   description: 'Design, customize, manage RSVPs, share event links, and create memorable invitation experiences for any occasion. Weddings, birthdays, corporate events and more.',
-  keywords: 'digital invitations, online invitations, RSVP management, wedding invitation, event management, InviteFlow',
+  keywords: 'digital invitations, online invitations, RSVP management, wedding invitation, event management, Goldleaf',
   openGraph: {
-    title: 'InviteFlow — Create Beautiful Digital Invitations in Minutes',
+    title: 'Goldleaf — Create Beautiful Digital Invitations in Minutes',
     description: 'Create stunning digital invitations for any occasion. Manage RSVPs, track guests, and share with QR codes.',
     type: 'website',
   },
   icons: {
     icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
       { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-light-32x32.png', sizes: '32x32', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png', media: '(prefers-color-scheme: dark)' },
     ],
-    apple: '/apple-icon.png',
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 }
 
