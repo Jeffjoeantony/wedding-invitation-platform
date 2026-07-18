@@ -2,7 +2,21 @@
 
 import type { InvitationConfig } from '@/lib/invitation-config'
 import { motion, useReducedMotion } from 'framer-motion'
+import { InviteImage } from './invite-image'
 import { Sparkles } from './ornament'
+import { useMobileMotion } from './use-mobile-motion'
+
+function HeroGreetingLine({ line }: { line: string }) {
+  if (/^Dear\s+/i.test(line)) {
+    const rest = line.replace(/^Dear\s+/i, '')
+    return (
+      <>
+        Dear <span className="text-foreground">{rest}</span>
+      </>
+    )
+  }
+  return <span className="text-foreground">{line}</span>
+}
 
 function HeroGreetingLine({ line }: { line: string }) {
   if (/^Dear\s+/i.test(line)) {
@@ -55,6 +69,7 @@ export function Hero({
   showGreeting: boolean
 }) {
   const monogram = `${config.couple1[0]}${config.couple2[0]}`
+  const mobile = useMobileMotion()
 
   return (
     <header className="relative flex min-h-[92svh] flex-col items-center justify-center overflow-x-hidden px-6 pb-16 pt-14 text-center">
@@ -131,10 +146,13 @@ export function Hero({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
         >
-          <img
+          <InviteImage
             src={config.images.hero || '/placeholder.svg'}
             alt={`${config.couple1} and ${config.couple2} together`}
-            className="animate-ken-burns h-full w-full object-cover"
+            fill
+            priority
+            sizes="(max-width: 540px) 100vw, 540px"
+            className={`object-cover ${mobile ? '' : 'animate-ken-burns'}`}
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-gold-soft/10" />
           <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/15" />
