@@ -41,6 +41,8 @@ const nextConfig = {
   },
 
   // ── Images ───────────────────────────────────────────────────────────────────
+  // Allowlist Supabase Storage for next/image. Invite photos prefer plain <img>
+  // (already compressed at upload), but local/static assets still use the optimiser.
   images: {
     unoptimized: false,
     formats: ['image/avif', 'image/webp'],
@@ -65,11 +67,6 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: '**.amazonaws.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
         pathname: '/**',
       },
       // Exact project host from env (build-time) — most reliable on Vercel
