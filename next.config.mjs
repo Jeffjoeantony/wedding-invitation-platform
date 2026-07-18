@@ -69,6 +69,11 @@ const nextConfig = {
         hostname: '**.amazonaws.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
       // Exact project host from env (build-time) — most reliable on Vercel
       ...(process.env.NEXT_PUBLIC_SUPABASE_URL
         ? [
