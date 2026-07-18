@@ -141,7 +141,7 @@ export function Hero({
         </motion.div>
 
         <motion.div
-          className="absolute inset-x-3 -bottom-14 rounded-xl border border-white/50 bg-white/70 px-5 py-5 shadow-[0_28px_70px_-30px_rgba(60,45,25,0.55)] backdrop-blur-sm sm:bg-white/60 sm:backdrop-blur-md"
+          className="relative z-10 -mt-[4.75rem] mx-3 rounded-xl border border-white/50 bg-white/85 px-5 py-5 shadow-[0_28px_70px_-30px_rgba(60,45,25,0.55)] sm:bg-white/70 sm:backdrop-blur-md"
           initial={{ opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ delay: 1.05, duration: 1, ease: [0.22, 1, 0.36, 1] }}
