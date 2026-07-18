@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as XLSX from 'xlsx'
+import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -22,12 +23,23 @@ import {
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
+import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
+import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
   parseMediaList,
   type MediaItem,
 } from '@/lib/invite-media'
+import {
+  buildGuestExportRows,
+  guestExportColumnOrder,
+  invitedToLabels,
+  parseRsvpByEvent,
+  resetEventsToPrimary,
+  resolveProjectEvents,
+  type ProjectEvent,
+} from '@/lib/project-events'
 
 interface Guest {
   id: string
@@ -43,6 +55,11 @@ interface Guest {
   moments?: MediaItem[] | unknown
   /** Count from Storage — set by guests list API */
   moments_count?: number
+  invited_to?: string[] | unknown
+  rsvp_by_event?: unknown
+  rsvp_headline?: string | null
+  greeting_line?: string | null
+  hide_greeting?: boolean | null
 }
 
 interface Project {
@@ -60,6 +77,7 @@ interface Project {
     'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
   status: string
   gallery_images?: MediaItem[] | unknown
+  events?: ProjectEvent[] | unknown
 }
 
 
@@ -155,18 +173,44 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
   accent: string; textColor: string; iconBg: string
 }) {
   return (
-    <Card className={`bg-white/90 border-l-4 ${accent} shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5`}>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
+    <Card
+      className={`bg-white/50 backdrop-blur-xl border border-white/70 border-l-4 ${accent} shadow-[0_8px_28px_rgba(31,41,55,0.07)] hover:shadow-[0_12px_36px_rgba(31,41,55,0.12)] hover:bg-white/65 transition-all duration-300 hover:-translate-y-0.5`}
+    >
+      <CardContent className="pt-4 pb-3 sm:pt-5 sm:pb-4 px-3.5 sm:px-6">
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-            <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>
+            <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
+            <p className={`text-2xl sm:text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
+            <p className="text-[11px] sm:text-xs text-gray-400 mt-1 leading-snug line-clamp-2">{sub}</p>
           </div>
-          <span className={`text-xl p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+          <span className={`text-lg sm:text-xl p-2 sm:p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** Soft enter animation when switching dashboard tabs */
+function AnimatedTabsContent({
+  value,
+  className,
+  children,
+}: {
+  value: string
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <TabsContent value={value} className={`mt-0 outline-none ${className ?? ''}`}>
+      <motion.div
+        key={value}
+        initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {children}
+      </motion.div>
+    </TabsContent>
   )
 }
 
@@ -1283,7 +1327,19 @@ export default function ProjectDashboardPage() {
   const [lastAddedMoments, setLastAddedMoments] = useState<MediaItem[]>([])
   const [momentsUploading, setMomentsUploading] = useState(false)
   const [momentsError, setMomentsError] = useState('')
+  const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
+  const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
+  const tabsListRef = useRef<HTMLDivElement>(null)
+
+  // Keep the active navbar tab in view when switching on narrow screens
+  useEffect(() => {
+    const list = tabsListRef.current
+    if (!list) return
+    const active = list.querySelector<HTMLElement>('[data-state="active"]')
+    if (!active) return
+    active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeTab])
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
@@ -1496,11 +1552,16 @@ export default function ProjectDashboardPage() {
   }
 
   const updateProject = async (updates: Partial<Project>) => {
-    await fetch(`/api/projects/${projectId}/event`, {
+    const res = await fetch(`/api/projects/${projectId}/event`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || 'Failed to update project')
+      return
+    }
     setProject({ ...project!, ...updates })
   }
 
@@ -1591,27 +1652,29 @@ export default function ProjectDashboardPage() {
   }
 
   const handleExportExcel = () => {
+    if (!project) return
     const origin = window.location.origin
-    const rows = guests.map((g) => ({
-      Name: g.name, Phone: g.phone || '', Email: g.email || '',
-      Category: g.guest_category || '', Status: g.rsvp_status,
-      'Pax Count': g.pax_count, 'Invite Link': `${origin}/invite/${g.unique_token}`,
-    }))
-    const ws = XLSX.utils.json_to_sheet(rows)
+    const columns = guestExportColumnOrder(project)
+    const rows = buildGuestExportRows(guests, project, origin).map((row) => {
+      const ordered: Record<string, string | number> = {}
+      for (const col of columns) ordered[col] = row[col] ?? ''
+      return ordered
+    })
+    const ws = XLSX.utils.json_to_sheet(rows, { header: columns })
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Guests')
     XLSX.writeFile(wb, `${project?.name ?? 'guests'}-links.xlsx`)
   }
 
   const handleExportCSV = () => {
+    if (!project) return
     const origin = window.location.origin
-    const header = 'Name,Phone,Email,Category,Status,Guests,Invite Link'
-    const rows = guests.map((g) =>
-      [`"${g.name}"`, `"${g.phone || ''}"`, `"${g.email || ''}"`,
-       `"${g.guest_category || ''}"`, g.rsvp_status, g.pax_count,
-       `${origin}/invite/${g.unique_token}`].join(',')
-    )
-    const csv = [header, ...rows].join('\n')
+    const columns = guestExportColumnOrder(project)
+    const rows = buildGuestExportRows(guests, project, origin)
+    const escape = (value: string | number) => `"${String(value ?? '').replace(/"/g, '""')}"`
+    const header = columns.join(',')
+    const body = rows.map((row) => columns.map((col) => escape(row[col] ?? '')).join(','))
+    const csv = [header, ...body].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1682,8 +1745,8 @@ export default function ProjectDashboardPage() {
     <main className={theme.pageBg}>
 
       {/* ── Sticky header ── */}
-      <div className={`bg-white/95 backdrop-blur-xl border-b-2 sticky top-0 z-20 ${theme.headerBorder}`}
-        style={{ boxShadow: '0 4px 24px rgba(31,41,55,0.08), 0 1px 4px rgba(31,41,55,0.04)' }}>
+      <div className={`bg-white/60 backdrop-blur-2xl border-b sticky top-0 z-20 ${theme.headerBorder}`}
+        style={{ boxShadow: '0 8px 32px rgba(31,41,55,0.06), inset 0 1px 0 rgba(255,255,255,0.7)' }}>
 
         {/* Top accent line */}
         <div style={{
@@ -1691,40 +1754,41 @@ export default function ProjectDashboardPage() {
           background: `linear-gradient(90deg, #D72660 0%, #9B1C4C 40%, #7C3AED 100%)`,
         }} />
 
-        <div className="max-w-7xl mx-auto px-6 md:px-8" style={{ paddingTop: 14, paddingBottom: 14 }}>
-          <div className="flex items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 md:px-8" style={{ paddingTop: 12, paddingBottom: 12 }}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 
             {/* ── Left: Back + Brand ── */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
 
               {/* Back button */}
               <button
                 onClick={() => router.push('/admin')}
-                className="flex items-center gap-2 transition-all shrink-0"
+                className="flex items-center gap-1.5 sm:gap-2 transition-all shrink-0"
                 style={{
-                  padding: '8px 14px', borderRadius: 10,
+                  padding: '8px 10px', borderRadius: 10,
                   border: '1.5px solid #E5E7EB', background: '#FAFAFA',
                   color: '#6B7280', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#374151' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
+                aria-label="Back to projects"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
-                Projects
+                <span className="hidden sm:inline">Projects</span>
               </button>
 
               {/* Divider */}
-              <div style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
+              <div className="hidden sm:block" style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
 
               {/* Event icon */}
               <div
-                className={`shrink-0 ${theme.iconGradient}`}
+                className={`shrink-0 hidden sm:flex ${theme.iconGradient}`}
                 style={{
                   width: 48, height: 48, borderRadius: 14,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  alignItems: 'center', justifyContent: 'center',
                   fontSize: 22,
                   boxShadow: '0 4px 14px rgba(215,38,96,0.25)',
                 }}
@@ -1738,9 +1802,9 @@ export default function ProjectDashboardPage() {
               </div>
 
               {/* Title block */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 style={{ color: '#111827', fontSize: 17, fontWeight: 800, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }} className="truncate">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 style={{ color: '#111827', fontWeight: 800, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }} className="truncate text-[15px] sm:text-[17px]">
                     {project?.name || 'Project Dashboard'}
                   </h1>
                   {/* Event type badge */}
@@ -1753,8 +1817,8 @@ export default function ProjectDashboardPage() {
                     {project?.event_template?.toUpperCase() ?? 'WEDDING'}
                   </span>
                 </div>
-                <p style={{ color: '#9CA3AF', fontSize: 12, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>
+                <p className="text-gray-400 text-[11px] sm:text-xs mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
+                  <span className="truncate max-w-full">
                     {project?.event_template === 'Birthday' && project?.couple_1
                       ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
                       : project?.couple_1 && project?.couple_2
@@ -1763,12 +1827,12 @@ export default function ProjectDashboardPage() {
                   </span>
                   {projectDateStr && (
                     <>
-                      <span style={{ color: '#D1D5DB' }}>·</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="text-gray-300 hidden sm:inline">·</span>
+                      <span className="inline-flex items-center gap-1 shrink-0">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                           <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
-                        {projectDateStr}
+                        <span className="truncate max-w-[180px] sm:max-w-none">{projectDateStr}</span>
                       </span>
                     </>
                   )}
@@ -1777,7 +1841,7 @@ export default function ProjectDashboardPage() {
             </div>
 
             {/* ── Right: Actions ── */}
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
 
               {/* Live indicator */}
               <div className="hidden lg:flex items-center gap-2" style={{
@@ -1798,47 +1862,34 @@ export default function ProjectDashboardPage() {
               <button
                 onClick={fetchData}
                 disabled={refreshing}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
-                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  opacity: refreshing ? 0.6 : 1, transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { if (!refreshing) { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB' } }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
+                style={{ opacity: refreshing ? 0.6 : 1 }}
+                aria-label={refreshing ? 'Refreshing' : 'Refresh'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.6s linear', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
+                  style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
                   <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
                   <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                 </svg>
-                {refreshing ? 'Refreshing…' : 'Refresh'}
+                <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
               </button>
 
               {/* Notification bell */}
               <NotificationSystem />
 
               {/* Divider */}
-              <div style={{ width: 1, height: 28, background: '#E5E7EB' }} />
+              <div className="hidden sm:block" style={{ width: 1, height: 28, background: '#E5E7EB' }} />
 
               {/* Logout */}
               <button
                 onClick={handleLogout}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
-                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA'; e.currentTarget.style.color = '#DC2626' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
+                aria-label="Sign out"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                Sign out
+                <span className="hidden sm:inline">Sign out</span>
               </button>
             </div>
 
@@ -1859,11 +1910,51 @@ export default function ProjectDashboardPage() {
 
 
       {/* ── Main content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="overview" className="w-full">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
+        <style>{`
+          .admin-tabs-scroll,
+          .admin-table-scroll,
+          .admin-table-scroll [data-slot='table-container'] {
+            scrollbar-width: thin;
+            scrollbar-color: #D1D5DB #F3F4F6;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar,
+          .admin-table-scroll::-webkit-scrollbar,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-track,
+          .admin-table-scroll::-webkit-scrollbar-track,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 999px;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-thumb,
+          .admin-table-scroll::-webkit-scrollbar-thumb,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb {
+            background: #D1D5DB;
+            border-radius: 999px;
+            border: 2px solid #F3F4F6;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-thumb:hover,
+          .admin-table-scroll::-webkit-scrollbar-thumb:hover,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb:hover {
+            background: #9CA3AF;
+          }
+          .admin-table-scroll [data-slot='table-container'] {
+            overflow-x: auto;
+            padding-bottom: 6px;
+            -webkit-overflow-scrolling: touch;
+          }
+        `}</style>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
-          {/* Tab bar */}
-          <TabsList className={`flex w-full overflow-x-auto justify-start sm:justify-center bg-white/90 shadow-sm border rounded-2xl p-1 mb-6 ${theme.tabsListBorder}`}>
+          {/* Tab bar — scrolls; active tab centers into view */}
+          <TabsList
+            ref={tabsListRef}
+            className={`admin-tabs-scroll flex w-full max-w-full overflow-x-auto justify-start bg-white/45 backdrop-blur-xl shadow-[0_8px_28px_rgba(31,41,55,0.06)] border rounded-2xl p-1.5 mb-2 gap-0.5 h-auto min-h-11 ${theme.tabsListBorder}`}
+          >
             {[
               { value: 'overview', label: 'Overview' },
               { value: 'guests', label: `Guest List${stats.total > 0 ? ` (${stats.total})` : ''}` },
@@ -1875,15 +1966,16 @@ export default function ProjectDashboardPage() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all ${theme.tabActive}`}
+                className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all duration-300 data-[state=inactive]:hover:bg-white/50 ${theme.tabActive}`}
               >
                 {tab.label}
               </TabsTrigger>
             ))}
           </TabsList>
+          <p className="mb-5 text-[11px] text-gray-400 sm:hidden">Swipe or scroll the tabs for more sections</p>
 
           {/* ══ OVERVIEW ══════════════════════════════════════════════════════ */}
-          <TabsContent value="overview" className="space-y-6">
+          <AnimatedTabsContent value="overview" className="space-y-6">
 
             {/* Hero — Response Rate */}
             <div className={theme.heroClassName} style={theme.heroStyle}>
@@ -1907,7 +1999,7 @@ export default function ProjectDashboardPage() {
                     <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
                   </div>
                 </div>
-                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/20 rounded-2xl overflow-hidden shrink-0">
+                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/25 bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
                   {[
                     { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
                     { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
@@ -1924,7 +2016,7 @@ export default function ProjectDashboardPage() {
             </div>
 
             {/* 6 Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
               <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
               <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
               <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
@@ -1935,7 +2027,7 @@ export default function ProjectDashboardPage() {
 
             {/* Category breakdown + Recent activity */}
             <div className="grid md:grid-cols-2 gap-6">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1968,7 +2060,7 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -2004,7 +2096,7 @@ export default function ProjectDashboardPage() {
 
             {/* Not-opened banner */}
             {guests.filter((g) => !g.opened_at).length > 0 && (
-              <Card className="bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
+              <Card className="bg-amber-50/70 backdrop-blur-xl border border-amber-200/80 rounded-2xl shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
                 <CardContent className="p-4 flex items-center gap-4">
                   <span className="text-2xl shrink-0">📭</span>
                   <div>
@@ -2016,11 +2108,11 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ GUEST LIST ════════════════════════════════════════════════════ */}
-          <TabsContent value="guests" className="space-y-4">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+          <AnimatedTabsContent value="guests" className="space-y-4">
+            <Card className={theme.glassCard}>
               <CardHeader className="pb-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1">
@@ -2029,20 +2121,21 @@ export default function ProjectDashboardPage() {
                       Showing <span className="font-semibold text-gray-700">{filteredGuests.length}</span> of <span className="font-semibold text-gray-700">{guests.length}</span> guests
                     </CardDescription>
                   </div>
-                  <div className="relative">
+                  <div className="relative w-full sm:w-auto">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none">🔍</span>
                     <Input
                       placeholder="Search name, phone, category…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className={`pl-8 w-64 h-9 text-sm border-gray-200 rounded-xl ${theme.searchFocus}`}
+                      className={`pl-8 w-full sm:w-64 h-9 text-sm border-gray-200 rounded-xl ${theme.searchFocus}`}
                     />
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Filter pills */}
-                <div className="flex gap-2 flex-wrap">
+                <div className="admin-tabs-scroll -mx-1 px-1 overflow-x-auto pb-1">
+                  <div className="flex gap-2 w-max min-w-full">
                   {([
                     { key: 'all', label: 'All', count: guests.length },
                     { key: 'pending', label: 'Pending', count: stats.pending },
@@ -2052,7 +2145,7 @@ export default function ProjectDashboardPage() {
                     <button
                       key={f.key}
                       onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all shrink-0 ${
                         filter === f.key ? theme.filterActive : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
@@ -2062,26 +2155,28 @@ export default function ProjectDashboardPage() {
                       }`}>{f.count}</span>
                     </button>
                   ))}
+                  </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
-                  <Table>
+                {/* Table — min-width forces horizontal scroll on mobile so the bar is visible */}
+                <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
+                  <Table className="min-w-[880px]">
                     <TableHeader>
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Responded</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Actions</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Category</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[120px]">Invited to</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Status</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right min-w-[200px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredGuests.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-16 text-gray-400">
+                          <TableCell colSpan={8} className="text-center py-16 text-gray-400">
                             <div className="flex flex-col items-center gap-2">
                               <span className="text-4xl">🔍</span>
                               <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
@@ -2094,8 +2189,15 @@ export default function ProjectDashboardPage() {
                           typeof guest.moments_count === 'number'
                             ? guest.moments_count
                             : parseMediaList(guest.moments).length
+                        const invitedLabels = project
+                          ? invitedToLabels(guest.invited_to, project)
+                          : []
                         return (
-                        <TableRow key={guest.id} className={`transition-colors group border-gray-50 ${theme.tableRowHover}`}>
+                        <TableRow
+                          key={guest.id}
+                          className={`transition-colors group border-gray-50 cursor-pointer ${theme.tableRowHover}`}
+                          onClick={() => setInviteGuest(guest)}
+                        >
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <GuestAvatar name={guest.name} />
@@ -2109,6 +2211,18 @@ export default function ProjectDashboardPage() {
                             <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
                               {guest.guest_category || 'Other'}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                              {invitedLabels.map((label) => (
+                                <span
+                                  key={label}
+                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700"
+                                >
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
@@ -2142,7 +2256,10 @@ export default function ProjectDashboardPage() {
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity">
+                            <div
+                              className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <Button
                                 variant="outline" size="sm"
                                 className="text-xs h-7 px-3 rounded-lg border-amber-200 text-amber-800 hover:bg-amber-50"
@@ -2179,9 +2296,12 @@ export default function ProjectDashboardPage() {
                     </TableBody>
                   </Table>
                 </div>
+                <p className="text-[11px] text-gray-400 sm:hidden pt-1">
+                  Scroll sideways in the list for status, pax, and actions
+                </p>
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* Delete error toast */}
           {deleteError && (
@@ -2191,9 +2311,9 @@ export default function ProjectDashboardPage() {
           )}
 
           {/* ══ ADD GUEST ═════════════════════════════════════════════════════ */}
-          <TabsContent value="add-guest" className="mt-0">
+          <AnimatedTabsContent value="add-guest" className="mt-0">
             <div className="max-w-md space-y-4">
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+              <Card className={theme.glassCard}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">👤</span>
@@ -2253,7 +2373,7 @@ export default function ProjectDashboardPage() {
               </Card>
 
               {lastAddedGuest && (
-                <Card className="bg-white/90 shadow-sm rounded-2xl border-0">
+                <Card className={theme.glassCard}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Moments with {lastAddedGuest.name}</CardTitle>
                     <CardDescription>
@@ -2278,11 +2398,11 @@ export default function ProjectDashboardPage() {
                 </Card>
               )}
             </div>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ IMPORT / EXPORT ═══════════════════════════════════════════════ */}
-          <TabsContent value="import-export" className="mt-0 space-y-6">
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+          <AnimatedTabsContent value="import-export" className="mt-0 space-y-6">
+            <Card className={`${theme.glassCard} max-w-2xl`}>
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📥</span>
@@ -2334,13 +2454,15 @@ export default function ProjectDashboardPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+            <Card className={`${theme.glassCard} max-w-2xl`}>
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">📤</span>
                   <div>
                     <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>Download the full guest list with unique invite URLs.</CardDescription>
+                    <CardDescription>
+                      Download the full guest list with invite links and per-event RSVP status.
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -2362,21 +2484,21 @@ export default function ProjectDashboardPage() {
                 {guests.length === 0 && <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>}
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ SEND INVITATIONS ══════════════════════════════════════════════ */}
-          <TabsContent value="send" className="mt-0">
+          <AnimatedTabsContent value="send" className="mt-0">
             <SendInvitationsPanel
               guests={guests}
               project={project}
               theme={theme}
             />
-          </TabsContent>
+          </AnimatedTabsContent>
 
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
-          <TabsContent value="event" className="mt-0 space-y-6">
+          <AnimatedTabsContent value="event" className="mt-0 space-y-6">
             {project && (
-              <Card className="bg-white/90 shadow-sm rounded-2xl border-0 max-w-2xl">
+              <Card className={`${theme.glassCard} max-w-2xl`}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🎊</span>
@@ -2403,7 +2525,12 @@ export default function ProjectDashboardPage() {
                     <Label htmlFor="event-type">Event Type</Label>
                     <Select
                       value={project.event_template ?? 'Wedding'}
-                      onValueChange={(val) => updateProject({ event_template: val as Project['event_template'] })}
+                      onValueChange={(val) => {
+                        const nextTemplate = val as Project['event_template']
+                        // Reset Events included to ONLY the new primary (drop previous extras)
+                        const nextEvents = resetEventsToPrimary(project, nextTemplate || 'Wedding')
+                        updateProject({ event_template: nextTemplate, events: nextEvents })
+                      }}
                     >
                       <SelectTrigger id="event-type" className="mt-2 rounded-xl">
                         <SelectValue placeholder="Select event type" />
@@ -2421,7 +2548,9 @@ export default function ProjectDashboardPage() {
                         <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">Changes all wording on the invitation cards automatically.</p>
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      Theme/wording preset. Use &quot;Events included&quot; below to invite for Engagement and Wedding together.
+                    </p>
                   </div>
 
                   {project.event_template === 'Birthday' ? (
@@ -2444,35 +2573,47 @@ export default function ProjectDashboardPage() {
                       </div>
                     </div>
                   )}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Date</Label>
-                      <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
-                        onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
-                    </div>
-                    <div>
-                      <Label>Time</Label>
-                      <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Venue</Label>
-                    <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
-                  <div>
-                    <Label>Location / City</Label>
-                    <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
+
+                  {project.event_template !== 'Birthday' ? (
+                    <EventsIncludedEditor
+                      project={project}
+                      onChange={(events) => updateProject({ events })}
+                    />
+                  ) : (
+                    <>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <Label>Date</Label>
+                          <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
+                            onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
+                        </div>
+                        <div>
+                          <Label>Time</Label>
+                          <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Venue</Label>
+                        <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
+                      <div>
+                        <Label>Location / City</Label>
+                        <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label>Contact Number</Label>
                     <Input defaultValue={project.contact} onChange={(e) => updateProject({ contact: e.target.value })} className="mt-2 rounded-xl" />
                   </div>
+                  {project.event_template === 'Birthday' ? (
                   <div>
                     <Label>Maps Link or Address</Label>
                     <Input defaultValue={project.maps_url || ''} onChange={(e) => updateProject({ maps_url: e.target.value })}
                       placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
                     <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
                   </div>
+                  ) : null}
 
                   <div className="border-t border-gray-100 pt-5">
                     <MediaUploader
@@ -2523,7 +2664,7 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </AnimatedTabsContent>
 
         </Tabs>
       </div>
@@ -2549,6 +2690,20 @@ export default function ProjectDashboardPage() {
           if (lastAddedGuest?.id === momentsGuest.id) setLastAddedMoments(moments)
         }}
       />
+
+      {project ? (
+        <GuestInvitePanel
+          open={!!inviteGuest}
+          guest={inviteGuest}
+          project={project}
+          projectId={projectId}
+          onClose={() => setInviteGuest(null)}
+          onSaved={(updated) => {
+            setGuests((prev) => prev.map((g) => (g.id === updated.id ? { ...g, ...updated } : g)))
+            setInviteGuest(null)
+          }}
+        />
+      ) : null}
     </main>
   )
 }

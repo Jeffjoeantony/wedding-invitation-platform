@@ -859,7 +859,7 @@ function WeddingInvitation({ guest, event, copy, step, setStep, paxCount, setPax
             <section className="px-5 pt-10 pb-4">
               <Reveal className="text-center mb-8">
                 <p className="text-[10px] uppercase tracking-[0.42em] font-medium mb-4" style={{ color: LUXURY.goldDark }}>
-                  Cordially Invited
+                  Cordially invites you
                 </p>
                 {!open && (
                   <h2

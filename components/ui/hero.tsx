@@ -4,6 +4,18 @@ import type { InvitationConfig } from '@/lib/invitation-config'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Sparkles } from './ornament'
 
+function HeroGreetingLine({ line }: { line: string }) {
+  if (/^Dear\s+/i.test(line)) {
+    const rest = line.replace(/^Dear\s+/i, '')
+    return (
+      <>
+        Dear <span className="text-foreground">{rest}</span>
+      </>
+    )
+  }
+  return <span className="text-foreground">{line}</span>
+}
+
 function LetterReveal({
   text,
   className,
@@ -45,7 +57,7 @@ export function Hero({
   const monogram = `${config.couple1[0]}${config.couple2[0]}`
 
   return (
-    <header className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-hidden px-6 pb-10 pt-14 text-center">
+    <header className="relative flex min-h-[92svh] flex-col items-center justify-center overflow-x-hidden px-6 pb-16 pt-14 text-center">
       <Sparkles count={6} />
 
       {/* Soft radial wash behind the composition */}
@@ -78,20 +90,20 @@ export function Hero({
           animate={{ opacity: 1, letterSpacing: '0.42em' }}
           transition={{ delay: 0.25, duration: 1.1 }}
         >
-          Cordially Invited
+          Cordially invites you
         </motion.p>
       </motion.div>
 
-      {showGreeting && (
+      {showGreeting && config.heroGreeting ? (
         <motion.p
           className="relative z-[1] mt-5 font-serif text-2xl font-light italic text-foreground/80"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.95, ease: [0.22, 1, 0.36, 1] }}
         >
-          Dear <span className="text-foreground">{config.guestName}</span>
+          <HeroGreetingLine line={config.heroGreeting} />
         </motion.p>
-      )}
+      ) : null}
 
       <div className="relative z-[1] mt-8 w-full max-w-[300px]">
         <motion.div
@@ -154,30 +166,18 @@ export function Hero({
             </motion.span>
             <LetterReveal
               text={config.couple2}
-              className="font-serif text-4xl font-light tracking-[0.04em]"
+              className="font-serif text-4xl font-semibold tracking-[0.04em]"
               gilded
             />
           </h1>
           <div className="mx-auto mt-3 h-px w-12 bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
-          <p className="mt-3 font-sans text-[0.62rem] uppercase leading-relaxed tracking-[0.22em] text-muted-foreground">
+          <p className="mt-3 font-sans text-[0.6rem] uppercase leading-[1.65] tracking-[0.18em] text-muted-foreground">
             {config.requestLine}
             <br />
             {config.atLine}
           </p>
         </motion.div>
       </div>
-
-      <motion.div
-        className="relative z-[1] mt-24 flex flex-col items-center gap-2"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.7, duration: 1 }}
-      >
-        <span className="font-sans text-[0.55rem] uppercase tracking-[0.35em] text-muted-foreground">
-          Scroll
-        </span>
-        <span className="animate-breathe block h-9 w-px bg-gradient-to-b from-gold to-transparent" />
-      </motion.div>
     </header>
   )
 }

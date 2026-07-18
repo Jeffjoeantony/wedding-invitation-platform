@@ -99,6 +99,7 @@ export function RevealStagger({
         ? children.map((child, i) => (
             <motion.div
               key={i}
+              className="h-full"
               variants={{
                 hidden: reduce
                   ? { opacity: 0 }
@@ -115,6 +116,7 @@ export function RevealStagger({
           ))
         : (
             <motion.div
+              className="h-full"
               variants={{
                 hidden: reduce
                   ? { opacity: 0 }

@@ -10,7 +10,13 @@ import {
 
 let bucketReady: Promise<void> | null = null
 
-/** Create the public invite-media bucket if it doesn't exist yet. */
+const PUBLIC_BUCKET_OPTS = {
+  public: true,
+  fileSizeLimit: MAX_IMAGE_BYTES,
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as string[],
+}
+
+/** Create the invite-media bucket if missing, and always keep it public (needed for invite + admin thumbs). */
 export async function ensureInviteMediaBucket() {
   if (!bucketReady) {
     bucketReady = (async () => {
@@ -22,19 +28,34 @@ export async function ensureInviteMediaBucket() {
         )
       }
 
-      const exists = buckets?.some((b) => b.id === INVITE_MEDIA_BUCKET || b.name === INVITE_MEDIA_BUCKET)
-      if (exists) return
+      const existing = buckets?.find(
+        (b) => b.id === INVITE_MEDIA_BUCKET || b.name === INVITE_MEDIA_BUCKET,
+      )
 
-      const { error: createError } = await supabase.storage.createBucket(INVITE_MEDIA_BUCKET, {
-        public: true,
-        fileSizeLimit: MAX_IMAGE_BYTES,
-        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
-      })
-
-      if (createError && !/already exists|duplicate/i.test(createError.message)) {
-        throw new Error(
-          `Could not create storage bucket "${INVITE_MEDIA_BUCKET}": ${createError.message}`,
+      if (!existing) {
+        const { error: createError } = await supabase.storage.createBucket(
+          INVITE_MEDIA_BUCKET,
+          PUBLIC_BUCKET_OPTS,
         )
+        if (createError && !/already exists|duplicate/i.test(createError.message)) {
+          throw new Error(
+            `Could not create storage bucket "${INVITE_MEDIA_BUCKET}": ${createError.message}`,
+          )
+        }
+        return
+      }
+
+      // Bucket may have been created private — public URLs then 403 and /_next/image returns 400 on Vercel
+      if (existing.public === false) {
+        const { error: updateError } = await supabase.storage.updateBucket(
+          INVITE_MEDIA_BUCKET,
+          PUBLIC_BUCKET_OPTS,
+        )
+        if (updateError) {
+          throw new Error(
+            `Could not make storage bucket "${INVITE_MEDIA_BUCKET}" public: ${updateError.message}`,
+          )
+        }
       }
     })().catch((err) => {
       bucketReady = null
