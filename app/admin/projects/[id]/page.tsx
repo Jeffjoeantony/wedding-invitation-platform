@@ -176,14 +176,14 @@ function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
     <Card
       className={`bg-white/50 backdrop-blur-xl border border-white/70 border-l-4 ${accent} shadow-[0_8px_28px_rgba(31,41,55,0.07)] hover:shadow-[0_12px_36px_rgba(31,41,55,0.12)] hover:bg-white/65 transition-all duration-300 hover:-translate-y-0.5`}
     >
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="pt-4 pb-3 sm:pt-5 sm:pb-4 px-3.5 sm:px-6">
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-            <p className={`text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-            <p className="text-xs text-gray-400 mt-1 truncate">{sub}</p>
+            <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
+            <p className={`text-2xl sm:text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
+            <p className="text-[11px] sm:text-xs text-gray-400 mt-1 leading-snug line-clamp-2">{sub}</p>
           </div>
-          <span className={`text-xl p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+          <span className={`text-lg sm:text-xl p-2 sm:p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
         </div>
       </CardContent>
     </Card>
@@ -1330,6 +1330,16 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
+  const tabsListRef = useRef<HTMLDivElement>(null)
+
+  // Keep the active navbar tab in view when switching on narrow screens
+  useEffect(() => {
+    const list = tabsListRef.current
+    if (!list) return
+    const active = list.querySelector<HTMLElement>('[data-state="active"]')
+    if (!active) return
+    active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeTab])
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
@@ -1744,40 +1754,41 @@ export default function ProjectDashboardPage() {
           background: `linear-gradient(90deg, #D72660 0%, #9B1C4C 40%, #7C3AED 100%)`,
         }} />
 
-        <div className="max-w-7xl mx-auto px-6 md:px-8" style={{ paddingTop: 14, paddingBottom: 14 }}>
-          <div className="flex items-center justify-between gap-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 md:px-8" style={{ paddingTop: 12, paddingBottom: 12 }}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
 
             {/* ── Left: Back + Brand ── */}
-            <div className="flex items-center gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
 
               {/* Back button */}
               <button
                 onClick={() => router.push('/admin')}
-                className="flex items-center gap-2 transition-all shrink-0"
+                className="flex items-center gap-1.5 sm:gap-2 transition-all shrink-0"
                 style={{
-                  padding: '8px 14px', borderRadius: 10,
+                  padding: '8px 10px', borderRadius: 10,
                   border: '1.5px solid #E5E7EB', background: '#FAFAFA',
                   color: '#6B7280', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer',
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#374151' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
+                aria-label="Back to projects"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                   <polyline points="15 18 9 12 15 6" />
                 </svg>
-                Projects
+                <span className="hidden sm:inline">Projects</span>
               </button>
 
               {/* Divider */}
-              <div style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
+              <div className="hidden sm:block" style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
 
               {/* Event icon */}
               <div
-                className={`shrink-0 ${theme.iconGradient}`}
+                className={`shrink-0 hidden sm:flex ${theme.iconGradient}`}
                 style={{
                   width: 48, height: 48, borderRadius: 14,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  alignItems: 'center', justifyContent: 'center',
                   fontSize: 22,
                   boxShadow: '0 4px 14px rgba(215,38,96,0.25)',
                 }}
@@ -1791,9 +1802,9 @@ export default function ProjectDashboardPage() {
               </div>
 
               {/* Title block */}
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <h1 style={{ color: '#111827', fontSize: 17, fontWeight: 800, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }} className="truncate">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 style={{ color: '#111827', fontWeight: 800, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.2 }} className="truncate text-[15px] sm:text-[17px]">
                     {project?.name || 'Project Dashboard'}
                   </h1>
                   {/* Event type badge */}
@@ -1806,8 +1817,8 @@ export default function ProjectDashboardPage() {
                     {project?.event_template?.toUpperCase() ?? 'WEDDING'}
                   </span>
                 </div>
-                <p style={{ color: '#9CA3AF', fontSize: 12, margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>
+                <p className="text-gray-400 text-[11px] sm:text-xs mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
+                  <span className="truncate max-w-full">
                     {project?.event_template === 'Birthday' && project?.couple_1
                       ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
                       : project?.couple_1 && project?.couple_2
@@ -1816,12 +1827,12 @@ export default function ProjectDashboardPage() {
                   </span>
                   {projectDateStr && (
                     <>
-                      <span style={{ color: '#D1D5DB' }}>·</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span className="text-gray-300 hidden sm:inline">·</span>
+                      <span className="inline-flex items-center gap-1 shrink-0">
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                           <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                         </svg>
-                        {projectDateStr}
+                        <span className="truncate max-w-[180px] sm:max-w-none">{projectDateStr}</span>
                       </span>
                     </>
                   )}
@@ -1830,7 +1841,7 @@ export default function ProjectDashboardPage() {
             </div>
 
             {/* ── Right: Actions ── */}
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
 
               {/* Live indicator */}
               <div className="hidden lg:flex items-center gap-2" style={{
@@ -1851,47 +1862,34 @@ export default function ProjectDashboardPage() {
               <button
                 onClick={fetchData}
                 disabled={refreshing}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
-                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  opacity: refreshing ? 0.6 : 1, transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { if (!refreshing) { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB' } }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB' }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
+                style={{ opacity: refreshing ? 0.6 : 1 }}
+                aria-label={refreshing ? 'Refreshing' : 'Refresh'}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                  style={{ transform: refreshing ? 'rotate(360deg)' : 'none', transition: 'transform 0.6s linear', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
+                  style={{ animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>
                   <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
                   <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
                 </svg>
-                {refreshing ? 'Refreshing…' : 'Refresh'}
+                <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
               </button>
 
               {/* Notification bell */}
               <NotificationSystem />
 
               {/* Divider */}
-              <div style={{ width: 1, height: 28, background: '#E5E7EB' }} />
+              <div className="hidden sm:block" style={{ width: 1, height: 28, background: '#E5E7EB' }} />
 
               {/* Logout */}
               <button
                 onClick={handleLogout}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', background: '#FAFAFA',
-                  color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA'; e.currentTarget.style.color = '#DC2626' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#FAFAFA'; e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.color = '#6B7280' }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
+                aria-label="Sign out"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
                 </svg>
-                Sign out
+                <span className="hidden sm:inline">Sign out</span>
               </button>
             </div>
 
@@ -1912,12 +1910,50 @@ export default function ProjectDashboardPage() {
 
 
       {/* ── Main content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
+        <style>{`
+          .admin-tabs-scroll,
+          .admin-table-scroll,
+          .admin-table-scroll [data-slot='table-container'] {
+            scrollbar-width: thin;
+            scrollbar-color: #D1D5DB #F3F4F6;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar,
+          .admin-table-scroll::-webkit-scrollbar,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-track,
+          .admin-table-scroll::-webkit-scrollbar-track,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 999px;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-thumb,
+          .admin-table-scroll::-webkit-scrollbar-thumb,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb {
+            background: #D1D5DB;
+            border-radius: 999px;
+            border: 2px solid #F3F4F6;
+          }
+          .admin-tabs-scroll::-webkit-scrollbar-thumb:hover,
+          .admin-table-scroll::-webkit-scrollbar-thumb:hover,
+          .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb:hover {
+            background: #9CA3AF;
+          }
+          .admin-table-scroll [data-slot='table-container'] {
+            overflow-x: auto;
+            padding-bottom: 6px;
+            -webkit-overflow-scrolling: touch;
+          }
+        `}</style>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 
-          {/* Tab bar */}
+          {/* Tab bar — scrolls; active tab centers into view */}
           <TabsList
-            className={`flex w-full overflow-x-auto justify-start sm:justify-center bg-white/45 backdrop-blur-xl shadow-[0_8px_28px_rgba(31,41,55,0.06)] border rounded-2xl p-1.5 mb-6 gap-0.5 ${theme.tabsListBorder}`}
+            ref={tabsListRef}
+            className={`admin-tabs-scroll flex w-full max-w-full overflow-x-auto justify-start bg-white/45 backdrop-blur-xl shadow-[0_8px_28px_rgba(31,41,55,0.06)] border rounded-2xl p-1.5 mb-2 gap-0.5 h-auto min-h-11 ${theme.tabsListBorder}`}
           >
             {[
               { value: 'overview', label: 'Overview' },
@@ -1936,6 +1972,7 @@ export default function ProjectDashboardPage() {
               </TabsTrigger>
             ))}
           </TabsList>
+          <p className="mb-5 text-[11px] text-gray-400 sm:hidden">Swipe or scroll the tabs for more sections</p>
 
           {/* ══ OVERVIEW ══════════════════════════════════════════════════════ */}
           <AnimatedTabsContent value="overview" className="space-y-6">
@@ -1979,7 +2016,7 @@ export default function ProjectDashboardPage() {
             </div>
 
             {/* 6 Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
               <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
               <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
               <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
@@ -2084,20 +2121,21 @@ export default function ProjectDashboardPage() {
                       Showing <span className="font-semibold text-gray-700">{filteredGuests.length}</span> of <span className="font-semibold text-gray-700">{guests.length}</span> guests
                     </CardDescription>
                   </div>
-                  <div className="relative">
+                  <div className="relative w-full sm:w-auto">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-sm pointer-events-none">🔍</span>
                     <Input
                       placeholder="Search name, phone, category…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className={`pl-8 w-64 h-9 text-sm border-gray-200 rounded-xl ${theme.searchFocus}`}
+                      className={`pl-8 w-full sm:w-64 h-9 text-sm border-gray-200 rounded-xl ${theme.searchFocus}`}
                     />
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Filter pills */}
-                <div className="flex gap-2 flex-wrap">
+                <div className="admin-tabs-scroll -mx-1 px-1 overflow-x-auto pb-1">
+                  <div className="flex gap-2 w-max min-w-full">
                   {([
                     { key: 'all', label: 'All', count: guests.length },
                     { key: 'pending', label: 'Pending', count: stats.pending },
@@ -2107,7 +2145,7 @@ export default function ProjectDashboardPage() {
                     <button
                       key={f.key}
                       onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all shrink-0 ${
                         filter === f.key ? theme.filterActive : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
@@ -2117,21 +2155,22 @@ export default function ProjectDashboardPage() {
                       }`}>{f.count}</span>
                     </button>
                   ))}
+                  </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
-                  <Table>
+                {/* Table — min-width forces horizontal scroll on mobile so the bar is visible */}
+                <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
+                  <Table className="min-w-[880px]">
                     <TableHeader>
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Invited to</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide">Responded</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right">Actions</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Category</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[120px]">Invited to</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Status</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
+                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right min-w-[200px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2257,6 +2296,9 @@ export default function ProjectDashboardPage() {
                     </TableBody>
                   </Table>
                 </div>
+                <p className="text-[11px] text-gray-400 sm:hidden pt-1">
+                  Scroll sideways in the list for status, pax, and actions
+                </p>
               </CardContent>
             </Card>
           </AnimatedTabsContent>

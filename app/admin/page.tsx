@@ -168,6 +168,11 @@ const Icon = {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   ),
+  Menu: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" />
+    </svg>
+  ),
   CheckCircle: () => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
@@ -373,12 +378,14 @@ function StatCard({ label, value, icon, accent, trend }: {
   trend?: string
 }) {
   return (
-    <div style={{
+    <div
+      className="dashboard-stat-card"
+      style={{
       background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
-      padding: '22px 24px',
+      padding: '18px 16px',
       boxShadow: '0 1px 4px rgba(31,41,55,0.06)',
       transition: 'box-shadow 0.2s, transform 0.2s',
-      flex: 1, minWidth: 0,
+      minWidth: 0,
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 6px 24px rgba(31,41,55,0.09)'
@@ -867,7 +874,7 @@ function DashboardView({ projects }: { projects: Project[] }) {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+      <div className="dashboard-stats">
         <StatCard
           label="Total Projects"
           value={projects.length}
@@ -1099,10 +1106,9 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
   )
 
   return (
-    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+    <div className="settings-layout">
       {/* ── Settings sidebar ── */}
-      <div style={{
-        width: 210, flexShrink: 0,
+      <div className="settings-nav" style={{
         background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16,
         padding: 10, boxShadow: '0 1px 4px rgba(31,41,55,0.05)',
       }}>
@@ -1446,6 +1452,7 @@ export default function AdminHubPage() {
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'created'>('created')
   const [showNewModal, setShowNewModal] = useState(false)
   const [activeNav, setActiveNav] = useState('dashboard')
+  const [navOpen, setNavOpen] = useState(false)
 
   const loadProjects = useCallback(async () => {
     setLoading(true)
@@ -1455,6 +1462,13 @@ export default function AdminHubPage() {
   }, [])
 
   useEffect(() => { loadProjects() }, [loadProjects])
+
+  useEffect(() => {
+    if (!navOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [navOpen])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -1537,6 +1551,25 @@ export default function AdminHubPage() {
           z-index: 10;
           backdrop-filter: blur(12px);
         }
+        .sidebar-overlay {
+          display: none;
+          position: fixed; inset: 0;
+          background: rgba(15, 23, 42, 0.45);
+          z-index: 35;
+          border: none; padding: 0; cursor: pointer;
+        }
+        .menu-toggle {
+          display: none;
+          width: 40px; height: 40px; border-radius: 10px;
+          align-items: center; justify-content: center;
+          color: #374151; background: #FFFFFF;
+          border: 1.5px solid #E5E7EB; cursor: pointer;
+          flex-shrink: 0;
+        }
+        .settings-layout {
+          display: flex; gap: 24px; align-items: flex-start;
+        }
+        .settings-nav { width: 210px; flex-shrink: 0; }
 
         .sidebar-logo {
           display: flex;
@@ -1645,10 +1678,27 @@ export default function AdminHubPage() {
         .topbar-icon-btn:hover { background: #F3EEE6; color: #1C1916; }
 
         /* ── Page body ── */
-        .page-body { padding: 32px; flex: 1; overflow-y: auto; }
+        .page-body { padding: 32px; flex: 1; overflow-y: auto; overflow-x: hidden; }
         .page-header { margin-bottom: 24px; }
         .page-header h1 { font-size: 22px; font-weight: 800; color: #1F2937; letter-spacing: -0.3px; }
         .page-header p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+
+        .dashboard-hero-title { font-size: 22px; }
+        .dashboard-stats {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          margin-bottom: 28px;
+        }
+        @media (min-width: 900px) {
+          .dashboard-hero { padding: 28px 32px !important; margin-bottom: 28px !important; }
+          .dashboard-hero-title { font-size: 26px; }
+          .dashboard-stats {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+          }
+          .dashboard-stat-card { padding: 22px 24px !important; }
+        }
 
         /* ── Toolbar ── */
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
@@ -1794,11 +1844,27 @@ export default function AdminHubPage() {
         .modal-btn-primary:hover:not(:disabled) { background: #9E8348; color: #FAF8F3; }
         .modal-btn-primary:disabled { cursor: not-allowed; }
 
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+        /* ── Scrollbar (visible, clean) ── */
+        .page-body,
+        .admin-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #D1D5DB transparent;
+        }
+        .page-body::-webkit-scrollbar,
+        .admin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .page-body::-webkit-scrollbar-track,
+        .admin-scroll::-webkit-scrollbar-track {
+          background: #F3F4F6;
+          border-radius: 999px;
+        }
+        .page-body::-webkit-scrollbar-thumb,
+        .admin-scroll::-webkit-scrollbar-thumb {
+          background: #D1D5DB;
+          border-radius: 999px;
+          border: 2px solid #F3F4F6;
+        }
+        .page-body::-webkit-scrollbar-thumb:hover,
+        .admin-scroll::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
 
         /* ── Coming soon ── */
         .coming-soon {
@@ -1808,9 +1874,51 @@ export default function AdminHubPage() {
         .coming-soon-icon { font-size: 40px; margin-bottom: 4px; }
         .coming-soon h2 { font-size: 18px; font-weight: 700; color: #1F2937; }
         .coming-soon p { font-size: 14px; color: #9CA3AF; }
+
+        /* ── Mobile / tablet ── */
+        @media (max-width: 900px) {
+          .sidebar {
+            position: fixed;
+            left: 0; top: 0;
+            transform: translateX(-100%);
+            box-shadow: 8px 0 32px rgba(15, 23, 42, 0.12);
+          }
+          .admin-root.nav-open .sidebar { transform: translateX(0); }
+          .admin-root.nav-open .sidebar-overlay { display: block; }
+          .menu-toggle { display: inline-flex; }
+          .topbar { padding: 0 14px; gap: 10px; height: 56px; }
+          .topbar-title { font-size: 15px; }
+          .page-body { padding: 16px 14px 28px; }
+          .page-header h1 { font-size: 20px; }
+          .search-wrap { min-width: 100%; max-width: none; flex: 1 1 100%; }
+          .toolbar-spacer { display: none; }
+          .create-btn { flex: 1 1 auto; justify-content: center; }
+          .projects-grid { grid-template-columns: 1fr; gap: 12px; }
+          .list-header { display: none; }
+          .list-row {
+            grid-template-columns: 1fr auto;
+            gap: 8px 12px;
+            padding: 12px 14px;
+          }
+          .list-row > *:nth-child(n+3) { display: none; }
+          .settings-layout { flex-direction: column; gap: 14px; }
+          .settings-nav { width: 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+          .settings-nav button { width: auto !important; flex: 1 1 auto; margin-bottom: 0 !important; }
+        }
+        @media (max-width: 480px) {
+          .view-toggle { display: none; }
+          .page-body { padding: 14px 12px 24px; }
+        }
       `}</style>
 
-      <div className="admin-root">
+      <div className={`admin-root${navOpen ? ' nav-open' : ''}`}>
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+        />
+
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           {/* Logo */}
@@ -1822,6 +1930,15 @@ export default function AdminHubPage() {
               <div className="sidebar-logo-text">Goldleaf</div>
               <div className="sidebar-logo-badge">ADMIN</div>
             </div>
+            <button
+              type="button"
+              className="menu-toggle"
+              style={{ marginLeft: 'auto' }}
+              aria-label="Close menu"
+              onClick={() => setNavOpen(false)}
+            >
+              <Icon.X />
+            </button>
           </div>
 
           {/* Nav */}
@@ -1830,7 +1947,7 @@ export default function AdminHubPage() {
               <button
                 key={item.id}
                 className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-                onClick={() => setActiveNav(item.id)}
+                onClick={() => { setActiveNav(item.id); setNavOpen(false) }}
               >
                 <item.Icon />
                 {item.label}
@@ -1857,6 +1974,15 @@ export default function AdminHubPage() {
         <div className="main-content">
           {/* Topbar */}
           <header className="topbar">
+            <button
+              type="button"
+              className="menu-toggle"
+              aria-label="Open menu"
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen(true)}
+            >
+              <Icon.Menu />
+            </button>
             <div className="topbar-crumb">
               <span style={{ color: '#C4A46A', fontSize: 16 }}>✦</span>
               <span style={{ color: '#D4D4D8' }}>/</span>
@@ -1869,6 +1995,7 @@ export default function AdminHubPage() {
               background: 'linear-gradient(135deg, #C4A46A, #9E8348)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              flexShrink: 0,
             }}>A</div>
           </header>
 
@@ -1879,9 +2006,9 @@ export default function AdminHubPage() {
               <>
 
                 {loading ? (
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
+                  <div className="dashboard-stats">
                     {[1,2,3,4].map(i => (
-                      <div key={i} style={{ flex: 1, minWidth: 180, background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 22 }}>
+                      <div key={i} className="dashboard-stat-card" style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 18 }}>
                         <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10, marginBottom: 16 }} />
                         <div className="skeleton-pulse" style={{ height: 28, width: '60%', borderRadius: 6, marginBottom: 8 }} />
                         <div className="skeleton-pulse" style={{ height: 13, width: '50%', borderRadius: 6 }} />
