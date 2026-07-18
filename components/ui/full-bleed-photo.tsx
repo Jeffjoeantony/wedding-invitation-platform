@@ -2,7 +2,6 @@
 
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
-import { InviteImage } from './invite-image'
 import { useMobileMotion } from './use-mobile-motion'
 
 const easeOut = [0.16, 1, 0.3, 1] as const
@@ -55,19 +54,16 @@ export function FullBleedPhoto({
       className="invite-section relative h-[70vh] w-full overflow-hidden sm:h-[78vh]"
     >
       <motion.div style={{ opacity }} className="absolute inset-0">
-        <motion.div
+        <motion.img
+          src={src || '/placeholder.svg'}
+          alt={alt}
           style={mobile || reduce ? undefined : { y, scale }}
-          className="absolute inset-0"
-        >
-          <InviteImage
-            src={src || '/placeholder.svg'}
-            alt={alt}
-            fill
-            sizes="100vw"
-            loading="lazy"
-            className={`object-cover ${grayscale ? 'grayscale' : ''}`}
-          />
-        </motion.div>
+          decoding="async"
+          loading="lazy"
+          className={`absolute inset-0 h-[120%] w-full object-cover ${
+            grayscale ? 'grayscale' : ''
+          }`}
+        />
       </motion.div>
       <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-black/20" />
       <div
