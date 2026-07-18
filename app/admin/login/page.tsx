@@ -28,7 +28,6 @@ export default function AdminLoginPage() {
       return
     }
 
-    // Redirect to dashboard — middleware will confirm the session
     router.push('/admin')
     router.refresh()
   }
@@ -37,60 +36,52 @@ export default function AdminLoginPage() {
     <div
       className="min-h-screen flex items-center justify-center px-4"
       style={{
-        background: 'linear-gradient(160deg, #1a0010 0%, #3d0020 35%, #6d1040 65%, #3d0020 100%)',
+        background:
+          'radial-gradient(ellipse 90% 50% at 50% -8%, rgba(232,213,176,0.55), transparent 62%), linear-gradient(180deg, #FAF8F3 0%, #F3EEE6 55%, #EDE6DA 100%)',
       }}
     >
-      {/* Ambient glow */}
-      <div
-        className="fixed top-0 left-0 w-[500px] h-[500px] pointer-events-none opacity-15"
-        style={{
-          background: 'radial-gradient(circle, rgba(255,80,120,0.5), transparent 70%)',
-          borderRadius: '50%',
-        }}
-      />
-
       <div className="w-full max-w-md relative z-10">
-
-        {/* Header */}
         <div className="text-center mb-8">
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-5 shadow-xl"
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 overflow-hidden shadow-lg"
             style={{
-              background: 'linear-gradient(135deg, rgba(190,18,60,0.8), rgba(120,0,40,0.9))',
-              border: '1px solid rgba(255,255,255,0.15)',
+              border: '1px solid #E6DDD0',
+              background: '#FAF8F3',
+              boxShadow: '0 12px 32px -16px rgba(158,131,72,0.45)',
             }}
           >
-            💍
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon.svg" alt="Goldleaf" width={64} height={64} />
           </div>
           <h1
-            className="text-2xl font-serif italic"
-            style={{
-              background: 'linear-gradient(135deg, #fff 20%, #ffb3c6 60%, #fff 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
+            className="text-3xl font-serif font-light tracking-wide"
+            style={{ color: '#1C1916' }}
           >
-            Admin Portal
+            Goldleaf
           </h1>
-          <p className="text-rose-300/60 text-sm mt-1 font-light">Digital Invitation Management Dashboard</p>
+          <p className="text-sm mt-1.5 font-light" style={{ color: '#9E8348' }}>
+            Admin Portal
+          </p>
+          <p className="text-sm mt-1 font-light" style={{ color: '#6E6862' }}>
+            Digital invitation management
+          </p>
         </div>
 
-        {/* Card */}
         <div
-          className="rounded-3xl px-8 py-10"
+          className="rounded-2xl px-8 py-10"
           style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0.04) 100%)',
-            backdropFilter: 'blur(28px)',
-            border: '1px solid rgba(255,255,255,0.13)',
-            boxShadow: '0 25px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)',
+            background: 'rgba(255,252,248,0.85)',
+            backdropFilter: 'blur(16px)',
+            border: '1.5px solid #E6DDD0',
+            boxShadow: '0 20px 50px -28px rgba(45,42,38,0.35)',
           }}
         >
           <form onSubmit={handleLogin} className="space-y-5">
-
-            {/* Email */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-rose-200/80 uppercase tracking-widest">
+              <label
+                className="text-xs font-medium uppercase tracking-[0.2em]"
+                style={{ color: '#9E8348' }}
+              >
                 Email
               </label>
               <input
@@ -100,26 +91,29 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@wedding.com"
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none transition-all"
+                placeholder="admin@goldleaf.app"
+                className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: '#1C1916',
+                  background: '#FAF8F3',
+                  border: '1.5px solid #E6DDD0',
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(255,100,130,0.5)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                  e.currentTarget.style.border = '1.5px solid #C4A46A'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(158,131,72,0.15)'
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(255,255,255,0.12)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
+                  e.currentTarget.style.border = '1.5px solid #E6DDD0'
+                  e.currentTarget.style.boxShadow = 'none'
                 }}
               />
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-rose-200/80 uppercase tracking-widest">
+              <label
+                className="text-xs font-medium uppercase tracking-[0.2em]"
+                style={{ color: '#9E8348' }}
+              >
                 Password
               </label>
               <input
@@ -130,41 +124,46 @@ export default function AdminLoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl text-sm focus:outline-none transition-all"
                 style={{
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: '#1C1916',
+                  background: '#FAF8F3',
+                  border: '1.5px solid #E6DDD0',
                 }}
                 onFocus={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(255,100,130,0.5)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
+                  e.currentTarget.style.border = '1.5px solid #C4A46A'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(158,131,72,0.15)'
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.border = '1px solid rgba(255,255,255,0.12)'
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
+                  e.currentTarget.style.border = '1.5px solid #E6DDD0'
+                  e.currentTarget.style.boxShadow = 'none'
                 }}
               />
             </div>
 
-            {/* Error message */}
             {error && (
               <div
-                className="rounded-xl px-4 py-3 text-sm text-red-200 flex items-center gap-2"
-                style={{ background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(220,38,38,0.25)' }}
+                className="rounded-xl px-4 py-3 text-sm flex items-center gap-2"
+                style={{
+                  color: '#991B1B',
+                  background: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                }}
               >
                 <span>⚠</span> {error}
               </div>
             )}
 
-            {/* Submit */}
             <button
               id="admin-login-btn"
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-2xl text-white font-medium tracking-wide text-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full py-3.5 rounded-xl text-sm font-semibold tracking-wide transition-all duration-300 hover:scale-[1.02] disabled:opacity-60 disabled:cursor-not-allowed mt-2"
               style={{
-                background: 'linear-gradient(135deg, #be123c, #9f1239)',
-                border: '1px solid rgba(255,255,255,0.15)',
+                background: '#C4A46A',
+                color: '#1C1916',
+                border: '1px solid #9E8348',
+                boxShadow: '0 8px 24px -10px rgba(158,131,72,0.55)',
               }}
             >
               {loading ? 'Signing in…' : 'Sign In'}
@@ -172,8 +171,10 @@ export default function AdminLoginPage() {
           </form>
         </div>
 
-        {/* Subtle footer */}
-        <p className="text-center text-white/15 text-xs mt-8 tracking-widest">
+        <p
+          className="text-center text-xs mt-8 tracking-[0.18em] uppercase"
+          style={{ color: '#6E6862' }}
+        >
           Restricted access · Authorised personnel only
         </p>
       </div>
