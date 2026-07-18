@@ -18,18 +18,6 @@ function HeroGreetingLine({ line }: { line: string }) {
   return <span className="text-foreground">{line}</span>
 }
 
-function HeroGreetingLine({ line }: { line: string }) {
-  if (/^Dear\s+/i.test(line)) {
-    const rest = line.replace(/^Dear\s+/i, '')
-    return (
-      <>
-        Dear <span className="text-foreground">{rest}</span>
-      </>
-    )
-  }
-  return <span className="text-foreground">{line}</span>
-}
-
 function LetterReveal({
   text,
   className,
