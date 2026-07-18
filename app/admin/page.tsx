@@ -985,14 +985,14 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
     })
     // Load prefs from localStorage
     try {
-      const saved = JSON.parse(localStorage.getItem('inviteos_settings') || '{}')
+      const saved = JSON.parse(localStorage.getItem('goldleaf_settings') || localStorage.getItem('inviteos_settings') || '{}')
       if (saved.notifs) setNotifs((prev) => ({ ...prev, ...saved.notifs }))
       if (saved.compactMode !== undefined) setCompactMode(saved.compactMode)
     } catch { /* ignore */ }
   }, [])
 
   const savePrefs = (newNotifs = notifs, newCompact = compactMode) => {
-    localStorage.setItem('inviteos_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
+    localStorage.setItem('goldleaf_settings', JSON.stringify({ notifs: newNotifs, compactMode: newCompact }))
   }
 
   const toggleNotif = (key: keyof typeof notifs) => {
@@ -1196,7 +1196,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
               <FieldRow label="Member since">
                 <span style={{ color: '#6B7280', fontSize: 13 }}>June 2026</span>
               </FieldRow>
-              <FieldRow label="Platform" desc="InviteOS Admin Dashboard">
+              <FieldRow label="Platform" desc="Goldleaf Admin Dashboard">
                 <span style={{ color: '#6B7280', fontSize: 13 }}>v1.0.0</span>
               </FieldRow>
             </SectionCard>
@@ -1371,7 +1371,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
                   const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), note: 'Full data export — coming soon.' }, null, 2)], { type: 'application/json' })
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
-                  a.href = url; a.download = 'inviteos-export.json'; a.click()
+                  a.href = url; a.download = 'goldleaf-export.json'; a.click()
                   URL.revokeObjectURL(url)
                 },
                 color: '#B45309',
@@ -1903,7 +1903,7 @@ export default function AdminHubPage() {
               <Icon.Heart />
             </div>
             <div>
-              <div className="sidebar-logo-text">InviteOS</div>
+              <div className="sidebar-logo-text">Goldleaf</div>
               <div className="sidebar-logo-badge">ADMIN</div>
             </div>
             <button

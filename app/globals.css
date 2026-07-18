@@ -374,6 +374,88 @@ html.invite-native-smooth {
 html.invite-native-smooth body {
   overscroll-behavior-y: none;
 }
+
+/* Landing page: Lenis desktop / native mobile */
+html.landing-native-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+html.landing-lenis {
+  scroll-behavior: auto;
+}
+
+.landing-root {
+  --font-sans: var(--font-invite-sans), 'Jost', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-invite-serif), 'Cormorant Garamond', ui-serif, Georgia, serif;
+  font-family: var(--font-sans);
+  color: var(--landing-ink, #1c1916);
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+.landing-root::before {
+  content: '';
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 90% 50% at 50% -8%,
+      color-mix(in srgb, var(--landing-gold-soft, #e8d5b0) 38%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      circle at 88% 18%,
+      color-mix(in srgb, var(--landing-gold, #c4a46a) 14%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 8% 72%,
+      color-mix(in srgb, var(--landing-champagne, #e6ddd0) 55%, transparent),
+      transparent 48%
+    );
+}
+
+.landing-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+.landing-root .font-sans {
+  font-family: var(--font-sans);
+}
+
+.landing-root .font-serif {
+  font-family: var(--font-serif);
+}
+
+.landing-link {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 1px;
+  transition: background-size 0.35s ease, color 0.25s ease;
+}
+
+.landing-link:hover {
+  background-size: 100% 1px;
+}
+
+.scrollbar-landing {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 169, 110, 0.45) transparent;
+}
+
+.scrollbar-landing::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-landing::-webkit-scrollbar-thumb {
+  background: rgba(201, 169, 110, 0.45);
+  border-radius: 999px;
+}
+
 .invite-root {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
@@ -522,20 +604,6 @@ html.invite-native-smooth body {
     .animate-glow-drift,
     .text-gilded {
       animation: none !important;
-    }
-  }
-
-  /* Touch devices: drop expensive scroll-time animations for smoother invites */
-  @media (hover: none) and (pointer: coarse) {
-    .invite-root .animate-ken-burns,
-    .invite-root .animate-float-soft,
-    .animate-spin-slow,
-    .text-gilded {
-      animation: none !important;
-    }
-    .animate-heart-fall,
-    .animate-heart-sway {
-      animation-duration: calc(var(--heart-duration, 15s) * 1.35);
     }
   }
 }
