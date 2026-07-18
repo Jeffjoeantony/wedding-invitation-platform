@@ -606,18 +606,4 @@ html.landing-lenis {
       animation: none !important;
     }
   }
-
-  /* Touch devices: drop expensive scroll-time animations for smoother invites */
-  @media (hover: none) and (pointer: coarse) {
-    .invite-root .animate-ken-burns,
-    .invite-root .animate-float-soft,
-    .animate-spin-slow,
-    .text-gilded {
-      animation: none !important;
-    }
-    .animate-heart-fall,
-    .animate-heart-sway {
-      animation-duration: calc(var(--heart-duration, 15s) * 1.35);
-    }
-  }
 }

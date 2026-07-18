@@ -41,8 +41,6 @@ const nextConfig = {
   },
 
   // ── Images ───────────────────────────────────────────────────────────────────
-  // Allowlist Supabase Storage for next/image. Invite photos prefer plain <img>
-  // (already compressed at upload), but local/static assets still use the optimiser.
   images: {
     unoptimized: false,
     formats: ['image/avif', 'image/webp'],
