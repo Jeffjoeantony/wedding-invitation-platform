@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/carousel'
 import type { MediaItem } from '@/lib/invite-media'
 import { Reveal } from './reveal'
-import { InviteImage } from './invite-image'
 
 export function PhotoCarousel({
   images,
@@ -51,16 +50,6 @@ export function PhotoCarousel({
   if (!images.length) return null
 
   const multi = images.length > 1
-
-  function slideDistance(index: number) {
-    if (!multi) return 0
-    const direct = Math.abs(index - current)
-    return Math.min(direct, images.length - direct)
-  }
-
-  function shouldLoadSlide(index: number) {
-    return slideDistance(index) <= 1
-  }
 
   return (
     <section className="invite-section relative overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
@@ -106,24 +95,17 @@ export function PhotoCarousel({
             }}
           >
             <CarouselContent className="-ml-0">
-              {images.map((img, index) => (
+              {images.map((img) => (
                 <CarouselItem key={img.id} className="basis-full pl-0">
                   <div className="relative aspect-[4/5] select-none overflow-hidden rounded-2xl border border-gold/20 shadow-[0_24px_60px_-36px_rgba(60,45,25,0.55)]">
-                    {shouldLoadSlide(index) ? (
-                      <InviteImage
-                        src={img.url}
-                        alt={img.caption || 'Gallery photo'}
-                        fill
-                        loading={index === 0 ? 'eager' : 'lazy'}
-                        sizes="(max-width: 540px) 100vw, 480px"
-                        className="pointer-events-none object-cover"
-                      />
-                    ) : (
-                      <div
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-gradient-to-br from-gold-soft/30 to-gold/10"
-                      />
-                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.url}
+                      alt={img.caption || 'Gallery photo'}
+                      className="pointer-events-none h-full w-full object-cover"
+                      loading="lazy"
+                      draggable={false}
+                    />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
                     {img.caption && (
                       <p className="pointer-events-none absolute inset-x-4 bottom-4 text-center font-serif text-sm italic text-white/95">
