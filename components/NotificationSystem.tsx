@@ -281,14 +281,14 @@ export default function NotificationSystem() {
     }
     const onChange = () => refresh()
 
-    window.addEventListener('inviteos_notification', onNew)
-    window.addEventListener('inviteos_notifications_changed', onChange)
+    window.addEventListener('goldleaf_notification', onNew)
+    window.addEventListener('goldleaf_notifications_changed', onChange)
     // Sync across tabs
     window.addEventListener('storage', refresh)
 
     return () => {
-      window.removeEventListener('inviteos_notification', onNew)
-      window.removeEventListener('inviteos_notifications_changed', onChange)
+      window.removeEventListener('goldleaf_notification', onNew)
+      window.removeEventListener('goldleaf_notifications_changed', onChange)
       window.removeEventListener('storage', refresh)
     }
   }, [refresh])
