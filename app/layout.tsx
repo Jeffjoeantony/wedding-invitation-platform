@@ -18,11 +18,11 @@ const jost = Jost({
 })
 
 export const metadata: Metadata = {
-  title: 'InviteFlow — Create Beautiful Digital Invitations in Minutes',
+  title: 'Goldleaf — Create Beautiful Digital Invitations in Minutes',
   description: 'Design, customize, manage RSVPs, share event links, and create memorable invitation experiences for any occasion. Weddings, birthdays, corporate events and more.',
-  keywords: 'digital invitations, online invitations, RSVP management, wedding invitation, event management, InviteFlow',
+  keywords: 'digital invitations, online invitations, RSVP management, wedding invitation, event management, Goldleaf',
   openGraph: {
-    title: 'InviteFlow — Create Beautiful Digital Invitations in Minutes',
+    title: 'Goldleaf — Create Beautiful Digital Invitations in Minutes',
     description: 'Create stunning digital invitations for any occasion. Manage RSVPs, track guests, and share with QR codes.',
     type: 'website',
   },

@@ -19,14 +19,19 @@ export interface AppNotification {
   projectId?: string
 }
 
-const STORAGE_KEY = 'inviteos_notifications'
+const STORAGE_KEY = 'goldleaf_notifications'
+const LEGACY_STORAGE_KEY = 'inviteos_notifications'
+const EVENT_NEW = 'goldleaf_notification'
+const EVENT_CHANGED = 'goldleaf_notifications_changed'
 const MAX_NOTIFICATIONS = 60
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
 export function getNotifications(): AppNotification[] {
   if (typeof window === 'undefined') return []
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY) ?? '[]'
+    return JSON.parse(raw)
   } catch {
     return []
   }
@@ -45,19 +50,19 @@ export function addNotification(
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
 
   // Broadcast so any open tab / component can react
-  window.dispatchEvent(new CustomEvent('inviteos_notification', { detail: newNotif }))
+  window.dispatchEvent(new CustomEvent(EVENT_NEW, { detail: newNotif }))
   return newNotif
 }
 
 export function markAllRead(): void {
   const updated = getNotifications().map((n) => ({ ...n, read: true }))
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  window.dispatchEvent(new CustomEvent('inviteos_notifications_changed'))
+  window.dispatchEvent(new CustomEvent(EVENT_CHANGED))
 }
 
 export function clearNotifications(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([]))
-  window.dispatchEvent(new CustomEvent('inviteos_notifications_changed'))
+  window.dispatchEvent(new CustomEvent(EVENT_CHANGED))
 }
 
 export function getUnreadCount(): number {
