@@ -1,9 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { optimizeInviteImageBuffer } from '@/lib/optimize-invite-image'
 import {
   ALLOWED_IMAGE_TYPES,
   INVITE_MEDIA_BUCKET,
   MAX_IMAGE_BYTES,
+  extFromMime,
   newMediaId,
   type MediaItem,
 } from '@/lib/invite-media'
@@ -115,12 +115,9 @@ export async function uploadInviteImage(opts: {
   }
 
   const id = newMediaId()
-  const raw = Buffer.from(await file.arrayBuffer())
-  const optimized = await optimizeInviteImageBuffer(raw, file.type)
-  const ext = optimized.ext
+  const ext = extFromMime(file.type)
   const path = `${folder}/${id}.${ext}`
-  const buffer = optimized.buffer
-  const contentType = optimized.contentType
+  const buffer = Buffer.from(await file.arrayBuffer())
   const supabase = createAdminClient()
 
   await ensureInviteMediaBucket()
@@ -128,18 +125,18 @@ export async function uploadInviteImage(opts: {
   let { error } = await supabase.storage
     .from(INVITE_MEDIA_BUCKET)
     .upload(path, buffer, {
-      contentType,
+      contentType: file.type,
       upsert: false,
-      cacheControl: '31536000',
+      cacheControl: '3600',
     })
 
   if (error?.message?.toLowerCase().includes('bucket not found')) {
     bucketReady = null
     await ensureInviteMediaBucket()
     ;({ error } = await supabase.storage.from(INVITE_MEDIA_BUCKET).upload(path, buffer, {
-      contentType,
+      contentType: file.type,
       upsert: false,
-      cacheControl: '31536000',
+      cacheControl: '3600',
     }))
   }
 

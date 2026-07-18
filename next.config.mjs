@@ -41,45 +41,8 @@ const nextConfig = {
   },
 
   // ── Images ───────────────────────────────────────────────────────────────────
-  // Allowlist Supabase Storage for next/image. Invite photos prefer plain <img>
-  // (already compressed at upload), but local/static assets still use the optimiser.
   images: {
-    unoptimized: false,
-    formats: ['image/avif', 'image/webp'],
-    deviceSizes: [384, 540, 640, 750, 828, 1080, 1200],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '*.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.supabase.co',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.supabase.in',
-        pathname: '/storage/v1/object/public/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '**.amazonaws.com',
-        pathname: '/**',
-      },
-      // Exact project host from env (build-time) — most reliable on Vercel
-      ...(process.env.NEXT_PUBLIC_SUPABASE_URL
-        ? [
-            {
-              protocol: 'https',
-              hostname: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname,
-              pathname: '/storage/v1/object/public/**',
-            },
-          ]
-        : []),
-    ],
+    unoptimized: false, // use Next.js built-in optimiser in production
   },
 
   // ── Compression / performance ─────────────────────────────────────────────────
