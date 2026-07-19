@@ -238,6 +238,32 @@ export function Hero({
         <motion.div
           className="relative z-[1] flex flex-col items-center"
           initial={{ opacity: 0, y: 12 }}
+        <div className="relative mb-3 flex h-16 w-16 items-center justify-center sm:mb-5">
+          <span
+            aria-hidden="true"
+            className="animate-spin-slow absolute inset-0 rounded-full border border-dashed border-gold/45"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-1.5 rounded-full border border-gold/25"
+          />
+          <span className="font-serif text-lg tracking-[0.12em] text-gilded">{monogram}</span>
+        </div>
+
+        <motion.p
+          className="font-sans text-[0.65rem] uppercase tracking-[0.42em] text-gold"
+          initial={{ opacity: 0, letterSpacing: '0.55em' }}
+          animate={{ opacity: 1, letterSpacing: '0.42em' }}
+          transition={{ delay: 0.25, duration: 1.1 }}
+        >
+          Cordially invites you
+        </motion.p>
+      </motion.div>
+
+      {showGreeting && config.heroGreeting ? (
+        <motion.p
+          className="relative z-[1] mt-3 font-serif text-2xl font-light italic text-foreground/80 sm:mt-5"
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
