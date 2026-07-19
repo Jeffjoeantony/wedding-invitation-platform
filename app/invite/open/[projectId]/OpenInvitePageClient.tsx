@@ -36,22 +36,17 @@ export default function OpenInvitePageClient() {
   if (error || !event) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4" style={{ background: theme.background }}>
-        <div
-          className="text-center max-w-sm p-10 rounded-3xl"
-          style={{
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            backdropFilter: 'blur(20px)',
-          }}
-        >
-          <div className="text-5xl mb-4">💌</div>
-          <h1 className="text-2xl font-serif italic text-white mb-3">Invitation Not Found</h1>
-          <p className="text-white/50 text-sm font-light mb-6">
+        <div className="max-w-sm rounded-3xl border border-black/10 bg-white/80 p-10 text-center shadow-sm backdrop-blur-xl">
+          <div className="mb-4 text-5xl" aria-hidden="true">
+            💌
+          </div>
+          <h1 className="mb-3 font-serif text-2xl italic text-neutral-900">Invitation Not Found</h1>
+          <p className="mb-6 text-sm font-light text-neutral-600">
             We couldn&apos;t find this invitation. Please check your link and try again.
           </p>
           <a
             href="/"
-            className="inline-block px-6 py-2.5 rounded-full text-sm text-white font-medium transition-all hover:scale-105"
+            className="inline-block rounded-full px-6 py-2.5 text-sm font-medium text-white transition-all hover:scale-105"
             style={{ background: theme.buttonGradient }}
           >
             Return Home
