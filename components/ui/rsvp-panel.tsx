@@ -159,9 +159,7 @@ export function RsvpPanel({ config }: { config: InvitationConfig }) {
           )}
         </h2>
         <p className="mx-auto mt-4 max-w-sm font-sans text-sm leading-relaxed text-muted-foreground">
-          {multi
-            ? 'You are invited to more than one celebration. Kindly respond below.'
-            : 'Kindly let us know by responding below. We would be honoured to celebrate with you.'}
+          Kindly let us know by responding below. We would be honoured to celebrate with you.
         </p>
       </RevealStagger>
 
