@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { InviteImage } from './invite-image'
 import { Sparkles } from './ornament'
 
 function HeroGreetingLine({ line }: { line: string }) {
@@ -300,10 +301,11 @@ export function Hero({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
           >
-            <img
+            <InviteImage
               src={config.images.hero || '/placeholder.svg'}
               alt={`${config.couple1} and ${config.couple2} together`}
               className="animate-ken-burns h-full w-full object-cover"
+              priority
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-gold-soft/10" />
             <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/15" />
