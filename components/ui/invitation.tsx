@@ -52,39 +52,41 @@ export function Invitation({
           className="pointer-events-none absolute inset-y-0 right-0 z-20 w-px bg-gradient-to-b from-transparent via-gold/35 to-transparent"
         />
 
-        <Hero config={config} showGreeting={!openInvite} />
+        <Hero config={config} showGreeting={!openInvite} inviteReady={ready} />
 
-        {!openInvite && (
-          <GuestMoments guestName={config.guestName} moments={config.guestMoments} />
-        )}
+        <div id="invite-details" className="scroll-mt-2">
+          {!openInvite && (
+            <GuestMoments guestName={config.guestName} moments={config.guestMoments} />
+          )}
 
-        {hasGallery ? (
-          <PhotoCarousel images={config.galleryImages} label="Gallery" />
-        ) : (
+          {hasGallery ? (
+            <PhotoCarousel images={config.galleryImages} label="Gallery" />
+          ) : (
+            <FullBleedPhoto
+              src={config.images.accent}
+              alt={`${config.couple1} and ${config.couple2} at golden hour`}
+            />
+          )}
+
+          <StoryBento config={config} />
+
           <FullBleedPhoto
-            src={config.images.accent}
-            alt={`${config.couple1} and ${config.couple2} at golden hour`}
+            src={config.images.portrait}
+            alt={`Portrait of ${config.couple1} and ${config.couple2}`}
+            caption={
+              config.eventTemplate === 'Engagement'
+                ? '\u201CTwo hearts, one promise.\u201D'
+                : '\u201CAnd so the adventure begins.\u201D'
+            }
+            grayscale
           />
-        )}
 
-        <StoryBento config={config} />
+          <Countdown dateISO={config.dateISO} label={config.countdownLabel} />
 
-        <FullBleedPhoto
-          src={config.images.portrait}
-          alt={`Portrait of ${config.couple1} and ${config.couple2}`}
-          caption={
-            config.eventTemplate === 'Engagement'
-              ? '\u201CTwo hearts, one promise.\u201D'
-              : '\u201CAnd so the adventure begins.\u201D'
-          }
-          grayscale
-        />
+          {!openInvite && <RsvpPanel config={config} />}
 
-        <Countdown dateISO={config.dateISO} label={config.countdownLabel} />
-
-        {!openInvite && <RsvpPanel config={config} />}
-
-        <Footer config={config} />
+          <Footer config={config} />
+        </div>
       </main>
     </SmoothScroll>
   )
