@@ -1,5 +1,6 @@
 'use client'
 
+import { useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { useMobileMotion } from './use-mobile-motion'
 
@@ -25,6 +26,7 @@ const tones: Record<Heart['tone'], string> = {
 export function Hearts({ count = 28 }: { count?: number }) {
   const [mounted, setMounted] = useState(false)
   const mobile = useMobileMotion()
+  const reduce = useReducedMotion()
   useEffect(() => setMounted(true), [])
 
   const hearts = useMemo<Heart[]>(() => {
@@ -48,7 +50,7 @@ export function Hearts({ count = 28 }: { count?: number }) {
     })
   }, [count, mobile])
 
-  if (!mounted) return null
+  if (!mounted || reduce) return null
 
   return (
     <div

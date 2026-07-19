@@ -1,7 +1,7 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Countdown } from './countdown'
 import { Footer } from './footer'
 import { FullBleedPhoto } from './full-bleed-photo'
@@ -29,13 +29,22 @@ export function Invitation({
   const onLoaderDone = useCallback(() => setReady(true), [])
   const hasGallery = config.galleryImages.length > 0
 
+  // Warm the hero image during the envelope loader so LCP isn't cold.
+  useEffect(() => {
+    const src = config.images.hero
+    if (!src || typeof window === 'undefined') return
+    const img = new window.Image()
+    img.decoding = 'async'
+    img.src = src
+  }, [config.images.hero])
+
   return (
     <SmoothScroll>
       <Loader onDone={onLoaderDone} />
       <AmbientGlow />
-      <Hearts count={mobile ? 8 : 24} />
+      <Hearts count={mobile ? 6 : 12} />
       <main
-        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        className={`invite-sheet relative z-10 mx-auto min-h-screen w-full max-w-[540px] overflow-x-clip transition-opacity duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           ready ? 'opacity-100' : 'opacity-0'
         }`}
       >

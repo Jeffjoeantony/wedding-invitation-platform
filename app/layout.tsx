@@ -5,14 +5,14 @@ import './globals.css'
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['300', '400', '600'],
   variable: '--font-invite-serif',
   display: 'swap',
 })
 
 const jost = Jost({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+  weight: ['300', '400', '500'],
   variable: '--font-invite-sans',
   display: 'swap',
 })

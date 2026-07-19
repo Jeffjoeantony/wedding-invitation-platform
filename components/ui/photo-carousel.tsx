@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Autoplay from 'embla-carousel-autoplay'
 import {
   Carousel,
@@ -11,6 +11,7 @@ import {
   type CarouselApi,
 } from '@/components/ui/carousel'
 import type { MediaItem } from '@/lib/invite-media'
+import { InviteImage } from './invite-image'
 import { Reveal } from './reveal'
 
 export function PhotoCarousel({
@@ -28,6 +29,8 @@ export function PhotoCarousel({
 }) {
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
+  const sectionRef = useRef<HTMLElement>(null)
+  const multi = images.length > 1
   const [autoplay] = useState(() =>
     Autoplay({
       delay: 4000,
@@ -47,12 +50,29 @@ export function PhotoCarousel({
     }
   }, [api])
 
+  // Pause autoplay while the gallery is off-screen to free the main thread.
+  useEffect(() => {
+    const node = sectionRef.current
+    if (!node || !multi) return
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) autoplay.play()
+        else autoplay.stop()
+      },
+      { rootMargin: '80px 0px', threshold: 0.05 },
+    )
+    io.observe(node)
+    return () => io.disconnect()
+  }, [autoplay, multi])
+
   if (!images.length) return null
 
-  const multi = images.length > 1
-
   return (
-    <section className="invite-section relative overflow-hidden px-4 py-14 sm:px-6 sm:py-20">
+    <section
+      ref={sectionRef}
+      className="invite-section relative overflow-hidden px-4 py-14 sm:px-6 sm:py-20"
+    >
       {!hideHeader && (
         <Reveal direction="up" className="text-center mb-8">
           {label && (
@@ -98,13 +118,10 @@ export function PhotoCarousel({
               {images.map((img) => (
                 <CarouselItem key={img.id} className="basis-full pl-0">
                   <div className="relative aspect-[4/5] select-none overflow-hidden rounded-2xl border border-gold/20 shadow-[0_24px_60px_-36px_rgba(60,45,25,0.55)]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    <InviteImage
                       src={img.url}
                       alt={img.caption || 'Gallery photo'}
                       className="pointer-events-none h-full w-full object-cover"
-                      loading="lazy"
-                      draggable={false}
                     />
                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
                     {img.caption && (
