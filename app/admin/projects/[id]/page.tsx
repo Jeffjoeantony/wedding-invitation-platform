@@ -12,6 +12,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Link2, Pencil, Trash2 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
 import { getDashboardTheme } from '@/lib/dashboardTheme'
@@ -1330,6 +1339,13 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
+  const [editGuest, setEditGuest] = useState<Guest | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editCategory, setEditCategory] = useState('Friends')
+  const [editPhoneError, setEditPhoneError] = useState('')
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const tabsListRef = useRef<HTMLDivElement>(null)
 
   // Keep the active navbar tab in view when switching on narrow screens
@@ -1549,6 +1565,55 @@ export default function ProjectDashboardPage() {
       setTimeout(() => setDeleteError(''), 4000)
     }
     setDeletingId(null)
+  }
+
+  const openEditGuest = (guest: Guest) => {
+    setEditGuest(guest)
+    setEditName(guest.name)
+    setEditPhone((guest.phone || '').replace(/\D/g, '').slice(0, 10))
+    setEditCategory(guest.guest_category || 'Other')
+    setEditPhoneError('')
+    setEditError('')
+  }
+
+  const saveEditGuest = async () => {
+    if (!editGuest) return
+    const name = editName.trim()
+    if (!name) {
+      setEditError('Guest name is required')
+      return
+    }
+    if (editPhone.length > 0 && editPhone.length < 10) {
+      setEditPhoneError('Phone number must be exactly 10 digits')
+      return
+    }
+
+    setSavingEdit(true)
+    setEditError('')
+    const res = await fetch(`/api/projects/${projectId}/guests`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editGuest.id,
+        name,
+        phone: editPhone,
+        guest_category: editCategory,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingEdit(false)
+
+    if (!res.ok) {
+      setEditError(data.error || 'Failed to update guest')
+      return
+    }
+
+    const updated: Guest = { ...editGuest, ...data, name, phone: editPhone || undefined, guest_category: editCategory }
+    setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
+    if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    if (inviteGuest?.id === editGuest.id) setInviteGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    setEditGuest(null)
   }
 
   const updateProject = async (updates: Partial<Project>) => {
@@ -2170,7 +2235,7 @@ export default function ProjectDashboardPage() {
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide text-right min-w-[200px]">Actions</TableHead>
+                        <TableHead className="min-w-[280px] text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2255,38 +2320,64 @@ export default function ProjectDashboardPage() {
                               </div>
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="text-right">
                             <div
-                              className="flex items-center justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity"
+                              className="ml-auto grid w-max grid-cols-[7.25rem_7.5rem_2rem_2rem] items-center justify-items-stretch gap-1.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
-                                variant="outline" size="sm"
-                                className="text-xs h-7 px-3 rounded-lg border-amber-200 text-amber-800 hover:bg-amber-50"
+                                variant="outline"
+                                size="sm"
+                                className={`h-8 w-full justify-center rounded-lg px-2 text-xs transition-all ${
+                                  copiedId === guest.id
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                    : theme.copyLinkBtn
+                                }`}
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    `${window.location.origin}/invite/${guest.unique_token}`,
+                                  )
+                                  setCopiedId(guest.id)
+                                  setTimeout(() => setCopiedId(null), 2000)
+                                }}
+                              >
+                                {copiedId === guest.id ? (
+                                  '✓ Copied!'
+                                ) : (
+                                  <span className="inline-flex items-center gap-1">
+                                    <Link2 className="h-3.5 w-3.5 shrink-0" />
+                                    Copy
+                                  </span>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
                                 onClick={() => setMomentsGuest(guest)}
                               >
                                 Moments{momentCount > 0 ? ` (${momentCount})` : ''}
                               </Button>
                               <Button
-                                variant="outline" size="sm"
-                                className={`text-xs h-7 px-3 rounded-lg transition-all ${
-                                  copiedId === guest.id ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : theme.copyLinkBtn
-                                }`}
-                                onClick={() => {
-                                  navigator.clipboard.writeText(`${window.location.origin}/invite/${guest.unique_token}`)
-                                  setCopiedId(guest.id)
-                                  setTimeout(() => setCopiedId(null), 2000)
-                                }}
+                                variant="outline"
+                                size="sm"
+                                aria-label={`Edit ${guest.name}`}
+                                title="Edit guest"
+                                className="h-8 w-8 justify-self-center rounded-lg border-gray-200 p-0 text-gray-600 hover:bg-gray-50"
+                                onClick={() => openEditGuest(guest)}
                               >
-                                {copiedId === guest.id ? '✓ Copied!' : 'Copy Link'}
+                                <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               <Button
-                                variant="ghost" size="sm"
-                                className="text-xs h-7 px-3 text-red-400 hover:text-red-700 hover:bg-red-50 rounded-lg"
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Delete ${guest.name}`}
+                                title="Delete guest"
+                                className="h-8 w-8 justify-self-center rounded-lg p-0 text-red-400 hover:bg-red-50 hover:text-red-700"
                                 disabled={deletingId === guest.id}
                                 onClick={() => deleteGuest(guest.id, guest.name)}
                               >
-                                {deletingId === guest.id ? 'Deleting…' : 'Delete'}
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>
@@ -2690,6 +2781,115 @@ export default function ProjectDashboardPage() {
           if (lastAddedGuest?.id === momentsGuest.id) setLastAddedMoments(moments)
         }}
       />
+
+      <Dialog
+        open={!!editGuest}
+        onOpenChange={(open) => {
+          if (!open && !savingEdit) setEditGuest(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Guest</DialogTitle>
+            <DialogDescription>
+              Update name, phone, or category. The invite link stays the same.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div>
+              <Label htmlFor="edit-name">Guest Name *</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Full name"
+                className="mt-2 rounded-xl"
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-phone">Phone</Label>
+              <Input
+                id="edit-phone"
+                type="tel"
+                value={editPhone}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setEditPhone(digits)
+                  setEditPhoneError(
+                    digits.length > 0 && digits.length < 10
+                      ? 'Phone number must be exactly 10 digits'
+                      : '',
+                  )
+                }}
+                placeholder="10-digit number"
+                maxLength={10}
+                inputMode="numeric"
+                className={`mt-2 rounded-xl font-mono ${
+                  editPhoneError ? 'border-red-400 focus-visible:ring-red-300' : ''
+                }`}
+              />
+              {editPhoneError && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <span>⚠</span> {editPhoneError}
+                </p>
+              )}
+              {editPhone.length === 10 && !editPhoneError && (
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                  <span>✓</span> Valid number
+                </p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="edit-category">Category</Label>
+              <Select value={editCategory} onValueChange={setEditCategory}>
+                <SelectTrigger id="edit-category" className="mt-2 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['Family', 'Friends', 'Bride Side', 'Groom Side', 'Neighbours', 'Office', 'Other'].map(
+                    (c) => (
+                      <SelectItem key={c} value={c}>
+                        {c}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {editError && (
+              <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
+                <span className="shrink-0 mt-0.5">⚠</span>
+                <span>{editError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={savingEdit}
+              onClick={() => setEditGuest(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className={`rounded-xl ${theme.primaryBtn}`}
+              disabled={
+                savingEdit ||
+                !editName.trim() ||
+                !!editPhoneError ||
+                (editPhone.length > 0 && editPhone.length < 10)
+              }
+              onClick={saveEditGuest}
+            >
+              {savingEdit ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {project ? (
         <GuestInvitePanel
