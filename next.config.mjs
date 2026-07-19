@@ -112,6 +112,8 @@ const nextConfig = {
       '@radix-ui/react-toast',
       '@radix-ui/react-tooltip',
       'lucide-react',
+      'framer-motion',
+      'lenis',
     ],
   },
 
