@@ -13,6 +13,7 @@ import {
   type ProjectEvent,
   type RsvpByEvent,
 } from '@/lib/project-events'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 
 type GuestLike = {
@@ -67,6 +68,12 @@ export function GuestInvitePanel({
   const [hideGreeting, setHideGreeting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Keep guest visible during close animation after parent clears inviteGuest
+  const [panelGuest, setPanelGuest] = useState(guest)
+
+  useEffect(() => {
+    if (guest) setPanelGuest(guest)
+  }, [guest])
 
   useEffect(() => {
     if (!guest) return
@@ -80,8 +87,6 @@ export function GuestInvitePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guest?.id, primaryId, extraEventIds.join('|')])
 
-  if (!open || !guest) return null
-
   function toggleExtra(eventId: string) {
     if (eventId === primaryId) return
     setExtras((prev) => {
@@ -91,7 +96,7 @@ export function GuestInvitePanel({
   }
 
   async function save() {
-    if (!guest) return
+    if (!panelGuest) return
     setSaving(true)
     setError(null)
     try {
@@ -101,7 +106,7 @@ export function GuestInvitePanel({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: guest.id,
+          id: panelGuest.id,
           invited_to,
           rsvp_by_event: rsvpByEvent,
           rsvp_headline: rsvpHeadline.trim() || null,
@@ -112,16 +117,16 @@ export function GuestInvitePanel({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Failed to save')
       onSaved({
-        ...guest,
+        ...panelGuest,
         ...data,
-        id: guest.id,
+        id: panelGuest.id,
         invited_to: Array.isArray(data.invited_to) ? data.invited_to : invited_to,
         rsvp_by_event:
           data.rsvp_by_event && typeof data.rsvp_by_event === 'object'
             ? data.rsvp_by_event
             : rsvpByEvent,
-        rsvp_status: data.rsvp_status ?? guest.rsvp_status,
-        pax_count: typeof data.pax_count === 'number' ? data.pax_count : guest.pax_count,
+        rsvp_status: data.rsvp_status ?? panelGuest.rsvp_status,
+        pax_count: typeof data.pax_count === 'number' ? data.pax_count : panelGuest.pax_count,
         rsvp_headline: data.rsvp_headline ?? (rsvpHeadline.trim() || null),
         greeting_line: data.greeting_line ?? (hideGreeting ? null : greetingLine.trim() || null),
         hide_greeting: data.hide_greeting ?? hideGreeting,
@@ -134,17 +139,38 @@ export function GuestInvitePanel({
     }
   }
 
-  const effective = effectiveInvitedTo(project, extras)
-  const defaultGreeting = guest.name?.trim() ? `Dear ${guest.name.trim()}` : 'Dear Guest'
+  const effective = panelGuest ? effectiveInvitedTo(project, extras) : []
+  const defaultGreeting = panelGuest?.name?.trim()
+    ? `Dear ${panelGuest.name.trim()}`
+    : 'Dear Guest'
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-[1px]">
-      <button type="button" className="flex-1 cursor-default" aria-label="Close" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+    <AnimatePresence>
+      {open && panelGuest ? (
+        <>
+          <motion.button
+            key="guest-invite-backdrop"
+            type="button"
+            className="fixed inset-0 z-50 cursor-default bg-black/30 backdrop-blur-[1px]"
+            aria-label="Close"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            onClick={onClose}
+          />
+          <motion.aside
+            key="guest-invite-sheet"
+            className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col bg-white shadow-2xl"
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 32, stiffness: 340, mass: 0.85 }}
+          >
         <div className="border-b border-gray-100 px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Guest</p>
-          <h3 className="mt-1 text-lg font-semibold text-gray-900">{guest.name}</h3>
-          {guest.phone ? <p className="text-sm text-gray-500 font-mono">{guest.phone}</p> : null}
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">{panelGuest.name}</h3>
+          {panelGuest.phone ? <p className="text-sm text-gray-500 font-mono">{panelGuest.phone}</p> : null}
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
@@ -273,7 +299,7 @@ export function GuestInvitePanel({
                             ...prev,
                             [ev.id]: {
                               status: next,
-                              pax: next === 'yes' ? prev[ev.id]?.pax || guest.pax_count || 1 : 0,
+                              pax: next === 'yes' ? prev[ev.id]?.pax || panelGuest.pax_count || 1 : 0,
                             },
                           }))
                         }}
@@ -304,7 +330,9 @@ export function GuestInvitePanel({
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </div>
-      </aside>
-    </div>
+          </motion.aside>
+        </>
+      ) : null}
+    </AnimatePresence>
   )
 }

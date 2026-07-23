@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import { getGuestMomentsCounts } from '@/lib/invite-media-server'
+import { normalizeGuestPhoneForStorage } from '@/lib/guest-phone'
 import {
   parseInvitedTo,
   parseRsvpByEvent,
@@ -150,7 +151,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const name = String(body.name ?? '').trim().slice(0, 200)
     if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
-    const phone = body.phone ? String(body.phone).trim().slice(0, 30) : null
+    const phoneNorm = normalizeGuestPhoneForStorage(body.phone)
+    if (phoneNorm.error) {
+      return NextResponse.json({ error: phoneNorm.error }, { status: 400 })
+    }
+    const phone = phoneNorm.phone
     const email = body.email ? String(body.email).trim().slice(0, 200) : null
     const guest_category = String(body.guest_category || 'Other').trim().slice(0, 100)
 
@@ -294,7 +299,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const updates: Record<string, unknown> = {}
 
     if (typeof body.name === 'string') updates.name = body.name.trim().slice(0, 200)
-    if (typeof body.phone === 'string') updates.phone = body.phone.trim().slice(0, 30) || null
+    if (typeof body.phone === 'string' || body.phone === null) {
+      const phoneNorm = normalizeGuestPhoneForStorage(body.phone)
+      if (phoneNorm.error) {
+        return NextResponse.json({ error: phoneNorm.error }, { status: 400 })
+      }
+      updates.phone = phoneNorm.phone
+    }
     if (typeof body.email === 'string') updates.email = body.email.trim().slice(0, 200) || null
     if (typeof body.guest_category === 'string') {
       updates.guest_category = body.guest_category.trim().slice(0, 100)

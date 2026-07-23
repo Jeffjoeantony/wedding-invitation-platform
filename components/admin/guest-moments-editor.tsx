@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { MediaUploader } from '@/components/admin/media-uploader'
-import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   MAX_GUEST_MOMENTS,
   parseMediaList,
@@ -31,9 +37,14 @@ export function GuestMomentsEditor({
   const [moments, setMoments] = useState<MediaItem[]>(() => parseMediaList(initialMoments))
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  // Keep labels visible while the dialog exit animation runs
+  const [panelGuestId, setPanelGuestId] = useState(guestId)
+  const [panelGuestName, setPanelGuestName] = useState(guestName)
 
   useEffect(() => {
     if (!open || !guestId) return
+    setPanelGuestId(guestId)
+    setPanelGuestName(guestName)
     setMoments(parseMediaList(initialMoments))
     setError('')
     // Always load from storage so counts stay accurate without DB columns
@@ -48,40 +59,38 @@ export function GuestMomentsEditor({
   }, [open, guestId, projectId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/projects/${projectId}/guests/${guestId}/moments`)
+    const id = panelGuestId || guestId
+    if (!id) return
+    const res = await fetch(`/api/projects/${projectId}/guests/${id}/moments`)
     if (!res.ok) return
     const data = await res.json()
     const next = parseMediaList(data.moments)
     setMoments(next)
     onUpdated?.(next)
-  }, [projectId, guestId, onUpdated])
+  }, [projectId, guestId, panelGuestId, onUpdated])
 
-  if (!open) return null
+  const activeGuestId = panelGuestId || guestId
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <button
-        type="button"
-        aria-label="Close"
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
-      />
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-xl p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Moments with you</p>
-            <h3 className="text-lg font-semibold text-gray-900 mt-0.5">{guestName}</h3>
-            <p className="text-xs text-gray-400 mt-1">
-              Up to {MAX_GUEST_MOMENTS} favourite photos — shown only on their personal invite link.
-            </p>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} className="rounded-lg">
-            Close
-          </Button>
-        </div>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && !uploading) onClose()
+      }}
+    >
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogHeader>
+          <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold">
+            Moments with you
+          </p>
+          <DialogTitle className="mt-0.5">{panelGuestName || guestName}</DialogTitle>
+          <DialogDescription>
+            Up to {MAX_GUEST_MOMENTS} favourite photos — shown only on their personal invite link.
+          </DialogDescription>
+        </DialogHeader>
 
         {error && (
-          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -93,6 +102,7 @@ export function GuestMomentsEditor({
           max={MAX_GUEST_MOMENTS}
           uploading={uploading}
           onUpload={async (files) => {
+            if (!activeGuestId) return
             setUploading(true)
             setError('')
             try {
@@ -100,7 +110,7 @@ export function GuestMomentsEditor({
                 const form = new FormData()
                 form.append('file', file)
                 const res = await fetch(
-                  `/api/projects/${projectId}/guests/${guestId}/moments`,
+                  `/api/projects/${projectId}/guests/${activeGuestId}/moments`,
                   { method: 'POST', body: form },
                 )
                 const data = await res.json().catch(() => ({}))
@@ -116,9 +126,10 @@ export function GuestMomentsEditor({
             }
           }}
           onRemove={async (imageId) => {
+            if (!activeGuestId) return
             setError('')
             const res = await fetch(
-              `/api/projects/${projectId}/guests/${guestId}/moments?imageId=${encodeURIComponent(imageId)}`,
+              `/api/projects/${projectId}/guests/${activeGuestId}/moments?imageId=${encodeURIComponent(imageId)}`,
               { method: 'DELETE' },
             )
             const data = await res.json().catch(() => ({}))
@@ -131,7 +142,7 @@ export function GuestMomentsEditor({
             onUpdated?.(next)
           }}
         />
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

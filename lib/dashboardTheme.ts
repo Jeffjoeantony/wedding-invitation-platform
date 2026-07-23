@@ -24,7 +24,7 @@ export interface DashboardTheme {
 }
 
 const glassCard =
-  'bg-white/55 backdrop-blur-xl border border-white/70 shadow-[0_8px_32px_rgba(31,41,55,0.08)] rounded-2xl'
+  'bg-white/35 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_rgba(31,41,55,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] rounded-2xl'
 
 const defaultTheme: DashboardTheme = {
   pageBg:

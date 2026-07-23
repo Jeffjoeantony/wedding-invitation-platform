@@ -1,5 +1,7 @@
 import {
   AsYouType,
+  getCountries,
+  getCountryCallingCode,
   parsePhoneNumberFromString,
   type CountryCode,
 } from 'libphonenumber-js'
@@ -14,25 +16,72 @@ export type ParsedGuestPhone = {
   error?: string
 }
 
-/** Countries shown in the guest phone country selector (IN default). */
-export const GUEST_PHONE_COUNTRIES: Array<{
+export type GuestPhoneCountryOption = {
   code: GuestPhoneCountry
   dial: string
   label: string
-}> = [
-  { code: 'IN', dial: '+91', label: 'India' },
-  { code: 'ES', dial: '+34', label: 'Spain' },
-  { code: 'AE', dial: '+971', label: 'UAE' },
-  { code: 'US', dial: '+1', label: 'USA' },
-  { code: 'GB', dial: '+44', label: 'UK' },
-  { code: 'AU', dial: '+61', label: 'Australia' },
-  { code: 'SG', dial: '+65', label: 'Singapore' },
-  { code: 'CA', dial: '+1', label: 'Canada' },
-  { code: 'DE', dial: '+49', label: 'Germany' },
-  { code: 'FR', dial: '+33', label: 'France' },
+}
+
+/** Prefer these near the top of the country selector. */
+const PINNED_COUNTRIES: GuestPhoneCountry[] = [
+  'IN',
+  'ES',
+  'AE',
+  'US',
+  'GB',
+  'AU',
+  'SG',
+  'CA',
+  'DE',
+  'FR',
 ]
 
+function countryDisplayName(code: GuestPhoneCountry): string {
+  try {
+    const name = new Intl.DisplayNames(['en'], { type: 'region' }).of(code)
+    return name || code
+  } catch {
+    return code
+  }
+}
+
+function buildGuestPhoneCountries(): GuestPhoneCountryOption[] {
+  const all = getCountries().map((code) => ({
+    code,
+    dial: `+${getCountryCallingCode(code)}`,
+    label: countryDisplayName(code),
+  }))
+
+  const pinnedSet = new Set(PINNED_COUNTRIES)
+  const pinned = PINNED_COUNTRIES.map(
+    (code) => all.find((c) => c.code === code)!,
+  ).filter(Boolean)
+  const rest = all
+    .filter((c) => !pinnedSet.has(c.code))
+    .sort((a, b) => a.label.localeCompare(b.label))
+
+  return [...pinned, ...rest]
+}
+
+/** All libphonenumber countries (pinned commons first, then A–Z). */
+export const GUEST_PHONE_COUNTRIES: GuestPhoneCountryOption[] =
+  buildGuestPhoneCountries()
+
 export const DEFAULT_GUEST_PHONE_COUNTRY: GuestPhoneCountry = 'IN'
+
+/**
+ * National number for the input field — no trunk prefix (India's leading 0).
+ * Uses nationalNumber + AsYouType so paste of +91 94473… shows 94473 90669.
+ */
+export function formatNationalForInput(
+  phone: { nationalNumber: string; country?: string } | null | undefined,
+  fallbackCountry: GuestPhoneCountry = DEFAULT_GUEST_PHONE_COUNTRY,
+): string {
+  if (!phone?.nationalNumber) return ''
+  const country = (phone.country as GuestPhoneCountry) || fallbackCountry
+  const formatter = new AsYouType(country)
+  return formatter.input(phone.nationalNumber)
+}
 
 /**
  * Parse a pasted or typed phone into E.164.
@@ -52,7 +101,7 @@ export function parseGuestPhone(
     return {
       e164: parsed.format('E.164'),
       country: (parsed.country || defaultCountry) as GuestPhoneCountry,
-      national: parsed.formatNational(),
+      national: formatNationalForInput(parsed, defaultCountry),
       valid: true,
     }
   }

@@ -1,20 +1,25 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { parsePhoneNumberFromString } from 'libphonenumber-js'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   DEFAULT_GUEST_PHONE_COUNTRY,
   GUEST_PHONE_COUNTRIES,
   formatNationalAsYouType,
+  formatNationalForInput,
   legacyPhoneToE164,
   type GuestPhoneCountry,
 } from '@/lib/guest-phone'
@@ -42,7 +47,7 @@ function countryFromE164(e164: string | null | undefined): GuestPhoneCountry {
 function nationalFromE164(e164: string | null | undefined): string {
   if (!e164) return ''
   const parsed = parsePhoneNumberFromString(e164)
-  return parsed ? parsed.formatNational() : ''
+  return parsed ? formatNationalForInput(parsed) : ''
 }
 
 function tryParse(
@@ -56,8 +61,30 @@ function tryParse(
   return {
     e164: p.format('E.164'),
     country: (p.country as GuestPhoneCountry) || country,
-    national: p.formatNational(),
+    national: formatNationalForInput(p, country),
   }
+}
+
+/** Normalize search so "+968", "968", "oman" all work. */
+function normalizeCountryQuery(q: string): string {
+  return q.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function countryMatchesQuery(
+  dial: string,
+  code: string,
+  label: string,
+  query: string,
+): boolean {
+  const q = normalizeCountryQuery(query)
+  if (!q) return true
+  const dialDigits = dial.replace(/\D/g, '')
+  const qDigits = q.replace(/\D/g, '')
+  const hay = `${dial} ${dialDigits} ${code} ${label}`.toLowerCase()
+  if (hay.includes(q)) return true
+  if (qDigits && (dialDigits.startsWith(qDigits) || dialDigits.includes(qDigits))) return true
+  if (q.startsWith('+') && dial.startsWith(q)) return true
+  return false
 }
 
 /**
@@ -83,7 +110,12 @@ export function GuestPhoneInput({
     nationalFromE164(legacyPhoneToE164(value) || value),
   )
   const [touched, setTouched] = useState(false)
+  const [countryOpen, setCountryOpen] = useState(false)
+  const [countryQuery, setCountryQuery] = useState('')
   const lastEmitted = useRef(value)
+
+  const onValidityChangeRef = useRef(onValidityChange)
+  onValidityChangeRef.current = onValidityChange
 
   // Sync from parent when value changes externally (edit dialog open / reset)
   useEffect(() => {
@@ -92,15 +124,23 @@ export function GuestPhoneInput({
     if (!value) {
       setNational('')
       setCountry(defaultCountry)
-      onValidityChange?.(true)
+      onValidityChangeRef.current?.(true)
       return
     }
     const e164 = legacyPhoneToE164(value) || (value.startsWith('+') ? value : '')
     if (!e164) return
     setCountry(countryFromE164(e164))
     setNational(nationalFromE164(e164))
-    onValidityChange?.(true)
-  }, [value, defaultCountry, onValidityChange])
+    onValidityChangeRef.current?.(true)
+  }, [value, defaultCountry])
+
+  const filteredCountries = useMemo(() => {
+    return GUEST_PHONE_COUNTRIES.filter((c) =>
+      countryMatchesQuery(c.dial, c.code, c.label, countryQuery),
+    )
+  }, [countryQuery])
+
+  const selectedCountry = GUEST_PHONE_COUNTRIES.find((c) => c.code === country)
 
   const report = (nextCountry: GuestPhoneCountry, nextNational: string) => {
     const cleaned = nextNational.trim()
@@ -124,7 +164,7 @@ export function GuestPhoneInput({
     const p = parsePhoneNumberFromString(raw, country)
     if (!p?.isValid()) return false
     const nextCountry = (p.country as GuestPhoneCountry) || country
-    const nextNational = p.formatNational()
+    const nextNational = formatNationalForInput(p, nextCountry)
     const e164 = p.format('E.164')
     setCountry(nextCountry)
     setNational(nextNational)
@@ -156,6 +196,8 @@ export function GuestPhoneInput({
     const next = code as GuestPhoneCountry
     setCountry(next)
     setTouched(true)
+    setCountryOpen(false)
+    setCountryQuery('')
     if (!national.trim()) {
       lastEmitted.current = ''
       onChange('')
@@ -170,7 +212,7 @@ export function GuestPhoneInput({
   const isComplete = !national.trim() || Boolean(tryParse(national, country))
   const showError =
     Boolean(externalError) || (touched && national.trim().length > 0 && !isComplete)
-  const dial = GUEST_PHONE_COUNTRIES.find((c) => c.code === country)?.dial || country
+  const dial = selectedCountry?.dial || country
   const errorMessage =
     externalError || (showError ? `Enter a valid phone number for ${dial}` : '')
 
@@ -178,21 +220,62 @@ export function GuestPhoneInput({
     <div className={cn(className)}>
       {label ? <Label htmlFor={fieldId}>{label}</Label> : null}
       <div className={cn('flex gap-2', label ? 'mt-2' : '')}>
-        <Select value={country} onValueChange={handleCountryChange}>
-          <SelectTrigger
-            aria-label="Country code"
-            className="w-[7.5rem] shrink-0 rounded-xl font-mono text-sm"
+        <Popover
+          open={countryOpen}
+          onOpenChange={(open) => {
+            setCountryOpen(open)
+            if (!open) setCountryQuery('')
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={countryOpen}
+              aria-label="Country code"
+              className="h-9 w-[9.5rem] shrink-0 justify-between rounded-xl px-3 font-mono text-sm font-normal"
+            >
+              <span className="truncate">{selectedCountry?.dial ?? '+91'}</span>
+              <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[min(100vw-2rem,20rem)] p-0"
+            align="start"
+            sideOffset={4}
           >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {GUEST_PHONE_COUNTRIES.map((c) => (
-              <SelectItem key={c.code} value={c.code} className="font-mono text-sm">
-                {c.dial} {c.code}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder="Search +968 or Oman…"
+                value={countryQuery}
+                onValueChange={setCountryQuery}
+              />
+              <CommandList className="max-h-72">
+                <CommandEmpty>No country found.</CommandEmpty>
+                <CommandGroup>
+                  {filteredCountries.map((c) => (
+                    <CommandItem
+                      key={c.code}
+                      value={`${c.dial} ${c.code} ${c.label}`}
+                      onSelect={() => handleCountryChange(c.code)}
+                      className="gap-2"
+                    >
+                      <Check
+                        className={cn(
+                          'h-3.5 w-3.5 shrink-0',
+                          country === c.code ? 'opacity-100' : 'opacity-0',
+                        )}
+                      />
+                      <span className="font-mono tabular-nums text-sm">{c.dial}</span>
+                      <span className="truncate text-sm text-muted-foreground">{c.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
         <Input
           id={fieldId}
           type="tel"
