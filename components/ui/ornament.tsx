@@ -1,6 +1,7 @@
 'use client'
 
 import { motion, useReducedMotion } from 'framer-motion'
+import { useMobileMotion } from './use-mobile-motion'
 
 /** Decorative gold flourish used between section titles and content. */
 export function Ornament({ className = '' }: { className?: string }) {
@@ -33,9 +34,11 @@ export function Ornament({ className = '' }: { className?: string }) {
 /** Soft floating sparkles for atmospheric depth. */
 export function Sparkles({ count = 10 }: { count?: number }) {
   const reduce = useReducedMotion()
+  const mobile = useMobileMotion()
   if (reduce) return null
 
-  const dots = Array.from({ length: count }).map((_, i) => {
+  const resolvedCount = mobile ? Math.min(count, 4) : count
+  const dots = Array.from({ length: resolvedCount }).map((_, i) => {
     const r = (n: number) => {
       const x = Math.sin((i + 1) * n) * 10000
       return x - Math.floor(x)
@@ -74,31 +77,38 @@ export function Sparkles({ count = 10 }: { count?: number }) {
 
 /** Soft drifting gold glows behind the invitation column. */
 export function AmbientGlow() {
+  const reduce = useReducedMotion()
+  const mobile = useMobileMotion()
+  // Mobile / reduced-motion: static soft wash (no blur animation / fewer layers).
+  const drift = !reduce && !mobile ? 'animate-glow-drift' : ''
+
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div
-        className="animate-glow-drift absolute -left-[15%] top-[8%] h-[34vh] w-[34vh] rounded-full opacity-55 blur-2xl sm:h-[42vh] sm:w-[42vh] sm:opacity-70 sm:blur-3xl"
+        className={`${drift} absolute -left-[15%] top-[8%] h-[34vh] w-[34vh] rounded-full opacity-55 blur-xl sm:h-[42vh] sm:w-[42vh] sm:opacity-70 sm:blur-3xl`}
         style={{
           background:
             'radial-gradient(circle, color-mix(in oklab, var(--gold-soft) 55%, transparent), transparent 70%)',
         }}
       />
       <div
-        className="animate-glow-drift absolute -right-[18%] top-[38%] h-[36vh] w-[36vh] rounded-full opacity-45 blur-2xl sm:h-[48vh] sm:w-[48vh] sm:opacity-60 sm:blur-3xl"
+        className={`${drift} absolute -right-[18%] top-[38%] h-[36vh] w-[36vh] rounded-full opacity-45 blur-xl sm:h-[48vh] sm:w-[48vh] sm:opacity-60 sm:blur-3xl`}
         style={{
           background:
             'radial-gradient(circle, color-mix(in oklab, var(--gold) 35%, transparent), transparent 72%)',
-          animationDelay: '-5s',
+          animationDelay: mobile || reduce ? undefined : '-5s',
         }}
       />
-      <div
-        className="animate-glow-drift absolute bottom-[5%] left-[20%] h-[28vh] w-[28vh] rounded-full opacity-40 blur-2xl sm:h-[36vh] sm:w-[36vh] sm:opacity-50 sm:blur-3xl"
-        style={{
-          background:
-            'radial-gradient(circle, color-mix(in oklab, var(--gold-soft) 40%, white), transparent 70%)',
-          animationDelay: '-9s',
-        }}
-      />
+      {!mobile && !reduce ? (
+        <div
+          className="animate-glow-drift absolute bottom-[5%] left-[20%] h-[28vh] w-[28vh] rounded-full opacity-40 blur-2xl sm:h-[36vh] sm:w-[36vh] sm:opacity-50 sm:blur-3xl"
+          style={{
+            background:
+              'radial-gradient(circle, color-mix(in oklab, var(--gold-soft) 40%, white), transparent 70%)',
+            animationDelay: '-9s',
+          }}
+        />
+      ) : null}
     </div>
   )
 }

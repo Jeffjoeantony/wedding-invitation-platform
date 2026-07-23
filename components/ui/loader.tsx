@@ -4,6 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useMobileMotion } from './use-mobile-motion'
 
+const LOADER_SEEN_KEY = 'goldleaf-invite-loader-seen'
+
 // Elegant opening-envelope loader that transitions into the hero.
 export function Loader({ onDone }: { onDone: () => void }) {
   const reduce = useReducedMotion()
@@ -18,17 +20,30 @@ export function Loader({ onDone }: { onDone: () => void }) {
     const finish = () => {
       if (doneRef.current) return
       doneRef.current = true
+      try {
+        sessionStorage.setItem(LOADER_SEEN_KEY, '1')
+      } catch {
+        /* private mode */
+      }
       setHidden(true)
       onDoneRef.current()
     }
 
-    if (reduce) {
-      const t = setTimeout(finish, 400)
+    // Skip the long intro on return visits within the same tab session.
+    let seen = false
+    try {
+      seen = sessionStorage.getItem(LOADER_SEEN_KEY) === '1'
+    } catch {
+      seen = false
+    }
+
+    if (reduce || seen) {
+      const t = setTimeout(finish, reduce ? 280 : 180)
       return () => clearTimeout(t)
     }
 
-    const t1 = setTimeout(() => setOpen(true), mobile ? 450 : 900)
-    const t2 = setTimeout(finish, mobile ? 1200 : 2600)
+    const t1 = setTimeout(() => setOpen(true), mobile ? 380 : 650)
+    const t2 = setTimeout(finish, mobile ? 980 : 1600)
     return () => {
       clearTimeout(t1)
       clearTimeout(t2)
@@ -42,7 +57,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(ellipse_at_center,color-mix(in_oklab,var(--gold-soft)_28%,var(--background)),var(--background))]"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
           style={{ pointerEvents: 'none' }}
         >
           <div
@@ -57,7 +72,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
             <motion.div
               initial={{ scale: 0.88, opacity: 0, y: 12 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
               className="relative h-28 w-40"
               style={{ perspective: 800 }}
             >
@@ -66,7 +81,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
                 className="absolute inset-x-3 bottom-2 top-3 rounded-sm border border-gold/30 bg-[color-mix(in_oklab,var(--gold-soft)_18%,white)]"
                 initial={{ y: 0 }}
                 animate={open ? { y: -26, opacity: 1 } : { y: 0 }}
-                transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div className="flex h-full flex-col items-center justify-center gap-1">
                   <span className="font-serif text-2xl leading-none text-foreground">R &amp; A</span>
@@ -78,7 +93,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
                 style={{ transformStyle: 'preserve-3d' }}
                 initial={{ rotateX: 0 }}
                 animate={open ? { rotateX: 180 } : { rotateX: 0 }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
               >
                 <div
                   className="h-full w-full border border-gold/50 bg-card"
@@ -90,7 +105,7 @@ export function Loader({ onDone }: { onDone: () => void }) {
               className="font-sans text-[0.65rem] uppercase tracking-[0.4em] text-gold"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.8 }}
+              transition={{ delay: 0.3, duration: 0.65 }}
             >
               Cordially invites you
             </motion.span>
