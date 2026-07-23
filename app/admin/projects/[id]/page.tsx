@@ -25,6 +25,8 @@ import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
+import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
+import { legacyPhoneToE164, toWhatsAppDigits } from '@/lib/guest-phone'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
@@ -294,18 +296,14 @@ Looking forward to seeing you! 😊`
     const enc = encodeURIComponent(msg)
     if (channel === 'whatsapp') {
       // Use api.whatsapp.com (not wa.me) — wa.me redirects corrupt 4-byte emoji to �
-      const digits = (guest.phone || '').replace(/\D/g, '')
-      const phone = digits
-        ? digits.startsWith('91')
-          ? digits
-          : `91${digits}`
-        : ''
+      // E.164 / legacy phones → international digits (no forced +91)
+      const phone = toWhatsAppDigits(guest.phone)
       const url = phone
         ? `https://api.whatsapp.com/send?phone=${phone}&text=${enc}`
         : `https://api.whatsapp.com/send?text=${enc}`
       window.open(url, '_blank', 'noopener,noreferrer')
     } else if (channel === 'sms') {
-      window.open(`sms:${(guest.phone || '').replace(/\D/g, '')}?&body=${enc}`, '_blank')
+      window.open(`sms:${toWhatsAppDigits(guest.phone)}?&body=${enc}`, '_blank')
     } else {
       const sub = encodeURIComponent(`You're invited to our ${project?.event_template ?? 'Wedding'}!`)
       window.open(`mailto:${guest.email || ''}?subject=${sub}&body=${enc}`, '_blank')
@@ -1317,6 +1315,7 @@ export default function ProjectDashboardPage() {
   const [importResult, setImportResult] = useState('')
   const [addGuestError, setAddGuestError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [phoneValid, setPhoneValid] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [deletingProject, setDeletingProject] = useState(false)
