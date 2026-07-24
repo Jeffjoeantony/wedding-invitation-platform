@@ -2647,10 +2647,6 @@ export default function ProjectDashboardPage() {
                                 onClick={() => sendGuestInviteWhatsApp(guest)}
                               >
                                 <WhatsAppIcon className="h-3.5 w-3.5" />
-                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
-                                onClick={() => setMomentsGuest(guest)}
-                              >
-                                Moments{momentCount > 0 ? ` (${momentCount})` : ''}
                               </Button>
                               <Button
                                 variant="outline"
