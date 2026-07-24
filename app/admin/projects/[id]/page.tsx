@@ -20,7 +20,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Link2, Pencil, Trash2 } from 'lucide-react'
+import {
+  Link2,
+  Pencil,
+  Trash2,
+  Mail,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Users,
+  BarChart3,
+  Bell,
+  Inbox,
+  Heart,
+  HeartHandshake,
+  GlassWater,
+  Leaf,
+  Flower2,
+  CalendarHeart,
+  Cake,
+  Home,
+  Building2,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
 import { getDashboardTheme } from '@/lib/dashboardTheme'
@@ -34,6 +58,8 @@ import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
+import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
+import { formatGuestPhoneDisplay, legacyPhoneToE164, toWhatsAppDigits } from '@/lib/guest-phone'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
@@ -159,6 +185,20 @@ function BirthdayPersonsFields({
 }
 
 
+// ── Header event icon (Lucide) ───────────────────────────────────────────────
+const EVENT_HEADER_ICONS: Record<string, LucideIcon> = {
+  Wedding: Heart,
+  Engagement: HeartHandshake,
+  Reception: GlassWater,
+  Mehendi: Leaf,
+  Haldi: Flower2,
+  'Save The Date': CalendarHeart,
+  Birthday: Cake,
+  Housewarming: Home,
+  'Corporate Event': Building2,
+  'Custom Event': Sparkles,
+}
+
 // ── Avatar component ─────────────────────────────────────────────────────────
 function GuestAvatar({ name }: { name: string }) {
   const initials = name.split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()
@@ -177,22 +217,34 @@ function GuestAvatar({ name }: { name: string }) {
 }
 
 // ── Stat card ────────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, icon, accent, textColor, iconBg }: {
-  label: string; value: number | string; sub: string; icon: string
-  accent: string; textColor: string; iconBg: string
+function StatCard({ label, value, sub, icon: Icon, accent, textColor, iconBg, iconColor }: {
+  label: string; value: number | string; sub: string; icon: LucideIcon
+  accent: string; textColor: string; iconBg: string; iconColor: string
 }) {
   return (
     <Card
-      className={`bg-white/50 backdrop-blur-xl border border-white/70 border-l-4 ${accent} shadow-[0_8px_28px_rgba(31,41,55,0.07)] hover:shadow-[0_12px_36px_rgba(31,41,55,0.12)] hover:bg-white/65 transition-all duration-300 hover:-translate-y-0.5`}
+      className={`group gap-0 py-0 overflow-hidden rounded-2xl bg-white/35 backdrop-blur-2xl border border-white/60 border-l-[3px] ${accent} shadow-[0_8px_32px_rgba(31,41,55,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] hover:bg-white/50 hover:shadow-[0_12px_40px_rgba(31,41,55,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white/80 transition-all duration-300`}
     >
-      <CardContent className="pt-4 pb-3 sm:pt-5 sm:pb-4 px-3.5 sm:px-6">
-        <div className="flex items-start justify-between gap-2 sm:gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] sm:text-[11px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
-            <p className={`text-2xl sm:text-3xl font-bold mt-1 ${textColor}`}>{value}</p>
-            <p className="text-[11px] sm:text-xs text-gray-400 mt-1 leading-snug line-clamp-2">{sub}</p>
+      <CardContent className="relative px-5 py-5 sm:px-6 sm:py-6">
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/50 via-white/10 to-transparent"
+          aria-hidden
+        />
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-[0.08em] leading-tight">
+              {label}
+            </p>
+            <p className={`text-2xl sm:text-[1.75rem] font-semibold tracking-tight tabular-nums mt-2 ${textColor}`}>
+              {value}
+            </p>
+            <p className="text-[11px] sm:text-xs text-gray-500 mt-2 leading-snug line-clamp-2">{sub}</p>
           </div>
-          <span className={`text-lg sm:text-xl p-2 sm:p-2.5 rounded-xl ${iconBg} shrink-0`}>{icon}</span>
+          <span
+            className={`inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${iconBg} shrink-0 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm`}
+          >
+            <Icon className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${iconColor}`} strokeWidth={1.75} aria-hidden />
+          </span>
         </div>
       </CardContent>
     </Card>
@@ -210,9 +262,10 @@ function AnimatedTabsContent({
   children: ReactNode
 }) {
   return (
-    <TabsContent value={value} className={`mt-0 outline-none ${className ?? ''}`}>
+    <TabsContent value={value} className="mt-0 outline-none">
       <motion.div
         key={value}
+        className={className}
         initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
         animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
         transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
@@ -303,18 +356,14 @@ Looking forward to seeing you! 😊`
     const enc = encodeURIComponent(msg)
     if (channel === 'whatsapp') {
       // Use api.whatsapp.com (not wa.me) — wa.me redirects corrupt 4-byte emoji to �
-      const digits = (guest.phone || '').replace(/\D/g, '')
-      const phone = digits
-        ? digits.startsWith('91')
-          ? digits
-          : `91${digits}`
-        : ''
+      // E.164 / legacy phones → international digits (no forced +91)
+      const phone = toWhatsAppDigits(guest.phone)
       const url = phone
         ? `https://api.whatsapp.com/send?phone=${phone}&text=${enc}`
         : `https://api.whatsapp.com/send?text=${enc}`
       window.open(url, '_blank', 'noopener,noreferrer')
     } else if (channel === 'sms') {
-      window.open(`sms:${(guest.phone || '').replace(/\D/g, '')}?&body=${enc}`, '_blank')
+      window.open(`sms:${toWhatsAppDigits(guest.phone)}?&body=${enc}`, '_blank')
     } else {
       const sub = encodeURIComponent(`You're invited to our ${project?.event_template ?? 'Wedding'}!`)
       window.open(`mailto:${guest.email || ''}?subject=${sub}&body=${enc}`, '_blank')
@@ -1326,6 +1375,7 @@ export default function ProjectDashboardPage() {
   const [importResult, setImportResult] = useState('')
   const [addGuestError, setAddGuestError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [phoneValid, setPhoneValid] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [deletingProject, setDeletingProject] = useState(false)
@@ -1344,6 +1394,7 @@ export default function ProjectDashboardPage() {
   const [editPhone, setEditPhone] = useState('')
   const [editCategory, setEditCategory] = useState('Friends')
   const [editPhoneError, setEditPhoneError] = useState('')
+  const [editPhoneValid, setEditPhoneValid] = useState(true)
   const [editError, setEditError] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const tabsListRef = useRef<HTMLDivElement>(null)
@@ -1432,11 +1483,19 @@ export default function ProjectDashboardPage() {
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddGuestError('')
+    if (!phoneValid) {
+      setPhoneError('Enter a valid phone number')
+      return
+    }
     setAdding(true)
     const res = await fetch(`/api/projects/${projectId}/guests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newGuestName, phone: newGuestPhone || null, guest_category: newGuestCategory }),
+      body: JSON.stringify({
+        name: newGuestName,
+        phone: newGuestPhone || null,
+        guest_category: newGuestCategory,
+      }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -1460,6 +1519,8 @@ export default function ProjectDashboardPage() {
       playNotificationSound('success')
       setNewGuestName('')
       setNewGuestPhone('')
+      setPhoneError('')
+      setPhoneValid(true)
       setAddGuestError('')
     }
     setAdding(false)
@@ -1570,9 +1631,10 @@ export default function ProjectDashboardPage() {
   const openEditGuest = (guest: Guest) => {
     setEditGuest(guest)
     setEditName(guest.name)
-    setEditPhone((guest.phone || '').replace(/\D/g, '').slice(0, 10))
+    setEditPhone(legacyPhoneToE164(guest.phone) || '')
     setEditCategory(guest.guest_category || 'Other')
     setEditPhoneError('')
+    setEditPhoneValid(true)
     setEditError('')
   }
 
@@ -1583,20 +1645,21 @@ export default function ProjectDashboardPage() {
       setEditError('Guest name is required')
       return
     }
-    if (editPhone.length > 0 && editPhone.length < 10) {
-      setEditPhoneError('Phone number must be exactly 10 digits')
+    if (!editPhoneValid) {
+      setEditPhoneError('Enter a valid phone number')
       return
     }
 
     setSavingEdit(true)
     setEditError('')
+    setEditPhoneError('')
     const res = await fetch(`/api/projects/${projectId}/guests`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: editGuest.id,
         name,
-        phone: editPhone,
+        phone: editPhone || null,
         guest_category: editCategory,
       }),
     })
@@ -1608,7 +1671,13 @@ export default function ProjectDashboardPage() {
       return
     }
 
-    const updated: Guest = { ...editGuest, ...data, name, phone: editPhone || undefined, guest_category: editCategory }
+    const updated: Guest = {
+      ...editGuest,
+      ...data,
+      name,
+      phone: editPhone || undefined,
+      guest_category: editCategory,
+    }
     setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
     if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
     if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
@@ -1794,6 +1863,8 @@ export default function ProjectDashboardPage() {
     : ''
 
   const theme = getDashboardTheme(project?.event_template)
+  const HeaderIcon =
+    EVENT_HEADER_ICONS[project?.event_template ?? 'Wedding'] ?? Sparkles
 
   if (loading) {
     return (
@@ -1848,22 +1919,15 @@ export default function ProjectDashboardPage() {
               {/* Divider */}
               <div className="hidden sm:block" style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
 
-              {/* Event icon */}
+              {/* Event icon — visible on all breakpoints */}
               <div
-                className={`shrink-0 hidden sm:flex ${theme.iconGradient}`}
+                className={`shrink-0 flex items-center justify-center h-10 w-10 sm:h-12 sm:w-12 rounded-[12px] sm:rounded-[14px] ${theme.iconGradient}`}
                 style={{
-                  width: 48, height: 48, borderRadius: 14,
-                  alignItems: 'center', justifyContent: 'center',
-                  fontSize: 22,
                   boxShadow: '0 4px 14px rgba(215,38,96,0.25)',
                 }}
+                aria-hidden
               >
-                {({
-                  'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
-                  'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
-                  'Birthday': '🎂', 'Housewarming': '🏡',
-                  'Corporate Event': '🏢', 'Custom Event': '✨',
-                } as Record<string, string>)[project?.event_template ?? 'Wedding'] ?? '💍'}
+                <HeaderIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" strokeWidth={1.75} />
               </div>
 
               {/* Title block */}
@@ -2009,8 +2073,12 @@ export default function ProjectDashboardPage() {
           }
           .admin-table-scroll [data-slot='table-container'] {
             overflow-x: auto;
+            overflow-y: auto;
+            max-height: calc(2.5rem + 10 * 3.85rem); /* header + 10 guest rows */
             padding-bottom: 6px;
             -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+            overscroll-behavior: contain;
           }
         `}</style>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -2025,7 +2093,7 @@ export default function ProjectDashboardPage() {
               { value: 'guests', label: `Guest List${stats.total > 0 ? ` (${stats.total})` : ''}` },
               { value: 'add-guest', label: 'Add Guest' },
               { value: 'import-export', label: 'Import / Export' },
-              { value: 'send', label: '📨 Send Invitations' },
+              { value: 'send', label: 'Send Invitations', icon: Mail },
               { value: 'event', label: 'Event Details' },
             ].map((tab) => (
               <TabsTrigger
@@ -2033,47 +2101,89 @@ export default function ProjectDashboardPage() {
                 value={tab.value}
                 className={`flex-shrink-0 px-4 rounded-xl text-sm transition-all duration-300 data-[state=inactive]:hover:bg-white/50 ${theme.tabActive}`}
               >
-                {tab.label}
+                {'icon' in tab && tab.icon ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <tab.icon className="h-3.5 w-3.5 opacity-80" strokeWidth={2} aria-hidden />
+                    {tab.label}
+                  </span>
+                ) : (
+                  tab.label
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
           <p className="mb-5 text-[11px] text-gray-400 sm:hidden">Swipe or scroll the tabs for more sections</p>
 
           {/* ══ OVERVIEW ══════════════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="overview" className="space-y-6">
+          <AnimatedTabsContent value="overview" className="space-y-8 sm:space-y-10">
 
             {/* Hero — Response Rate */}
-            <div className={theme.heroClassName} style={theme.heroStyle}>
+            <div className={`${theme.heroClassName} !p-7 sm:!p-8 md:!p-9`} style={theme.heroStyle}>
               <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/5" />
               <div className="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-white/5" />
-              <div className="relative flex flex-col md:flex-row md:items-center gap-6">
-                <div className="flex-1">
-                  <p className={`${theme.heroMutedText} text-xs font-semibold uppercase tracking-widest mb-1`}>Overall Response Rate</p>
-                  <div className="flex items-end gap-3 mb-4">
-                    <span className="text-6xl font-bold tabular-nums">{stats.responseRate}%</span>
-                    <span className={`${theme.heroMutedText} text-sm mb-2`}>{responded} of {stats.total} guests responded</span>
+              <div className="relative flex flex-col md:flex-row md:items-stretch gap-7 md:gap-10">
+                <div className="flex-1 min-w-0">
+                  <p className={`${theme.heroMutedText} text-[11px] font-medium uppercase tracking-[0.14em] mb-3`}>
+                    Overall Response Rate
+                  </p>
+                  <div className="flex items-end gap-3 mb-6">
+                    <span className="text-5xl sm:text-6xl font-semibold tracking-tight tabular-nums leading-none">
+                      {stats.responseRate}%
+                    </span>
+                    <span className={`${theme.heroMutedText} text-sm mb-1.5`}>
+                      {responded} of {stats.total} guests responded
+                    </span>
                   </div>
-                  <div className="h-3 bg-white/10 rounded-full overflow-hidden flex gap-0.5">
-                    {stats.confirmed > 0 && <div className="bg-emerald-400 rounded-l-full transition-all duration-700" style={{ width: `${stats.confirmedRate}%` }} />}
-                    {stats.declined > 0 && <div className="bg-red-400 transition-all duration-700" style={{ width: `${stats.declinedRate}%` }} />}
-                    {stats.pending > 0 && <div className="bg-amber-300 rounded-r-full transition-all duration-700" style={{ width: `${stats.pendingRate}%` }} />}
+                  <div className="h-2 bg-white/15 rounded-full overflow-hidden flex">
+                    {stats.confirmed > 0 && (
+                      <div
+                        className="bg-emerald-400 transition-all duration-700"
+                        style={{ width: `${stats.confirmedRate}%` }}
+                      />
+                    )}
+                    {stats.declined > 0 && (
+                      <div
+                        className="bg-red-400 transition-all duration-700"
+                        style={{ width: `${stats.declinedRate}%` }}
+                      />
+                    )}
+                    {stats.pending > 0 && (
+                      <div
+                        className="bg-amber-300 transition-all duration-700"
+                        style={{ width: `${stats.pendingRate}%` }}
+                      />
+                    )}
                   </div>
-                  <div className="flex gap-4 mt-2">
-                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Confirmed</span>
-                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> Declined</span>
-                    <span className={`text-xs ${theme.heroMutedText} flex items-center gap-1`}><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" /> Pending</span>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4">
+                    <span className={`text-xs ${theme.heroMutedText} inline-flex items-center gap-1.5`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Confirmed
+                    </span>
+                    <span className={`text-xs ${theme.heroMutedText} inline-flex items-center gap-1.5`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                      Declined
+                    </span>
+                    <span className={`text-xs ${theme.heroMutedText} inline-flex items-center gap-1.5`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+                      Pending
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-0 md:flex-col md:gap-0 border border-white/25 bg-white/10 backdrop-blur-md rounded-2xl overflow-hidden shrink-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
+                <div className="grid grid-cols-2 md:grid-cols-1 md:w-[12.5rem] border border-white/20 bg-white/10 backdrop-blur-md rounded-xl overflow-hidden shrink-0 divide-x md:divide-x-0 md:divide-y divide-white/15">
                   {[
-                    { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300', bg: 'bg-white/5' },
-                    { label: 'Declined', value: stats.declined, color: 'text-red-300', bg: 'bg-white/10' },
-                    { label: 'Pending', value: stats.pending, color: 'text-amber-300', bg: 'bg-white/5' },
-                    { label: 'Attendees', value: stats.totalPax, color: 'text-white', bg: 'bg-white/10' },
+                    { label: 'Confirmed', value: stats.confirmed, color: 'text-emerald-300' },
+                    { label: 'Declined', value: stats.declined, color: 'text-red-300' },
+                    { label: 'Pending', value: stats.pending, color: 'text-amber-300' },
+                    { label: 'Attendees', value: stats.totalPax, color: 'text-white' },
                   ].map((item) => (
-                    <div key={item.label} className={`${item.bg} px-6 py-3 text-center flex md:flex-row items-center gap-3`}>
-                      <span className={`text-2xl font-bold tabular-nums ${item.color}`}>{item.value}</span>
-                      <span className={`${theme.heroMutedText} text-xs`}>{item.label}</span>
+                    <div
+                      key={item.label}
+                      className="px-5 py-3.5 flex md:flex-row items-baseline md:items-center justify-between gap-2"
+                    >
+                      <span className={`${theme.heroMutedText} text-[11px] uppercase tracking-wide`}>
+                        {item.label}
+                      </span>
+                      <span className={`text-xl font-semibold tabular-nums ${item.color}`}>{item.value}</span>
                     </div>
                   ))}
                 </div>
@@ -2081,77 +2191,198 @@ export default function ProjectDashboardPage() {
             </div>
 
             {/* 6 Stat cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
-              <StatCard label="Total Invited" value={stats.total} sub="Unique invitations sent" icon="💌" accent="border-violet-400" textColor="text-violet-700" iconBg="bg-violet-50" />
-              <StatCard label="Invite Opened" value={stats.opened} sub={`${stats.openRate}% open rate`} icon="👁️" accent="border-blue-400" textColor="text-blue-700" iconBg="bg-blue-50" />
-              <StatCard label="Confirmed" value={stats.confirmed} sub={`${stats.confirmedRate}% acceptance`} icon="✅" accent="border-emerald-400" textColor="text-emerald-700" iconBg="bg-emerald-50" />
-              <StatCard label="Declined" value={stats.declined} sub="Sent their regrets" icon="❌" accent="border-red-400" textColor="text-red-600" iconBg="bg-red-50" />
-              <StatCard label="Awaiting Reply" value={stats.pending} sub="Haven't responded yet" icon="⏳" accent="border-amber-400" textColor="text-amber-600" iconBg="bg-amber-50" />
-              <StatCard label="Total Attendees" value={stats.totalPax} sub="Confirmed headcount" icon="👥" accent={theme.attendeesAccent} textColor={theme.attendeesText} iconBg={theme.attendeesIconBg} />
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+              <StatCard
+                label="Total Invited"
+                value={stats.total}
+                sub="Unique invitations sent"
+                icon={Mail}
+                accent="border-violet-400"
+                textColor="text-violet-700"
+                iconBg="bg-violet-50"
+                iconColor="text-violet-600"
+              />
+              <StatCard
+                label="Invite Opened"
+                value={stats.opened}
+                sub={`${stats.openRate}% open rate`}
+                icon={Eye}
+                accent="border-blue-400"
+                textColor="text-blue-700"
+                iconBg="bg-blue-50"
+                iconColor="text-blue-600"
+              />
+              <StatCard
+                label="Confirmed"
+                value={stats.confirmed}
+                sub={`${stats.confirmedRate}% acceptance`}
+                icon={CheckCircle2}
+                accent="border-emerald-400"
+                textColor="text-emerald-700"
+                iconBg="bg-emerald-50"
+                iconColor="text-emerald-600"
+              />
+              <StatCard
+                label="Declined"
+                value={stats.declined}
+                sub="Sent their regrets"
+                icon={XCircle}
+                accent="border-red-400"
+                textColor="text-red-600"
+                iconBg="bg-red-50"
+                iconColor="text-red-500"
+              />
+              <StatCard
+                label="Awaiting Reply"
+                value={stats.pending}
+                sub="Haven't responded yet"
+                icon={Clock}
+                accent="border-amber-400"
+                textColor="text-amber-600"
+                iconBg="bg-amber-50"
+                iconColor="text-amber-600"
+              />
+              <StatCard
+                label="Total Attendees"
+                value={stats.totalPax}
+                sub="Confirmed headcount"
+                icon={Users}
+                accent={theme.attendeesAccent}
+                textColor={theme.attendeesText}
+                iconBg={theme.attendeesIconBg}
+                iconColor={theme.attendeesText}
+              />
             </div>
 
             {/* Category breakdown + Recent activity */}
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card className={theme.glassCard}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
+            <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
+              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
+                <CardHeader className="relative px-6 pt-6 pb-4">
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
+                    aria-hidden
+                  />
+                  <div className="relative flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs">{categories.length} group{categories.length !== 1 ? 's' : ''}</CardDescription>
+                      <CardTitle className="text-base font-semibold tracking-tight">Guests by Category</CardTitle>
+                      <CardDescription className="text-xs mt-1">
+                        {categories.length} group{categories.length !== 1 ? 's' : ''}
+                      </CardDescription>
                     </div>
-                    <span className="text-2xl">📊</span>
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
+                      <BarChart3 className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    </span>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {categories.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No guests added yet</p>}
+                <CardContent className="relative px-6 pb-6 space-y-5">
+                  {categories.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-8">No guests added yet</p>
+                  )}
                   {categories.map(([cat, data]) => (
                     <div key={cat}>
-                      <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-emerald-600 font-semibold">✓{data.yes}</span>
-                          <span className="text-red-500 font-semibold">✗{data.no}</span>
-                          <span className="text-amber-600 font-semibold">⏳{data.pending}</span>
-                          <span className="text-gray-400 font-bold w-5 text-right">{data.total}</span>
+                        <div className="flex items-center gap-3 text-xs tabular-nums">
+                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.yes}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-red-500 font-semibold">
+                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.no}
+                          </span>
+                          <span className="inline-flex items-center gap-0.5 text-amber-600 font-semibold">
+                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.pending}
+                          </span>
+                          <span className="text-gray-400 font-semibold w-5 text-right">{data.total}</span>
                         </div>
                       </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden flex">
-                        {data.yes > 0 && <div className="bg-emerald-400 transition-all" style={{ width: `${(data.yes / data.total) * 100}%` }} />}
-                        {data.no > 0 && <div className="bg-red-300 transition-all" style={{ width: `${(data.no / data.total) * 100}%` }} />}
-                        {data.pending > 0 && <div className="bg-amber-200 transition-all" style={{ width: `${(data.pending / data.total) * 100}%` }} />}
+                      <div className="h-1.5 bg-white/50 rounded-full overflow-hidden flex ring-1 ring-black/[0.03]">
+                        {data.yes > 0 && (
+                          <div
+                            className="bg-emerald-400 transition-all"
+                            style={{ width: `${(data.yes / data.total) * 100}%` }}
+                          />
+                        )}
+                        {data.no > 0 && (
+                          <div
+                            className="bg-red-300 transition-all"
+                            style={{ width: `${(data.no / data.total) * 100}%` }}
+                          />
+                        )}
+                        {data.pending > 0 && (
+                          <div
+                            className="bg-amber-200 transition-all"
+                            style={{ width: `${(data.pending / data.total) * 100}%` }}
+                          />
+                        )}
                       </div>
                     </div>
                   ))}
                 </CardContent>
               </Card>
 
-              <Card className={theme.glassCard}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
+              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
+                <CardHeader className="relative px-6 pt-6 pb-4">
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
+                    aria-hidden
+                  />
+                  <div className="relative flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs">Latest guest replies</CardDescription>
+                      <CardTitle className="text-base font-semibold tracking-tight">Recent Responses</CardTitle>
+                      <CardDescription className="text-xs mt-1">Latest guest replies</CardDescription>
                     </div>
-                    <span className="text-2xl">🔔</span>
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
+                      <Bell className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    </span>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {recentActivity.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No responses yet</p>}
+                <CardContent className="relative px-6 pb-6 space-y-3">
+                  {recentActivity.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-8">No responses yet</p>
+                  )}
                   {recentActivity.map((g) => (
-                    <div key={g.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                    <div
+                      key={g.id}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-white/25 hover:bg-white/45 ring-1 ring-white/40 transition-colors"
+                    >
                       <GuestAvatar name={g.name} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
                         <p className="text-xs text-gray-400 truncate">
                           {g.guest_category || 'Other'}
-                          {g.responded_at ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+                          {g.responded_at
+                            ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                            : ''}
                         </p>
                       </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${
-                        g.rsvp_status === 'yes' ? 'bg-emerald-100 text-emerald-700' :
-                        g.rsvp_status === 'no' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {g.rsvp_status === 'yes' ? '✓ Attending' : g.rsvp_status === 'no' ? '✗ Declined' : '⏳ Pending'}
+                      <span
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md shrink-0 backdrop-blur-sm ${
+                          g.rsvp_status === 'yes'
+                            ? 'bg-emerald-100/80 text-emerald-700'
+                            : g.rsvp_status === 'no'
+                              ? 'bg-red-100/80 text-red-600'
+                              : 'bg-amber-100/80 text-amber-700'
+                        }`}
+                      >
+                        {g.rsvp_status === 'yes' ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            Attending
+                          </>
+                        ) : g.rsvp_status === 'no' ? (
+                          <>
+                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            Declined
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            Pending
+                          </>
+                        )}
                       </span>
                     </div>
                   ))}
@@ -2161,14 +2392,24 @@ export default function ProjectDashboardPage() {
 
             {/* Not-opened banner */}
             {guests.filter((g) => !g.opened_at).length > 0 && (
-              <Card className="bg-amber-50/70 backdrop-blur-xl border border-amber-200/80 rounded-2xl shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <span className="text-2xl shrink-0">📭</span>
-                  <div>
+              <Card className="gap-0 py-0 overflow-hidden bg-amber-50/45 backdrop-blur-2xl border border-amber-200/60 rounded-2xl shadow-[0_8px_28px_rgba(31,41,55,0.06),inset_0_1px_0_rgba(255,255,255,0.7)]">
+                <CardContent className="relative px-5 py-5 sm:px-6 sm:py-6 flex items-center gap-4">
+                  <div
+                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
+                    aria-hidden
+                  />
+                  <span className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100/70 shrink-0 ring-1 ring-white/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
+                    <Inbox className="h-5 w-5 text-amber-700" strokeWidth={1.75} aria-hidden />
+                  </span>
+                  <div className="relative">
                     <p className="text-sm font-semibold text-amber-800">
-                      {guests.filter((g) => !g.opened_at).length} guest{guests.filter((g) => !g.opened_at).length !== 1 ? 's' : ''} haven't opened their invite yet
+                      {guests.filter((g) => !g.opened_at).length} guest
+                      {guests.filter((g) => !g.opened_at).length !== 1 ? 's' : ''} haven&apos;t opened their
+                      invite yet
                     </p>
-                    <p className="text-xs text-amber-600 mt-0.5">Consider sending a reminder via WhatsApp or SMS.</p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      Consider sending a reminder via WhatsApp or SMS.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -2177,8 +2418,8 @@ export default function ProjectDashboardPage() {
 
           {/* ══ GUEST LIST ════════════════════════════════════════════════════ */}
           <AnimatedTabsContent value="guests" className="space-y-4">
-            <Card className={theme.glassCard}>
-              <CardHeader className="pb-4">
+            <Card className={`${theme.glassCard} gap-2 py-5`}>
+              <CardHeader className="pb-0">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex-1">
                     <CardTitle className="text-lg">Guest List</CardTitle>
@@ -2197,7 +2438,7 @@ export default function ProjectDashboardPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-1">
                 {/* Filter pills */}
                 <div className="admin-tabs-scroll -mx-1 px-1 overflow-x-auto pb-1">
                   <div className="flex gap-2 w-max min-w-full">
@@ -2223,10 +2464,10 @@ export default function ProjectDashboardPage() {
                   </div>
                 </div>
 
-                {/* Table — min-width forces horizontal scroll on mobile so the bar is visible */}
+                {/* Table — ~10 rows visible; rest scroll. min-width forces horizontal scroll on mobile */}
                 <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
                   <Table className="min-w-[880px]">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm [&_tr]:border-b">
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Category</TableHead>
@@ -2268,7 +2509,11 @@ export default function ProjectDashboardPage() {
                               <GuestAvatar name={guest.name} />
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
-                                {guest.phone && <p className="text-xs text-gray-400 font-mono">{guest.phone}</p>}
+                                {guest.phone && (
+                                  <p className="text-xs text-gray-400 font-mono">
+                                    {formatGuestPhoneDisplay(guest.phone) || guest.phone}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </TableCell>
@@ -2361,6 +2606,14 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
+                                onClick={() => setMomentsGuest(guest)}
+                              >
+                                Moments{momentCount > 0 ? ` (${momentCount})` : ''}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 aria-label={`Edit ${guest.name}`}
                                 title="Edit guest"
                                 className="h-8 w-8 justify-self-center rounded-lg border-gray-200 p-0 text-gray-600 hover:bg-gray-50"
@@ -2421,21 +2674,16 @@ export default function ProjectDashboardPage() {
                       <Input id="name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)}
                         placeholder="Full name" className="mt-2 rounded-xl" required />
                     </div>
-                    <div>
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone" type="tel" value={newGuestPhone}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
-                          setNewGuestPhone(digits)
-                          setPhoneError(digits.length > 0 && digits.length < 10 ? 'Phone number must be exactly 10 digits' : '')
-                        }}
-                        placeholder="10-digit number" maxLength={10} inputMode="numeric"
-                        className={`mt-2 rounded-xl font-mono ${phoneError ? 'border-red-400 focus-visible:ring-red-300' : ''}`}
-                      />
-                      {phoneError && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠</span> {phoneError}</p>}
-                      {newGuestPhone.length === 10 && !phoneError && <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><span>✓</span> Valid number</p>}
-                    </div>
+                    <GuestPhoneInput
+                      id="phone"
+                      value={newGuestPhone}
+                      onChange={(e164) => {
+                        setNewGuestPhone(e164)
+                        setPhoneError('')
+                      }}
+                      onValidityChange={setPhoneValid}
+                      error={phoneError}
+                    />
                     <div>
                       <Label htmlFor="category">Category</Label>
                       <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
@@ -2454,7 +2702,7 @@ export default function ProjectDashboardPage() {
                     )}
                     <Button
                       type="submit"
-                      disabled={!newGuestName || adding || !!phoneError || (newGuestPhone.length > 0 && newGuestPhone.length < 10)}
+                      disabled={!newGuestName || adding || !phoneValid || !!phoneError}
                       className={`w-full rounded-xl ${theme.primaryBtn}`}
                     >
                       {adding ? 'Adding…' : '+ Add Guest'}
@@ -2807,39 +3055,16 @@ export default function ProjectDashboardPage() {
                 autoFocus
               />
             </div>
-            <div>
-              <Label htmlFor="edit-phone">Phone</Label>
-              <Input
-                id="edit-phone"
-                type="tel"
-                value={editPhone}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '').slice(0, 10)
-                  setEditPhone(digits)
-                  setEditPhoneError(
-                    digits.length > 0 && digits.length < 10
-                      ? 'Phone number must be exactly 10 digits'
-                      : '',
-                  )
-                }}
-                placeholder="10-digit number"
-                maxLength={10}
-                inputMode="numeric"
-                className={`mt-2 rounded-xl font-mono ${
-                  editPhoneError ? 'border-red-400 focus-visible:ring-red-300' : ''
-                }`}
-              />
-              {editPhoneError && (
-                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                  <span>⚠</span> {editPhoneError}
-                </p>
-              )}
-              {editPhone.length === 10 && !editPhoneError && (
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <span>✓</span> Valid number
-                </p>
-              )}
-            </div>
+            <GuestPhoneInput
+              id="edit-phone"
+              value={editPhone}
+              onChange={(e164) => {
+                setEditPhone(e164)
+                setEditPhoneError('')
+              }}
+              onValidityChange={setEditPhoneValid}
+              error={editPhoneError}
+            />
             <div>
               <Label htmlFor="edit-category">Category</Label>
               <Select value={editCategory} onValueChange={setEditCategory}>
@@ -2877,12 +3102,7 @@ export default function ProjectDashboardPage() {
             <Button
               type="button"
               className={`rounded-xl ${theme.primaryBtn}`}
-              disabled={
-                savingEdit ||
-                !editName.trim() ||
-                !!editPhoneError ||
-                (editPhone.length > 0 && editPhone.length < 10)
-              }
+              disabled={savingEdit || !editName.trim() || !editPhoneValid || !!editPhoneError}
               onClick={saveEditGuest}
             >
               {savingEdit ? 'Saving…' : 'Save Changes'}
