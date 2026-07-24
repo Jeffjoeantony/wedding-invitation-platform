@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog'
 import {
   Link2,
-  Pencil,
   Trash2,
   Mail,
   Eye,
@@ -59,7 +58,7 @@ import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
-import { formatGuestPhoneDisplay, legacyPhoneToE164, toWhatsAppDigits } from '@/lib/guest-phone'
+import { formatGuestPhoneDisplay, toWhatsAppDigits } from '@/lib/guest-phone'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
@@ -84,7 +83,7 @@ interface Guest {
   unique_token: string
   rsvp_status: 'pending' | 'yes' | 'no'
   pax_count: number
-  guest_category?: string
+  guest_category?: string | null
   opened_at?: string
   responded_at?: string
   moments?: MediaItem[] | unknown
@@ -197,6 +196,19 @@ const EVENT_HEADER_ICONS: Record<string, LucideIcon> = {
   Housewarming: Home,
   'Corporate Event': Building2,
   'Custom Event': Sparkles,
+}
+
+function WhatsAppIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden
+    >
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.47-4.435 9.89-9.885 9.89m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+    </svg>
+  )
 }
 
 // ── Avatar component ─────────────────────────────────────────────────────────
@@ -1365,6 +1377,9 @@ export default function ProjectDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [guestPendingDelete, setGuestPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  // Keep name visible while the dialog close animation runs
+  const [deleteDialogGuest, setDeleteDialogGuest] = useState<{ id: string; name: string } | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevGuestsRef = useRef<Record<string, string>>({})
   const projectNameRef = useRef<string>('')
@@ -1389,14 +1404,6 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
-  const [editGuest, setEditGuest] = useState<Guest | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editCategory, setEditCategory] = useState('Friends')
-  const [editPhoneError, setEditPhoneError] = useState('')
-  const [editPhoneValid, setEditPhoneValid] = useState(true)
-  const [editError, setEditError] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
   const tabsListRef = useRef<HTMLDivElement>(null)
 
   // Keep the active navbar tab in view when switching on narrow screens
@@ -1615,74 +1622,28 @@ export default function ProjectDashboardPage() {
     )
   }
 
-  const deleteGuest = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}" from the guest list? This cannot be undone.`)) return
+  const requestDeleteGuest = (id: string, name: string) => {
+    const pending = { id, name }
+    setDeleteDialogGuest(pending)
+    setGuestPendingDelete(pending)
+  }
+
+  const confirmDeleteGuest = async () => {
+    if (!guestPendingDelete) return
+    const { id, name } = guestPendingDelete
     setDeletingId(id)
     const res = await fetch(`/api/projects/${projectId}/guests?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
+      if (inviteGuest?.id === id) setInviteGuest(null)
+      if (momentsGuest?.id === id) setMomentsGuest(null)
+      if (lastAddedGuest?.id === id) setLastAddedGuest(null)
     } else {
       setDeleteError(`Failed to delete "${name}". Please try again.`)
       setTimeout(() => setDeleteError(''), 4000)
     }
     setDeletingId(null)
-  }
-
-  const openEditGuest = (guest: Guest) => {
-    setEditGuest(guest)
-    setEditName(guest.name)
-    setEditPhone(legacyPhoneToE164(guest.phone) || '')
-    setEditCategory(guest.guest_category || 'Other')
-    setEditPhoneError('')
-    setEditPhoneValid(true)
-    setEditError('')
-  }
-
-  const saveEditGuest = async () => {
-    if (!editGuest) return
-    const name = editName.trim()
-    if (!name) {
-      setEditError('Guest name is required')
-      return
-    }
-    if (!editPhoneValid) {
-      setEditPhoneError('Enter a valid phone number')
-      return
-    }
-
-    setSavingEdit(true)
-    setEditError('')
-    setEditPhoneError('')
-    const res = await fetch(`/api/projects/${projectId}/guests`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: editGuest.id,
-        name,
-        phone: editPhone || null,
-        guest_category: editCategory,
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setSavingEdit(false)
-
-    if (!res.ok) {
-      setEditError(data.error || 'Failed to update guest')
-      return
-    }
-
-    const updated: Guest = {
-      ...editGuest,
-      ...data,
-      name,
-      phone: editPhone || undefined,
-      guest_category: editCategory,
-    }
-    setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
-    if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (inviteGuest?.id === editGuest.id) setInviteGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    setEditGuest(null)
+    setGuestPendingDelete(null)
   }
 
   const updateProject = async (updates: Partial<Project>) => {
@@ -1816,6 +1777,23 @@ export default function ProjectDashboardPage() {
     a.download = `${project?.name ?? 'guests'}-links.csv`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  /** Quick WhatsApp: link-only message (opens WhatsApp; user taps Send). */
+  const sendGuestInviteWhatsApp = (guest: Guest) => {
+    const phone = toWhatsAppDigits(guest.phone)
+    if (!phone) return
+    const origin =
+      (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
+      window.location.origin
+    const link = `${origin}/invite/${guest.unique_token}`
+    const text = `You're invited: ${link}`
+    // api.whatsapp.com — wa.me can corrupt some characters in redirects
+    window.open(
+      `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`,
+      '_blank',
+      'noopener,noreferrer',
+    )
   }
 
   // ── Derived stats ────────────────────────────────────────────────────────────
@@ -2466,7 +2444,7 @@ export default function ProjectDashboardPage() {
 
                 {/* Table — ~10 rows visible; rest scroll. min-width forces horizontal scroll on mobile */}
                 <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
-                  <Table className="min-w-[880px]">
+                  <Table className="min-w-[960px]">
                     <TableHeader className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm [&_tr]:border-b">
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
@@ -2567,7 +2545,7 @@ export default function ProjectDashboardPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div
-                              className="ml-auto grid w-max grid-cols-[7.25rem_7.5rem_2rem_2rem] items-center justify-items-stretch gap-1.5"
+                              className="ml-auto grid w-max grid-cols-[7.25rem_2rem_7.5rem_2rem] items-center justify-items-stretch gap-1.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
@@ -2598,10 +2576,21 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
-                                onClick={() => setMomentsGuest(guest)}
+                                aria-label={
+                                  guest.phone
+                                    ? `Send invite link to ${guest.name} on WhatsApp`
+                                    : `${guest.name} has no phone number`
+                                }
+                                title={
+                                  guest.phone
+                                    ? 'Send invite link via WhatsApp'
+                                    : 'Add a phone number to enable WhatsApp'
+                                }
+                                className="h-8 w-8 justify-self-center rounded-lg border-[#25D366]/40 bg-[#25D366]/10 p-0 text-[#25D366] hover:bg-[#25D366]/20 disabled:opacity-40 disabled:pointer-events-none"
+                                disabled={!toWhatsAppDigits(guest.phone)}
+                                onClick={() => sendGuestInviteWhatsApp(guest)}
                               >
-                                Moments{momentCount > 0 ? ` (${momentCount})` : ''}
+                                <WhatsAppIcon className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="outline"
@@ -2610,16 +2599,6 @@ export default function ProjectDashboardPage() {
                                 onClick={() => setMomentsGuest(guest)}
                               >
                                 Moments{momentCount > 0 ? ` (${momentCount})` : ''}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                aria-label={`Edit ${guest.name}`}
-                                title="Edit guest"
-                                className="h-8 w-8 justify-self-center rounded-lg border-gray-200 p-0 text-gray-600 hover:bg-gray-50"
-                                onClick={() => openEditGuest(guest)}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -2628,7 +2607,7 @@ export default function ProjectDashboardPage() {
                                 title="Delete guest"
                                 className="h-8 w-8 justify-self-center rounded-lg p-0 text-red-400 hover:bg-red-50 hover:text-red-700"
                                 disabled={deletingId === guest.id}
-                                onClick={() => deleteGuest(guest.id, guest.name)}
+                                onClick={() => requestDeleteGuest(guest.id, guest.name)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -3031,81 +3010,39 @@ export default function ProjectDashboardPage() {
       />
 
       <Dialog
-        open={!!editGuest}
+        open={!!guestPendingDelete}
         onOpenChange={(open) => {
-          if (!open && !savingEdit) setEditGuest(null)
+          if (!open && !deletingId) setGuestPendingDelete(null)
         }}
       >
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Guest</DialogTitle>
+            <DialogTitle>Delete guest?</DialogTitle>
             <DialogDescription>
-              Update name, phone, or category. The invite link stays the same.
+              Remove{' '}
+              <span className="font-semibold text-gray-800">
+                {deleteDialogGuest?.name}
+              </span>{' '}
+              from this guest list. Their invite link will stop working. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-1">
-            <div>
-              <Label htmlFor="edit-name">Guest Name *</Label>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="Full name"
-                className="mt-2 rounded-xl"
-                autoFocus
-              />
-            </div>
-            <GuestPhoneInput
-              id="edit-phone"
-              value={editPhone}
-              onChange={(e164) => {
-                setEditPhone(e164)
-                setEditPhoneError('')
-              }}
-              onValidityChange={setEditPhoneValid}
-              error={editPhoneError}
-            />
-            <div>
-              <Label htmlFor="edit-category">Category</Label>
-              <Select value={editCategory} onValueChange={setEditCategory}>
-                <SelectTrigger id="edit-category" className="mt-2 rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['Family', 'Friends', 'Bride Side', 'Groom Side', 'Neighbours', 'Office', 'Other'].map(
-                    (c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            {editError && (
-              <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-                <span className="shrink-0 mt-0.5">⚠</span>
-                <span>{editError}</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-3 sm:justify-end">
             <Button
               type="button"
               variant="outline"
               className="rounded-xl"
-              disabled={savingEdit}
-              onClick={() => setEditGuest(null)}
+              disabled={!!deletingId}
+              onClick={() => setGuestPendingDelete(null)}
             >
               Cancel
             </Button>
             <Button
               type="button"
-              className={`rounded-xl ${theme.primaryBtn}`}
-              disabled={savingEdit || !editName.trim() || !editPhoneValid || !!editPhoneError}
-              onClick={saveEditGuest}
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              disabled={!!deletingId}
+              onClick={confirmDeleteGuest}
             >
-              {savingEdit ? 'Saving…' : 'Save Changes'}
+              {deletingId ? 'Deleting…' : 'Yes, delete'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3119,7 +3056,15 @@ export default function ProjectDashboardPage() {
           projectId={projectId}
           onClose={() => setInviteGuest(null)}
           onSaved={(updated) => {
-            setGuests((prev) => prev.map((g) => (g.id === updated.id ? { ...g, ...updated } : g)))
+            setGuests((prev) =>
+              prev.map((g) => (g.id === updated.id ? { ...g, ...updated } : g)),
+            )
+            if (lastAddedGuest?.id === updated.id) {
+              setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+            }
+            if (momentsGuest?.id === updated.id) {
+              setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+            }
             setInviteGuest(null)
           }}
         />
