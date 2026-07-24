@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
+import { normalizeGuestPhoneForStorage } from '@/lib/guest-phone'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -31,17 +32,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     // ── Step 1: Normalise incoming rows ───────────────────────────────────────
+    let skippedInvalidPhone = 0
     const rawRecords = guests
-      .map((g: any) => ({
-        name: String(g.name ?? '').trim().slice(0, 200),
-        phone: g.phone ? String(g.phone).trim().slice(0, 30) : null,
-        email: g.email ? String(g.email).trim().slice(0, 200) : null,
-        guest_category: String(g.guest_category || 'Other').trim().slice(0, 100),
-        rsvp_status: 'pending' as const,
-        project_id: id,
-        // Generate a unique invite token (required NOT NULL in guests table)
-        unique_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
-      }))
+      .map((g: any) => {
+        const name = String(g.name ?? '').trim().slice(0, 200)
+        const phoneNorm = normalizeGuestPhoneForStorage(g.phone)
+        if (g.phone && phoneNorm.error) {
+          skippedInvalidPhone += 1
+        }
+        return {
+          name,
+          phone: phoneNorm.phone,
+          email: g.email ? String(g.email).trim().slice(0, 200) : null,
+          guest_category: String(g.guest_category || 'Other').trim().slice(0, 100),
+          rsvp_status: 'pending' as const,
+          project_id: id,
+          // Generate a unique invite token (required NOT NULL in guests table)
+          unique_token: crypto.randomUUID().replace(/-/g, '').slice(0, 16),
+        }
+      })
       .filter((g) => g.name.length > 0)
 
     if (rawRecords.length === 0) {
@@ -61,6 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     })
 
     const skippedInBatch = rawRecords.length - dedupedRecords.length
+    const skippedPhone = skippedInvalidPhone
 
     // ── Step 3: Check against existing guests in this project ─────────────────
     const supabase = createAdminClient()
@@ -116,14 +126,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: error.message || 'Import failed' }, { status: 500 })
     }
 
+    const parts = [`Imported ${data.length} guests`]
+    if (totalSkipped > 0) parts.push(`skipped ${totalSkipped} duplicate(s)`)
+    if (skippedPhone > 0) parts.push(`cleared ${skippedPhone} invalid phone(s)`)
+
     return NextResponse.json(
       {
         count: data.length,
         skipped: totalSkipped,
-        message:
-          totalSkipped > 0
-            ? `Imported ${data.length} guests. Skipped ${totalSkipped} duplicate(s).`
-            : `Imported ${data.length} guests.`,
+        skippedInvalidPhone: skippedPhone,
+        message: `${parts.join('. ')}.`,
       },
       { status: 201 }
     )
