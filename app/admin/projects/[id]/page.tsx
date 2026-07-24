@@ -33,6 +33,16 @@ import {
   BarChart3,
   Bell,
   Inbox,
+  Heart,
+  HeartHandshake,
+  GlassWater,
+  Leaf,
+  Flower2,
+  CalendarHeart,
+  Cake,
+  Home,
+  Building2,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
@@ -174,6 +184,20 @@ function BirthdayPersonsFields({
   )
 }
 
+
+// ── Header event icon (Lucide) ───────────────────────────────────────────────
+const EVENT_HEADER_ICONS: Record<string, LucideIcon> = {
+  Wedding: Heart,
+  Engagement: HeartHandshake,
+  Reception: GlassWater,
+  Mehendi: Leaf,
+  Haldi: Flower2,
+  'Save The Date': CalendarHeart,
+  Birthday: Cake,
+  Housewarming: Home,
+  'Corporate Event': Building2,
+  'Custom Event': Sparkles,
+}
 
 // ── Avatar component ─────────────────────────────────────────────────────────
 function GuestAvatar({ name }: { name: string }) {
@@ -1839,6 +1863,8 @@ export default function ProjectDashboardPage() {
     : ''
 
   const theme = getDashboardTheme(project?.event_template)
+  const HeaderIcon =
+    EVENT_HEADER_ICONS[project?.event_template ?? 'Wedding'] ?? Sparkles
 
   if (loading) {
     return (
@@ -1893,22 +1919,15 @@ export default function ProjectDashboardPage() {
               {/* Divider */}
               <div className="hidden sm:block" style={{ width: 1, height: 36, background: '#E5E7EB', flexShrink: 0 }} />
 
-              {/* Event icon */}
+              {/* Event icon — visible on all breakpoints */}
               <div
-                className={`shrink-0 hidden sm:flex ${theme.iconGradient}`}
+                className={`shrink-0 flex items-center justify-center h-10 w-10 sm:h-12 sm:w-12 rounded-[12px] sm:rounded-[14px] ${theme.iconGradient}`}
                 style={{
-                  width: 48, height: 48, borderRadius: 14,
-                  alignItems: 'center', justifyContent: 'center',
-                  fontSize: 22,
                   boxShadow: '0 4px 14px rgba(215,38,96,0.25)',
                 }}
+                aria-hidden
               >
-                {({
-                  'Wedding': '💍', 'Engagement': '💑', 'Reception': '🥂',
-                  'Mehendi': '🌿', 'Haldi': '🌼', 'Save The Date': '📅',
-                  'Birthday': '🎂', 'Housewarming': '🏡',
-                  'Corporate Event': '🏢', 'Custom Event': '✨',
-                } as Record<string, string>)[project?.event_template ?? 'Wedding'] ?? '💍'}
+                <HeaderIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" strokeWidth={1.75} />
               </div>
 
               {/* Title block */}
