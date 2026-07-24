@@ -2606,6 +2606,14 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
+                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
+                                onClick={() => setMomentsGuest(guest)}
+                              >
+                                Moments{momentCount > 0 ? ` (${momentCount})` : ''}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 aria-label={`Edit ${guest.name}`}
                                 title="Edit guest"
                                 className="h-8 w-8 justify-self-center rounded-lg border-gray-200 p-0 text-gray-600 hover:bg-gray-50"
