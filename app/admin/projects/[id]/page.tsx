@@ -83,7 +83,7 @@ interface Guest {
   unique_token: string
   rsvp_status: 'pending' | 'yes' | 'no'
   pax_count: number
-  guest_category?: string
+  guest_category?: string | null
   opened_at?: string
   responded_at?: string
   moments?: MediaItem[] | unknown
