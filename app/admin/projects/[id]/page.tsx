@@ -1672,14 +1672,13 @@ export default function ProjectDashboardPage() {
 
     setSavingEdit(true)
     setEditError('')
-    setEditPhoneError('')
     const res = await fetch(`/api/projects/${projectId}/guests`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: editGuest.id,
         name,
-        phone: editPhone || null,
+        phone: editPhone,
         guest_category: editCategory,
       }),
     })
