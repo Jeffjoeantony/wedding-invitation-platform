@@ -1787,7 +1787,7 @@ export default function ProjectDashboardPage() {
       (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
       window.location.origin
     const link = `${origin}/invite/${guest.unique_token}`
-    const text = `You're invited: ${link}`
+    const text = link
     // api.whatsapp.com — wa.me can corrupt some characters in redirects
     window.open(
       `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`,
