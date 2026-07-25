@@ -1656,7 +1656,7 @@ export default function ProjectDashboardPage() {
   const openEditGuest = (guest: Guest) => {
     setEditGuest(guest)
     setEditName(guest.name)
-    setEditPhone((guest.phone || '').replace(/\D/g, '').slice(0, 10))
+    setEditPhone(guest.phone || '')
     setEditCategory(guest.guest_category || 'Other')
     setEditPhoneError('')
     setEditError('')
@@ -1667,10 +1667,6 @@ export default function ProjectDashboardPage() {
     const name = editName.trim()
     if (!name) {
       setEditError('Guest name is required')
-      return
-    }
-    if (editPhone.length > 0 && editPhone.length < 10) {
-      setEditPhoneError('Phone number must be exactly 10 digits')
       return
     }
 
@@ -1690,11 +1686,19 @@ export default function ProjectDashboardPage() {
     setSavingEdit(false)
 
     if (!res.ok) {
-      setEditError(data.error || 'Failed to update guest')
+      const message = data.error || 'Failed to update guest'
+      if (/phone/i.test(message)) setEditPhoneError(message)
+      else setEditError(message)
       return
     }
 
-    const updated: Guest = { ...editGuest, ...data, name, phone: editPhone || undefined, guest_category: editCategory }
+    const updated: Guest = {
+      ...editGuest,
+      ...data,
+      name,
+      phone: data.phone ?? (editPhone || undefined),
+      guest_category: editCategory,
+    }
     setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
     if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
     if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
@@ -1843,7 +1847,7 @@ export default function ProjectDashboardPage() {
       (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
       window.location.origin
     const link = `${origin}/invite/${guest.unique_token}`
-    const text = `You're invited: ${link}`
+    const text = link
     // api.whatsapp.com — wa.me can corrupt some characters in redirects
     window.open(
       `https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`,
