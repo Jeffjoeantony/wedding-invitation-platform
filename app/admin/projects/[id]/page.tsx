@@ -1404,6 +1404,13 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
+  const [editGuest, setEditGuest] = useState<Guest | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editCategory, setEditCategory] = useState('Friends')
+  const [editPhoneError, setEditPhoneError] = useState('')
+  const [editError, setEditError] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
   const tabsListRef = useRef<HTMLDivElement>(null)
 
   // Keep the active navbar tab in view when switching on narrow screens
@@ -1644,6 +1651,60 @@ export default function ProjectDashboardPage() {
     }
     setDeletingId(null)
     setGuestPendingDelete(null)
+  }
+
+  const openEditGuest = (guest: Guest) => {
+    setEditGuest(guest)
+    setEditName(guest.name)
+    setEditPhone(guest.phone || '')
+    setEditCategory(guest.guest_category || 'Other')
+    setEditPhoneError('')
+    setEditError('')
+  }
+
+  const saveEditGuest = async () => {
+    if (!editGuest) return
+    const name = editName.trim()
+    if (!name) {
+      setEditError('Guest name is required')
+      return
+    }
+
+    setSavingEdit(true)
+    setEditError('')
+    setEditPhoneError('')
+    const res = await fetch(`/api/projects/${projectId}/guests`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: editGuest.id,
+        name,
+        phone: editPhone || null,
+        guest_category: editCategory,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingEdit(false)
+
+    if (!res.ok) {
+      const message = data.error || 'Failed to update guest'
+      if (/phone/i.test(message)) setEditPhoneError(message)
+      else setEditError(message)
+      return
+    }
+
+    const updated: Guest = {
+      ...editGuest,
+      ...data,
+      name,
+      phone: data.phone ?? (editPhone || undefined),
+      guest_category: editCategory,
+    }
+    setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
+    if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    if (inviteGuest?.id === editGuest.id) setInviteGuest((prev) => (prev ? { ...prev, ...updated } : prev))
+    setEditGuest(null)
   }
 
   const updateProject = async (updates: Partial<Project>) => {
