@@ -273,36 +273,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         if (isGlobalConstraint && phone) {
-          const { data: retryData, error: retryError } = await supabase
-            .from('guests')
-            .insert({
-              name,
-              phone: null,
-              email,
-              guest_category,
-              rsvp_status: 'pending',
-              project_id: id,
-              unique_token,
-            })
-            .select()
-            .single()
-
-          if (retryError) {
-            console.error('[POST /api/projects/[id]/guests] Retry error:', retryError)
-            return NextResponse.json({ error: retryError.message || 'Insert failed' }, { status: 500 })
-          }
-
           return NextResponse.json(
             {
-              ...retryData,
-              _warning:
-                'Phone was not saved — it is used by another guest across projects. Run the DB migration to allow cross-project phone reuse.',
+              error:
+                'This phone number is already used by another guest. Choose a different number or leave phone blank.',
+              duplicate: true,
             },
-            { status: 201 },
+            { status: 409 },
           )
         }
 
-        return NextResponse.json({ error: 'A guest with the same details already exists' }, { status: 409 })
+        return NextResponse.json(
+          { error: 'This phone number is already used by another guest', duplicate: true },
+          { status: 409 },
+        )
       }
 
       console.error('[POST /api/projects/[id]/guests] Supabase error:', error)

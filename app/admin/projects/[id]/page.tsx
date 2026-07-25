@@ -59,6 +59,7 @@ import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
 import { formatGuestPhoneDisplay, guestPhonesEqual, toWhatsAppDigits } from '@/lib/guest-phone'
+import { DEFAULT_GUEST_CATEGORY, GUEST_CATEGORIES } from '@/lib/guest-categories'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
@@ -1385,7 +1386,7 @@ export default function ProjectDashboardPage() {
   const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
-  const [newGuestCategory, setNewGuestCategory] = useState('Friends')
+  const [newGuestCategory, setNewGuestCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -1419,13 +1420,9 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
-  const [editGuest, setEditGuest] = useState<Guest | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editCategory, setEditCategory] = useState('Friends')
-  const [editPhoneError, setEditPhoneError] = useState('')
-  const [editError, setEditError] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [projectSaveStatus, setProjectSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [projectSaveError, setProjectSaveError] = useState('')
+  const [projectFormKey, setProjectFormKey] = useState(0)
   const tabsListRef = useRef<HTMLDivElement>(null)
 
   // Keep the active navbar tab in view when switching on narrow screens
@@ -1513,6 +1510,11 @@ export default function ProjectDashboardPage() {
     e.preventDefault()
     setAddGuestError('')
     setPhoneError('')
+    const name = newGuestName.trim()
+    if (!name) {
+      setAddGuestError('Guest name is required')
+      return
+    }
     if (!phoneValid) {
       setPhoneError('Enter a valid phone number')
       return
@@ -1530,7 +1532,7 @@ export default function ProjectDashboardPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: newGuestName,
+        name,
         phone: newGuestPhone || null,
         guest_category: newGuestCategory,
       }),
@@ -1538,7 +1540,7 @@ export default function ProjectDashboardPage() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       const message = err.error || 'Failed to add guest. Please try again.'
-      if (/phone/i.test(message)) setPhoneError(message)
+      if (err.duplicate || /phone/i.test(message)) setPhoneError(message)
       else setAddGuestError(message)
     } else {
       const data = await res.json()
@@ -1551,9 +1553,9 @@ export default function ProjectDashboardPage() {
       addNotification({
         type: 'guest_added',
         title: 'Guest Added ✓',
-        message: `${newGuestName} has been added to the guest list.`,
+        message: `${name} has been added to the guest list.`,
         projectName: projectNameRef.current || undefined,
-        guestName: newGuestName,
+        guestName: name,
         projectId,
       })
       playNotificationSound('success')
@@ -1689,84 +1691,43 @@ export default function ProjectDashboardPage() {
     setGuestPendingDelete(null)
   }
 
-  const openEditGuest = (guest: Guest) => {
-    setEditGuest(guest)
-    setEditName(guest.name)
-    setEditPhone(guest.phone || '')
-    setEditCategory(guest.guest_category || 'Other')
-    setEditPhoneError('')
-    setEditError('')
-  }
-
-  const saveEditGuest = async () => {
-    if (!editGuest) return
-    const name = editName.trim()
-    if (!name) {
-      setEditError('Guest name is required')
-      return
-    }
-
-    if (editPhone.trim()) {
-      const dup = guests.find(
-        (g) => g.id !== editGuest.id && guestPhonesEqual(g.phone, editPhone),
-      )
-      if (dup) {
-        setEditPhoneError(`This phone number is already used by "${dup.name}"`)
+  const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
+    // Block blank project name from being queued
+    if ('name' in updates) {
+      const trimmed = String(updates.name ?? '').trim()
+      if (!trimmed) {
+        setProjectSaveStatus('error')
+        setProjectSaveError('Project name is required')
         return
       }
+      updates = { ...updates, name: trimmed }
     }
 
-    setSavingEdit(true)
-    setEditError('')
-    setEditPhoneError('')
-    const res = await fetch(`/api/projects/${projectId}/guests`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: editGuest.id,
-        name,
-        phone: editPhone,
-        guest_category: editCategory,
-      }),
-    })
-    const data = await res.json().catch(() => ({}))
-    setSavingEdit(false)
-
-    if (!res.ok) {
-      const message = data.error || 'Failed to update guest'
-      if (/phone/i.test(message)) setEditPhoneError(message)
-      else setEditError(message)
-      return
-    }
-
-    const updated: Guest = {
-      ...editGuest,
-      ...data,
-      name,
-      phone: data.phone ?? (editPhone || undefined),
-      guest_category: editCategory,
-    }
-    setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
-    if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (inviteGuest?.id === editGuest.id) setInviteGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    setEditGuest(null)
-  }
-
-  const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
     // Optimistic local merge so typing stays smooth
     setProject((prev) => {
       if (!prev) return prev
       return { ...prev, ...updates }
     })
+    setProjectSaveError('')
+    setProjectSaveStatus('saving')
 
     pendingProjectUpdatesRef.current = { ...pendingProjectUpdatesRef.current, ...updates }
 
     const flush = async () => {
-      const batch = pendingProjectUpdatesRef.current
+      const batch = { ...pendingProjectUpdatesRef.current }
       pendingProjectUpdatesRef.current = {}
       if (Object.keys(batch).length === 0) return
 
+      if ('name' in batch && !String(batch.name ?? '').trim()) {
+        delete batch.name
+        if (Object.keys(batch).length === 0) {
+          setProjectSaveStatus('error')
+          setProjectSaveError('Project name is required')
+          return
+        }
+      }
+
+      setProjectSaveStatus('saving')
       const res = await fetch(`/api/projects/${projectId}/event`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1774,8 +1735,28 @@ export default function ProjectDashboardPage() {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        alert(data.error || 'Failed to update project')
+        const message =
+          res.status === 429
+            ? 'Too many saves — wait a moment and try again'
+            : data.error || 'Failed to update project'
+        setProjectSaveStatus('error')
+        setProjectSaveError(message)
+        // Re-sync from server so UI matches persisted data
+        try {
+          const refresh = await fetch(`/api/projects/${projectId}/event`)
+          if (refresh.ok) {
+            const proj = await refresh.json()
+            projectNameRef.current = proj.name || ''
+            setProject(proj)
+            setProjectFormKey((k) => k + 1)
+          }
+        } catch {
+          /* ignore refetch errors */
+        }
+        return
       }
+      setProjectSaveStatus('saved')
+      setProjectSaveError('')
     }
 
     if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
@@ -1870,7 +1851,19 @@ export default function ProjectDashboardPage() {
         })
         if (res.ok) {
           const result = await res.json()
-          setImportResult(result.skipped > 0 ? `✓ ${result.message}` : `✓ Successfully imported ${result.count} guests`)
+          const parts: string[] = []
+          if (result.count > 0) parts.push(`Imported ${result.count}`)
+          if (result.skippedDuplicatePhone > 0) {
+            parts.push(`${result.skippedDuplicatePhone} duplicate phone(s) skipped`)
+          }
+          if (result.skippedInvalidPhone > 0) {
+            parts.push(`${result.skippedInvalidPhone} invalid phone row(s) skipped`)
+          }
+          setImportResult(
+            parts.length > 0
+              ? `✓ ${result.message || parts.join('. ')}`
+              : `✓ ${result.message || 'Import complete'}`,
+          )
           addNotification({
             type: 'bulk_import',
             title: `Import Complete 📥`,
@@ -1885,7 +1878,15 @@ export default function ProjectDashboardPage() {
           fetchData()
         } else {
           const err = await res.json()
-          setImportResult(`✗ Import failed: ${err.error}`)
+          const detail = [
+            err.skippedInvalidPhone > 0 ? `${err.skippedInvalidPhone} invalid phone(s)` : '',
+            err.skippedDuplicatePhone > 0 ? `${err.skippedDuplicatePhone} duplicate phone(s)` : '',
+          ]
+            .filter(Boolean)
+            .join(', ')
+          setImportResult(
+            `✗ Import failed: ${err.error}${detail ? ` (${detail})` : ''}`,
+          )
         }
       } catch {
         setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
@@ -2818,7 +2819,7 @@ export default function ProjectDashboardPage() {
                       <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
                         <SelectTrigger className="mt-2 rounded-xl"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {['Family', 'Friends', 'Bride Side', 'Groom Side', 'Neighbours', 'Office', 'Other'].map((c) => (
+                          {GUEST_CATEGORIES.map((c) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>
@@ -2831,7 +2832,7 @@ export default function ProjectDashboardPage() {
                     )}
                     <Button
                       type="submit"
-                      disabled={!newGuestName || adding || !phoneValid || !!phoneError}
+                      disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError}
                       className={`w-full rounded-xl ${theme.primaryBtn}`}
                     >
                       {adding ? 'Adding…' : '+ Add Guest'}
@@ -2966,7 +2967,7 @@ export default function ProjectDashboardPage() {
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
           <AnimatedTabsContent value="event" className="mt-0 space-y-6">
             {project && (
-              <Card className={`${theme.glassCard} max-w-2xl`}>
+              <Card className={`${theme.glassCard} max-w-2xl`} key={projectFormKey}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🎊</span>
@@ -3266,7 +3267,25 @@ export default function ProjectDashboardPage() {
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5"><span>✓</span> Changes are saved automatically</p>
+                  <p
+                    className={`text-xs flex items-center gap-1.5 ${
+                      projectSaveStatus === 'error'
+                        ? 'text-red-600'
+                        : projectSaveStatus === 'saving'
+                          ? 'text-amber-600'
+                          : 'text-gray-400 italic'
+                    }`}
+                  >
+                    {projectSaveStatus === 'saving' ? (
+                      <>Saving…</>
+                    ) : projectSaveStatus === 'error' ? (
+                      <><span>⚠</span> {projectSaveError || 'Couldn’t save changes'}</>
+                    ) : projectSaveStatus === 'saved' ? (
+                      <><span>✓</span> All changes saved</>
+                    ) : (
+                      <><span>✓</span> Changes are saved automatically</>
+                    )}
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -3372,6 +3391,7 @@ export default function ProjectDashboardPage() {
           guest={inviteGuest}
           project={project}
           projectId={projectId}
+          existingGuests={guests}
           onClose={() => setInviteGuest(null)}
           onSaved={(updated) => {
             setGuests((prev) =>
