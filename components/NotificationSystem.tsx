@@ -23,6 +23,7 @@ function timeAgo(iso: string): string {
 
 const CFG: Record<string, { icon: string; accent: string; bg: string; border: string }> = {
   guest_added:     { icon: '👤', accent: '#16A34A', bg: '#F0FDF4', border: '#86EFAC' },
+  guest_deleted:   { icon: '🗑️', accent: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
   rsvp_yes:        { icon: '✅', accent: '#16A34A', bg: '#F0FDF4', border: '#86EFAC' },
   rsvp_no:         { icon: '❌', accent: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
   bulk_import:     { icon: '📥', accent: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE' },

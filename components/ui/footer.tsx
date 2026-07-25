@@ -1,10 +1,14 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
+import { extractFirstName } from '@/lib/couple-family'
 import { Ornament } from './ornament'
 import { RevealStagger } from './reveal'
 
 export function Footer({ config }: { config: InvitationConfig }) {
+  const couple1First = extractFirstName(config.couple1) || config.couple1
+  const couple2First = extractFirstName(config.couple2) || config.couple2
+
   return (
     <footer className="relative overflow-hidden px-6 pb-20 pt-10 text-center">
       <div
@@ -15,7 +19,7 @@ export function Footer({ config }: { config: InvitationConfig }) {
       <RevealStagger className="relative mx-auto flex max-w-xs flex-col items-center" stagger={0.12}>
         <Ornament />
         <p className="mt-7 font-serif text-3xl font-light tracking-wide text-gilded">
-          {config.couple1} &amp; {config.couple2}
+          {couple1First} &amp; {couple2First}
         </p>
         <p className="mt-6 max-w-[16rem] font-serif text-sm italic leading-relaxed text-foreground/70">
           {config.footerTagline}. With love, we look forward to celebrating with you.

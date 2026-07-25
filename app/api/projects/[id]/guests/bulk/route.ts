@@ -57,56 +57,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'No valid guest names found' }, { status: 400 })
     }
 
-    // ── Step 2: Deduplicate within the batch ──────────────────────────────────
-    const seenNames = new Set<string>()
+    // ── Step 2: Deduplicate within the batch by phone only ────────────────────
+    // Same name with different/no phone is allowed.
     const seenPhones = new Set<string>()
     const dedupedRecords = rawRecords.filter((g) => {
-      const nameLower = g.name.toLowerCase()
-      if (seenNames.has(nameLower)) return false
-      if (g.phone && seenPhones.has(g.phone)) return false
-      seenNames.add(nameLower)
-      if (g.phone) seenPhones.add(g.phone)
+      if (!g.phone) return true
+      if (seenPhones.has(g.phone)) return false
+      seenPhones.add(g.phone)
       return true
     })
 
     const skippedInBatch = rawRecords.length - dedupedRecords.length
     const skippedPhone = skippedInvalidPhone
 
-    // ── Step 3: Check against existing guests in this project ─────────────────
+    // ── Step 3: Check against existing guests in this project (phone only) ────
     const supabase = createAdminClient()
-    const incomingNames = dedupedRecords.map((g) => g.name.toLowerCase())
     const incomingPhones = dedupedRecords.map((g) => g.phone).filter(Boolean) as string[]
 
-    // Build the OR filter safely — only include conditions if we have values
-    const orConditions: string[] = [
-      ...incomingNames.map((n) => `name.ilike.${n}`),
-      ...(incomingPhones.length > 0 ? [`phone.in.(${incomingPhones.join(',')})`] : []),
-    ]
-
-    let existingNames = new Set<string>()
     let existingPhones = new Set<string>()
 
-    if (orConditions.length > 0) {
+    if (incomingPhones.length > 0) {
       const { data: existing, error: existingError } = await supabase
         .from('guests')
         .select('name, phone')
         .eq('project_id', id)
-        .or(orConditions.join(','))
+        .in('phone', incomingPhones)
 
       if (existingError) {
         console.error('[POST /api/projects/[id]/guests/bulk] Duplicate check error:', existingError)
         // Non-fatal: proceed without dedup against existing
       } else {
-        existingNames = new Set((existing ?? []).map((g) => g.name.toLowerCase()))
-        existingPhones = new Set((existing ?? []).map((g) => g.phone).filter(Boolean) as string[])
+        existingPhones = new Set(
+          (existing ?? []).map((g) => g.phone).filter(Boolean) as string[],
+        )
       }
     }
 
-    const newRecords = dedupedRecords.filter(
-      (g) =>
-        !existingNames.has(g.name.toLowerCase()) &&
-        !(g.phone && existingPhones.has(g.phone))
-    )
+    const newRecords = dedupedRecords.filter((g) => {
+      if (!g.phone) return true
+      return !existingPhones.has(g.phone)
+    })
 
     const skippedExisting = dedupedRecords.length - newRecords.length
     const totalSkipped = skippedInBatch + skippedExisting

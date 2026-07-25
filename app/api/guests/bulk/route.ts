@@ -43,44 +43,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No valid guest names found' }, { status: 400 })
     }
 
-    // ── Step 2: Deduplicate within the incoming batch ──────────────────────────
-    const seenNames = new Set<string>()
+    // ── Step 2: Deduplicate within the incoming batch by phone only ───────────
+    // Same name with different/no phone is allowed.
     const seenPhones = new Set<string>()
     const dedupedRecords = rawRecords.filter((g) => {
-      const nameLower = g.name.toLowerCase()
-      if (seenNames.has(nameLower)) return false
-      if (g.phone && seenPhones.has(g.phone)) return false
-      seenNames.add(nameLower)
-      if (g.phone) seenPhones.add(g.phone)
+      if (!g.phone) return true
+      if (seenPhones.has(g.phone)) return false
+      seenPhones.add(g.phone)
       return true
     })
 
     const skippedInBatch = rawRecords.length - dedupedRecords.length
 
-    // ── Step 3: Check against existing guests in DB ───────────────────────────
+    // ── Step 3: Check against existing guests in DB (phone only) ──────────────
     const supabase = createAdminClient()
-    const incomingNames = dedupedRecords.map((g) => g.name.toLowerCase())
     const incomingPhones = dedupedRecords.map((g) => g.phone).filter(Boolean) as string[]
 
-    // Fetch existing guests that conflict by name or phone
-    const { data: existing } = await supabase
-      .from('guests')
-      .select('name, phone')
-      .or(
-        [
-          incomingNames.map((n) => `name.ilike.${n}`).join(','),
-          ...(incomingPhones.length > 0 ? [`phone.in.(${incomingPhones.join(',')})`] : []),
-        ].join(',')
-      )
+    let existingPhones = new Set<string>()
 
-    const existingNames = new Set((existing ?? []).map((g) => g.name.toLowerCase()))
-    const existingPhones = new Set((existing ?? []).map((g) => g.phone).filter(Boolean))
+    if (incomingPhones.length > 0) {
+      const { data: existing } = await supabase
+        .from('guests')
+        .select('name, phone')
+        .in('phone', incomingPhones)
 
-    const newRecords = dedupedRecords.filter(
-      (g) =>
-        !existingNames.has(g.name.toLowerCase()) &&
-        !(g.phone && existingPhones.has(g.phone))
-    )
+      existingPhones = new Set((existing ?? []).map((g) => g.phone).filter(Boolean) as string[])
+    }
+
+    const newRecords = dedupedRecords.filter((g) => {
+      if (!g.phone) return true
+      return !existingPhones.has(g.phone)
+    })
 
     const skippedExisting = dedupedRecords.length - newRecords.length
     const totalSkipped = skippedInBatch + skippedExisting
