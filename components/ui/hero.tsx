@@ -1,6 +1,7 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
+import { extractFirstName } from '@/lib/extract-first-name'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -176,7 +177,9 @@ export function Hero({
   inviteReady?: boolean
 }) {
   const reduce = useReducedMotion()
-  const monogram = `${config.couple1[0]}${config.couple2[0]}`
+  const couple1First = extractFirstName(config.couple1) || config.couple1
+  const couple2First = extractFirstName(config.couple2) || config.couple2
+  const monogram = `${couple1First[0] || ''}${couple2First[0] || ''}`
   const [showHint, setShowHint] = useState(false)
   /** Latched: once true, cue + lift never return (even if guest scrolls back up). */
   const [dismissed, setDismissed] = useState(false)
@@ -303,7 +306,7 @@ export function Hero({
           >
             <InviteImage
               src={config.images.hero || '/placeholder.svg'}
-              alt={`${config.couple1} and ${config.couple2} together`}
+              alt={`${couple1First} and ${couple2First} together`}
               className="animate-ken-burns h-full w-full object-cover"
               priority
             />
@@ -323,8 +326,8 @@ export function Hero({
             />
             <h1 className="flex flex-col items-center leading-none text-foreground">
               <LetterReveal
-                text={config.couple1}
-                className="font-serif text-4xl font-semibold tracking-[0.12em]"
+                text={couple1First}
+                className="font-serif text-4xl font-semibold tracking-[0.12em] whitespace-nowrap"
                 gilded
               />
               <motion.span
@@ -336,8 +339,8 @@ export function Hero({
                 &amp;
               </motion.span>
               <LetterReveal
-                text={config.couple2}
-                className="font-serif text-4xl font-semibold tracking-[0.04em]"
+                text={couple2First}
+                className="font-serif text-4xl font-semibold tracking-[0.04em] whitespace-nowrap"
                 gilded
               />
             </h1>

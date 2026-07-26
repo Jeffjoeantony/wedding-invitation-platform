@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { extractFirstName } from '@/lib/extract-first-name'
 import { getProjectGallery } from '@/lib/invite-media-server'
 
 export function getSiteOrigin(): string {
@@ -51,8 +52,8 @@ export async function buildInviteMetadata(opts: {
     }
   }
 
-  const couple1 = event.couple_1?.trim() || 'Our'
-  const couple2 = event.couple_2?.trim() || 'Celebration'
+  const couple1 = extractFirstName(event.couple_1) || event.couple_1?.trim() || 'Our'
+  const couple2 = extractFirstName(event.couple_2) || event.couple_2?.trim() || 'Celebration'
   const template = event.event_template?.trim() || 'Event'
   const title = `${couple1} & ${couple2} — ${template} Invitation`
   const dateLabel = formatDateLabel(event.date)
