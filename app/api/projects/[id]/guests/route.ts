@@ -1,7 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import { getGuestMomentsCounts } from '@/lib/invite-media-server'
-import { normalizeGuestPhoneForStorage } from '@/lib/guest-phone'
+import {
+  guestPhoneLookupVariants,
+  guestPhonesEqual,
+  normalizeGuestPhoneForStorage,
+} from '@/lib/guest-phone'
 import {
   parseInvitedTo,
   parseRsvpByEvent,
@@ -24,6 +28,47 @@ const GUEST_SELECT_LEGACY =
 
 const MISSING_GUEST_COLUMN =
   /(invited_to|rsvp_by_event|rsvp_headline|greeting_line|hide_greeting)/i
+
+/** Phone must be unique per project; same names are allowed. */
+async function findGuestWithPhone(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  phone: string,
+  excludeGuestId?: string,
+): Promise<{ id: string; name: string; phone: string | null } | null> {
+  const variants = guestPhoneLookupVariants(phone)
+  if (variants.length === 0) return null
+
+  let query = supabase
+    .from('guests')
+    .select('id, name, phone')
+    .eq('project_id', projectId)
+    .in('phone', variants)
+    .limit(20)
+
+  if (excludeGuestId) query = query.neq('id', excludeGuestId)
+
+  const { data } = await query
+  const exact = (data ?? []).find((g) => guestPhonesEqual(g.phone, phone))
+  if (exact) return exact
+
+  // Legacy rows may use odd formats — match by national digits then normalize
+  const national = phone.replace(/\D/g, '').slice(-10)
+  if (national.length < 8) return null
+
+  let loose = supabase
+    .from('guests')
+    .select('id, name, phone')
+    .eq('project_id', projectId)
+    .not('phone', 'is', null)
+    .like('phone', `%${national}%`)
+    .limit(50)
+
+  if (excludeGuestId) loose = loose.neq('id', excludeGuestId)
+
+  const { data: looseRows } = await loose
+  return (looseRows ?? []).find((g) => guestPhonesEqual(g.phone, phone)) ?? null
+}
 
 function withGuestDefaults(g: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -167,23 +212,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       invited_to = parseInvitedTo(body.invited_to, eventIds)
     }
 
-    const orParts = [`name.ilike.${name}`]
-    if (phone) orParts.push(`phone.eq.${phone}`)
-
-    const { data: existing } = await supabase
-      .from('guests')
-      .select('id, name, phone')
-      .eq('project_id', id)
-      .or(orParts.join(','))
-      .limit(1)
-
-    if (existing && existing.length > 0) {
-      const dup = existing[0]
-      const reason =
-        dup.name.toLowerCase() === name.toLowerCase()
-          ? `A guest named "${dup.name}" already exists in this project`
-          : `Phone number ${phone} is already registered to "${dup.name}" in this project`
-      return NextResponse.json({ error: reason, duplicate: true }, { status: 409 })
+    // Same name is allowed. A phone number may only belong to one guest in the project.
+    if (phone) {
+      const dup = await findGuestWithPhone(supabase, id, phone)
+      if (dup) {
+        return NextResponse.json(
+          {
+            error: `This phone number is already used by "${dup.name}"`,
+            duplicate: true,
+          },
+          { status: 409 },
+        )
+      }
     }
 
     const unique_token = crypto.randomUUID().replace(/-/g, '').slice(0, 16)
@@ -225,7 +265,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (isPerProjectConstraint) {
           return NextResponse.json(
             {
-              error: `Phone number ${phone} is already registered to a guest in this project`,
+              error: 'This phone number is already used by another guest',
               duplicate: true,
             },
             { status: 409 },
@@ -233,36 +273,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         if (isGlobalConstraint && phone) {
-          const { data: retryData, error: retryError } = await supabase
-            .from('guests')
-            .insert({
-              name,
-              phone: null,
-              email,
-              guest_category,
-              rsvp_status: 'pending',
-              project_id: id,
-              unique_token,
-            })
-            .select()
-            .single()
-
-          if (retryError) {
-            console.error('[POST /api/projects/[id]/guests] Retry error:', retryError)
-            return NextResponse.json({ error: retryError.message || 'Insert failed' }, { status: 500 })
-          }
-
           return NextResponse.json(
             {
-              ...retryData,
-              _warning:
-                'Phone was not saved — it is used by another guest across projects. Run the DB migration to allow cross-project phone reuse.',
+              error:
+                'This phone number is already used by another guest. Choose a different number or leave phone blank.',
+              duplicate: true,
             },
-            { status: 201 },
+            { status: 409 },
           )
         }
 
-        return NextResponse.json({ error: 'A guest with the same details already exists' }, { status: 409 })
+        return NextResponse.json(
+          { error: 'This phone number is already used by another guest', duplicate: true },
+          { status: 409 },
+        )
       }
 
       console.error('[POST /api/projects/[id]/guests] Supabase error:', error)
@@ -363,6 +387,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
     }
 
+    // Phone must stay unique per project; same names are fine
+    if ('phone' in updates && updates.phone) {
+      const dup = await findGuestWithPhone(
+        supabase,
+        id,
+        updates.phone as string,
+        guestId,
+      )
+      if (dup) {
+        return NextResponse.json(
+          {
+            error: `This phone number is already used by "${dup.name}"`,
+            duplicate: true,
+          },
+          { status: 409 },
+        )
+      }
+    }
+
     const { data, error } = await supabase
       .from('guests')
       .update(updates)
@@ -372,6 +415,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .single()
 
     if (error) {
+      if (error.code === '23505') {
+        return NextResponse.json(
+          {
+            error: 'This phone number is already used by another guest',
+            duplicate: true,
+          },
+          { status: 409 },
+        )
+      }
       if (MISSING_GUEST_COLUMN.test(error.message || '')) {
         return NextResponse.json(
           {

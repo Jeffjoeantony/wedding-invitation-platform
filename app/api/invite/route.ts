@@ -1,4 +1,12 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  EMPTY_COUPLE_FAMILY,
+  EMPTY_PLACE_FIELDS,
+  PROJECT_EVENT_CORE_SELECT,
+  PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE,
+  PROJECT_EVENT_INVITE_SELECT,
+  isMissingCoupleFamilyColumn,
+} from '@/lib/couple-family'
 import { getGuestMoments, getProjectGallery } from '@/lib/invite-media-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
@@ -99,19 +107,39 @@ export async function GET(req: NextRequest) {
         .eq('id', guestRow.id)
     }
 
-    let { data: event } = await supabase
+    let { data: event, error: eventError } = await supabase
       .from('projects')
-      .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template,events')
+      .select(PROJECT_EVENT_INVITE_SELECT)
       .eq('id', guestRow.project_id)
       .single()
 
-    if (!event) {
+    if (eventError && isMissingCoupleFamilyColumn(eventError.message)) {
+      if (/place/i.test(eventError.message || '')) {
+        const retry = await supabase
+          .from('projects')
+          .select(`${PROJECT_EVENT_CORE_SELECT},events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`)
+          .eq('id', guestRow.project_id)
+          .single()
+        event = retry.data ? { ...retry.data, ...EMPTY_PLACE_FIELDS } : null
+        eventError = retry.error
+      } else {
+        const retry = await supabase
+          .from('projects')
+          .select(`${PROJECT_EVENT_CORE_SELECT},events`)
+          .eq('id', guestRow.project_id)
+          .single()
+        event = retry.data ? { ...retry.data, ...EMPTY_COUPLE_FAMILY } : null
+        eventError = retry.error
+      }
+    }
+
+    if (!event || eventError) {
       const retry = await supabase
         .from('projects')
-        .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template')
+        .select(PROJECT_EVENT_CORE_SELECT)
         .eq('id', guestRow.project_id)
         .single()
-      event = retry.data ? { ...retry.data, events: [] } : null
+      event = retry.data ? { ...retry.data, events: [], ...EMPTY_COUPLE_FAMILY } : null
     }
 
     const [moments, galleryImages] = await Promise.all([

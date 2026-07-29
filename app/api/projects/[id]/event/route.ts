@@ -1,6 +1,15 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
 import {
+  COUPLE_FAMILY_FIELDS,
+  EMPTY_COUPLE_FAMILY,
+  EMPTY_PLACE_FIELDS,
+  PROJECT_EVENT_ADMIN_SELECT,
+  PROJECT_EVENT_CORE_SELECT,
+  PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE,
+  isMissingCoupleFamilyColumn,
+} from '@/lib/couple-family'
+import {
   resolveProjectEvents,
   sanitizeEventsPayload,
   syncLegacyFieldsFromEvents,
@@ -12,9 +21,6 @@ function isValidUUID(id: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 }
 
-const EVENT_SELECT =
-  'id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template,status,name,events'
-
 // Public readable for invite pages + admin: get project event details
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -24,18 +30,41 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const supabase = createAdminClient()
     let { data, error } = await supabase
       .from('projects')
-      .select(EVENT_SELECT)
+      .select(PROJECT_EVENT_ADMIN_SELECT)
       .eq('id', id)
       .single()
+
+    // Fallback if family columns not migrated yet
+    if (error && isMissingCoupleFamilyColumn(error.message)) {
+      if (/place/i.test(error.message || '')) {
+        const retry = await supabase
+          .from('projects')
+          .select(
+            `${PROJECT_EVENT_CORE_SELECT},status,name,events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`,
+          )
+          .eq('id', id)
+          .single()
+        data = retry.data ? { ...retry.data, ...EMPTY_PLACE_FIELDS } : null
+        error = retry.error
+      } else {
+        const retry = await supabase
+          .from('projects')
+          .select(`${PROJECT_EVENT_CORE_SELECT},status,name,events`)
+          .eq('id', id)
+          .single()
+        data = retry.data ? { ...retry.data, ...EMPTY_COUPLE_FAMILY } : null
+        error = retry.error
+      }
+    }
 
     // Fallback if `events` column not migrated yet
     if (error && /events/i.test(error.message || '')) {
       const retry = await supabase
         .from('projects')
-        .select('id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template,status,name')
+        .select(`${PROJECT_EVENT_CORE_SELECT},status,name`)
         .eq('id', id)
         .single()
-      data = retry.data ? { ...retry.data, events: [] } : null
+      data = retry.data ? { ...retry.data, events: [], ...EMPTY_COUPLE_FAMILY } : null
       error = retry.error
     }
 
@@ -66,8 +95,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ALLOWED_FIELDS = [
       'couple_1', 'couple_2', 'date', 'time',
       'venue', 'location', 'contact', 'maps_url', 'event_template', 'status', 'name',
+      ...COUPLE_FAMILY_FIELDS,
     ] as const
-    type AllowedKey = typeof ALLOWED_FIELDS[number]
 
     const updates: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
@@ -129,6 +158,34 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .eq('id', id)
 
     if (error) {
+      if (isMissingCoupleFamilyColumn(error.message)) {
+        if (/place/i.test(error.message || '')) {
+          // Legacy: fold place into house ("House, Place") until place columns exist
+          const retryUpdates = { ...updates }
+          for (const n of [1, 2] as const) {
+            const placeKey = `couple_${n}_place`
+            const houseKey = `couple_${n}_house`
+            if (!(placeKey in retryUpdates)) continue
+            const place = String(retryUpdates[placeKey] ?? '').trim()
+            delete retryUpdates[placeKey]
+            if (!place) continue
+            const house = String(retryUpdates[houseKey] ?? '').trim()
+            retryUpdates[houseKey] = house ? `${house}, ${place}` : place
+          }
+          const retry = await supabase
+            .from('projects')
+            .update({ ...retryUpdates, updated_at: new Date().toISOString() })
+            .eq('id', id)
+          if (!retry.error) return NextResponse.json({ success: true })
+        }
+        return NextResponse.json(
+          {
+            error:
+              'Couple family columns are missing. Run db/migrations/couple-family-schema.sql (or couple-family-place.sql) in Supabase, then try again.',
+          },
+          { status: 500 },
+        )
+      }
       if (/events/i.test(error.message || '')) {
         return NextResponse.json(
           {
