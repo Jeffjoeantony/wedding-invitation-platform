@@ -1,7 +1,8 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
-import { coupleFamilySideHasDetails, extractFirstName, splitParentsForDisplay } from '@/lib/couple-family'
+import { coupleFamilySideHasDetails, splitParentsForDisplay } from '@/lib/couple-family'
+import { extractFirstName } from '@/lib/extract-first-name'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -458,7 +459,7 @@ export function Hero({
           >
             <InviteImage
               src={config.images.hero || '/placeholder.svg'}
-              alt={`${config.couple1} and ${config.couple2} together`}
+              alt={`${couple1First} and ${couple2First} together`}
               className="animate-ken-burns h-full w-full object-cover"
               priority
             />
@@ -479,7 +480,7 @@ export function Hero({
             <h1 className="flex flex-col items-center leading-none text-foreground">
               <LetterReveal
                 text={couple1First}
-                className="font-serif text-4xl font-semibold tracking-[0.12em]"
+                className="font-serif text-4xl font-semibold tracking-[0.12em] whitespace-nowrap"
                 gilded
               />
               <motion.span
@@ -492,7 +493,7 @@ export function Hero({
               </motion.span>
               <LetterReveal
                 text={couple2First}
-                className="font-serif text-4xl font-semibold tracking-[0.04em]"
+                className="font-serif text-4xl font-semibold tracking-[0.04em] whitespace-nowrap"
                 gilded
               />
             </h1>

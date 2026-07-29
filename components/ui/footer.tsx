@@ -1,7 +1,7 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
-import { extractFirstName } from '@/lib/couple-family'
+import { extractFirstName } from '@/lib/extract-first-name'
 import { Ornament } from './ornament'
 import { RevealStagger } from './reveal'
 
