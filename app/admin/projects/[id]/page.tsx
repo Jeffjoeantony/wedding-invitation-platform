@@ -58,7 +58,8 @@ import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
-import { formatGuestPhoneDisplay, toWhatsAppDigits } from '@/lib/guest-phone'
+import { formatGuestPhoneDisplay, guestPhonesEqual, toWhatsAppDigits } from '@/lib/guest-phone'
+import { DEFAULT_GUEST_CATEGORY, GUEST_CATEGORIES } from '@/lib/guest-categories'
 import {
   MAX_GALLERY_IMAGES,
   MAX_GUEST_MOMENTS,
@@ -74,6 +75,7 @@ import {
   resolveProjectEvents,
   type ProjectEvent,
 } from '@/lib/project-events'
+import { buildCoupleFamilySide, formatRelationAbbrev, showsCoupleFamilyDetails } from '@/lib/couple-family'
 
 interface Guest {
   id: string
@@ -101,6 +103,18 @@ interface Project {
   name: string
   couple_1: string
   couple_2: string
+  couple_1_parents?: string | null
+  couple_1_house?: string | null
+  couple_1_place?: string | null
+  couple_2_parents?: string | null
+  couple_2_house?: string | null
+  couple_2_place?: string | null
+  couple_1_role?: string | null
+  couple_2_role?: string | null
+  couple_1_father?: string | null
+  couple_1_mother?: string | null
+  couple_2_father?: string | null
+  couple_2_mother?: string | null
   date: string
   time: string
   venue: string
@@ -1372,7 +1386,7 @@ export default function ProjectDashboardPage() {
   const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
-  const [newGuestCategory, setNewGuestCategory] = useState('Friends')
+  const [newGuestCategory, setNewGuestCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -1383,6 +1397,8 @@ export default function ProjectDashboardPage() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevGuestsRef = useRef<Record<string, string>>({})
   const projectNameRef = useRef<string>('')
+  const projectUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingProjectUpdatesRef = useRef<Partial<Project>>({})
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importPreview, setImportPreview] = useState<any[]>([])
   const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
@@ -1404,13 +1420,9 @@ export default function ProjectDashboardPage() {
   const [activeTab, setActiveTab] = useState('overview')
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
-  const [editGuest, setEditGuest] = useState<Guest | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editCategory, setEditCategory] = useState('Friends')
-  const [editPhoneError, setEditPhoneError] = useState('')
-  const [editError, setEditError] = useState('')
-  const [savingEdit, setSavingEdit] = useState(false)
+  const [projectSaveStatus, setProjectSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [projectSaveError, setProjectSaveError] = useState('')
+  const [projectFormKey, setProjectFormKey] = useState(0)
   const tabsListRef = useRef<HTMLDivElement>(null)
 
   // Keep the active navbar tab in view when switching on narrow screens
@@ -1497,23 +1509,39 @@ export default function ProjectDashboardPage() {
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
     setAddGuestError('')
+    setPhoneError('')
+    const name = newGuestName.trim()
+    if (!name) {
+      setAddGuestError('Guest name is required')
+      return
+    }
     if (!phoneValid) {
       setPhoneError('Enter a valid phone number')
       return
+    }
+    // Same name OK; phone must be unique in this project
+    if (newGuestPhone.trim()) {
+      const dup = guests.find((g) => guestPhonesEqual(g.phone, newGuestPhone))
+      if (dup) {
+        setPhoneError(`This phone number is already used by "${dup.name}"`)
+        return
+      }
     }
     setAdding(true)
     const res = await fetch(`/api/projects/${projectId}/guests`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: newGuestName,
+        name,
         phone: newGuestPhone || null,
         guest_category: newGuestCategory,
       }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      setAddGuestError(err.error || 'Failed to add guest. Please try again.')
+      const message = err.error || 'Failed to add guest. Please try again.'
+      if (err.duplicate || /phone/i.test(message)) setPhoneError(message)
+      else setAddGuestError(message)
     } else {
       const data = await res.json()
       setGuests([data, ...guests])
@@ -1525,9 +1553,9 @@ export default function ProjectDashboardPage() {
       addNotification({
         type: 'guest_added',
         title: 'Guest Added ✓',
-        message: `${newGuestName} has been added to the guest list.`,
+        message: `${name} has been added to the guest list.`,
         projectName: projectNameRef.current || undefined,
-        guestName: newGuestName,
+        guestName: name,
         projectId,
       })
       playNotificationSound('success')
@@ -1645,6 +1673,16 @@ export default function ProjectDashboardPage() {
       if (inviteGuest?.id === id) setInviteGuest(null)
       if (momentsGuest?.id === id) setMomentsGuest(null)
       if (lastAddedGuest?.id === id) setLastAddedGuest(null)
+      delete prevGuestsRef.current[id]
+      addNotification({
+        type: 'guest_deleted',
+        title: 'Guest Deleted',
+        message: `${name} has been removed from the guest list.`,
+        projectName: projectNameRef.current || undefined,
+        guestName: name,
+        projectId,
+      })
+      playNotificationSound('warning')
     } else {
       setDeleteError(`Failed to delete "${name}". Please try again.`)
       setTimeout(() => setDeleteError(''), 4000)
@@ -1653,72 +1691,105 @@ export default function ProjectDashboardPage() {
     setGuestPendingDelete(null)
   }
 
-  const openEditGuest = (guest: Guest) => {
-    setEditGuest(guest)
-    setEditName(guest.name)
-    setEditPhone(guest.phone || '')
-    setEditCategory(guest.guest_category || 'Other')
-    setEditPhoneError('')
-    setEditError('')
-  }
-
-  const saveEditGuest = async () => {
-    if (!editGuest) return
-    const name = editName.trim()
-    if (!name) {
-      setEditError('Guest name is required')
-      return
+  const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
+    // Block blank project name from being queued
+    if ('name' in updates) {
+      const trimmed = String(updates.name ?? '').trim()
+      if (!trimmed) {
+        setProjectSaveStatus('error')
+        setProjectSaveError('Project name is required')
+        return
+      }
+      updates = { ...updates, name: trimmed }
     }
 
-    setSavingEdit(true)
-    setEditError('')
-    const res = await fetch(`/api/projects/${projectId}/guests`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: editGuest.id,
-        name,
-        phone: editPhone,
-        guest_category: editCategory,
-      }),
+    // Optimistic local merge so typing stays smooth
+    setProject((prev) => {
+      if (!prev) return prev
+      return { ...prev, ...updates }
     })
-    const data = await res.json().catch(() => ({}))
-    setSavingEdit(false)
+    setProjectSaveError('')
+    setProjectSaveStatus('saving')
 
-    if (!res.ok) {
-      const message = data.error || 'Failed to update guest'
-      if (/phone/i.test(message)) setEditPhoneError(message)
-      else setEditError(message)
+    pendingProjectUpdatesRef.current = { ...pendingProjectUpdatesRef.current, ...updates }
+
+    const flush = async () => {
+      const batch = { ...pendingProjectUpdatesRef.current }
+      pendingProjectUpdatesRef.current = {}
+      if (Object.keys(batch).length === 0) return
+
+      if ('name' in batch && !String(batch.name ?? '').trim()) {
+        delete batch.name
+        if (Object.keys(batch).length === 0) {
+          setProjectSaveStatus('error')
+          setProjectSaveError('Project name is required')
+          return
+        }
+      }
+
+      setProjectSaveStatus('saving')
+      const res = await fetch(`/api/projects/${projectId}/event`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        const message =
+          res.status === 429
+            ? 'Too many saves — wait a moment and try again'
+            : data.error || 'Failed to update project'
+        setProjectSaveStatus('error')
+        setProjectSaveError(message)
+        // Re-sync from server so UI matches persisted data
+        try {
+          const refresh = await fetch(`/api/projects/${projectId}/event`)
+          if (refresh.ok) {
+            const proj = await refresh.json()
+            projectNameRef.current = proj.name || ''
+            setProject(proj)
+            setProjectFormKey((k) => k + 1)
+          }
+        } catch {
+          /* ignore refetch errors */
+        }
+        return
+      }
+      setProjectSaveStatus('saved')
+      setProjectSaveError('')
+    }
+
+    if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
+
+    if (options?.immediate) {
+      projectUpdateTimerRef.current = null
+      void flush()
       return
     }
 
-    const updated: Guest = {
-      ...editGuest,
-      ...data,
-      name,
-      phone: data.phone ?? (editPhone || undefined),
-      guest_category: editCategory,
-    }
-    setGuests((prev) => prev.map((g) => (g.id === editGuest.id ? { ...g, ...updated } : g)))
-    if (lastAddedGuest?.id === editGuest.id) setLastAddedGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (momentsGuest?.id === editGuest.id) setMomentsGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    if (inviteGuest?.id === editGuest.id) setInviteGuest((prev) => (prev ? { ...prev, ...updated } : prev))
-    setEditGuest(null)
-  }
+    // Debounce text-field saves — avoids rate-limit 429s on every keystroke
+    projectUpdateTimerRef.current = setTimeout(() => {
+      projectUpdateTimerRef.current = null
+      void flush()
+    }, 600)
+  }, [projectId])
 
-  const updateProject = async (updates: Partial<Project>) => {
-    const res = await fetch(`/api/projects/${projectId}/event`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
-    })
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      alert(data.error || 'Failed to update project')
-      return
+  // Flush any pending project edits when leaving the page
+  useEffect(() => {
+    return () => {
+      if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
+      const batch = pendingProjectUpdatesRef.current
+      if (Object.keys(batch).length === 0) return
+      pendingProjectUpdatesRef.current = {}
+      // keepalive so the tab close still delivers the last typed values
+      void fetch(`/api/projects/${projectId}/event`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+        keepalive: true,
+      })
     }
-    setProject({ ...project!, ...updates })
-  }
+  }, [projectId])
 
   const handleDeleteProject = async () => {
     if (!confirm(`Permanently delete "${project?.name}"? All guests and data will be lost. This cannot be undone.`)) return
@@ -1780,7 +1851,19 @@ export default function ProjectDashboardPage() {
         })
         if (res.ok) {
           const result = await res.json()
-          setImportResult(result.skipped > 0 ? `✓ ${result.message}` : `✓ Successfully imported ${result.count} guests`)
+          const parts: string[] = []
+          if (result.count > 0) parts.push(`Imported ${result.count}`)
+          if (result.skippedDuplicatePhone > 0) {
+            parts.push(`${result.skippedDuplicatePhone} duplicate phone(s) skipped`)
+          }
+          if (result.skippedInvalidPhone > 0) {
+            parts.push(`${result.skippedInvalidPhone} invalid phone row(s) skipped`)
+          }
+          setImportResult(
+            parts.length > 0
+              ? `✓ ${result.message || parts.join('. ')}`
+              : `✓ ${result.message || 'Import complete'}`,
+          )
           addNotification({
             type: 'bulk_import',
             title: `Import Complete 📥`,
@@ -1795,7 +1878,15 @@ export default function ProjectDashboardPage() {
           fetchData()
         } else {
           const err = await res.json()
-          setImportResult(`✗ Import failed: ${err.error}`)
+          const detail = [
+            err.skippedInvalidPhone > 0 ? `${err.skippedInvalidPhone} invalid phone(s)` : '',
+            err.skippedDuplicatePhone > 0 ? `${err.skippedDuplicatePhone} duplicate phone(s)` : '',
+          ]
+            .filter(Boolean)
+            .join(', ')
+          setImportResult(
+            `✗ Import failed: ${err.error}${detail ? ` (${detail})` : ''}`,
+          )
         }
       } catch {
         setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
@@ -2728,7 +2819,7 @@ export default function ProjectDashboardPage() {
                       <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
                         <SelectTrigger className="mt-2 rounded-xl"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {['Family', 'Friends', 'Bride Side', 'Groom Side', 'Neighbours', 'Office', 'Other'].map((c) => (
+                          {GUEST_CATEGORIES.map((c) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>
@@ -2741,7 +2832,7 @@ export default function ProjectDashboardPage() {
                     )}
                     <Button
                       type="submit"
-                      disabled={!newGuestName || adding || !phoneValid || !!phoneError}
+                      disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError}
                       className={`w-full rounded-xl ${theme.primaryBtn}`}
                     >
                       {adding ? 'Adding…' : '+ Add Guest'}
@@ -2876,7 +2967,7 @@ export default function ProjectDashboardPage() {
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
           <AnimatedTabsContent value="event" className="mt-0 space-y-6">
             {project && (
-              <Card className={`${theme.glassCard} max-w-2xl`}>
+              <Card className={`${theme.glassCard} max-w-2xl`} key={projectFormKey}>
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🎊</span>
@@ -2907,7 +2998,10 @@ export default function ProjectDashboardPage() {
                         const nextTemplate = val as Project['event_template']
                         // Reset Events included to ONLY the new primary (drop previous extras)
                         const nextEvents = resetEventsToPrimary(project, nextTemplate || 'Wedding')
-                        updateProject({ event_template: nextTemplate, events: nextEvents })
+                        updateProject(
+                          { event_template: nextTemplate, events: nextEvents },
+                          { immediate: true },
+                        )
                       }}
                     >
                       <SelectTrigger id="event-type" className="mt-2 rounded-xl">
@@ -2942,20 +3036,185 @@ export default function ProjectDashboardPage() {
                     /* ── Wedding / all other events: Partner 1 + Partner 2 ── */
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Partner 1</Label>
-                        <Input defaultValue={project.couple_1} onChange={(e) => updateProject({ couple_1: e.target.value })} className="mt-2 rounded-xl" />
+                        <Label>Partner 1 full name</Label>
+                        <Input
+                          defaultValue={project.couple_1}
+                          placeholder="e.g. Rita Maria Chacko"
+                          onChange={(e) => updateProject({ couple_1: e.target.value })}
+                          className="mt-2 rounded-xl"
+                        />
+                        <p className="mt-1.5 text-[11px] text-gray-500">
+                          Invite name card shows the first name only; family section shows the full name.
+                        </p>
                       </div>
                       <div>
-                        <Label>Partner 2</Label>
-                        <Input defaultValue={project.couple_2} onChange={(e) => updateProject({ couple_2: e.target.value })} className="mt-2 rounded-xl" />
+                        <Label>Partner 2 full name</Label>
+                        <Input
+                          defaultValue={project.couple_2}
+                          placeholder="e.g. Alan Joseph"
+                          onChange={(e) => updateProject({ couple_2: e.target.value })}
+                          className="mt-2 rounded-xl"
+                        />
                       </div>
                     </div>
                   )}
 
+                  {showsCoupleFamilyDetails(project.event_template) ? (
+                    <div className="rounded-2xl border border-rose-100/80 bg-rose-50/40 p-4 sm:p-5 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Family details</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Role drives D/o or S/o. Invite shows name, relation, parents, house, then place.
+                        </p>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {([
+                          {
+                            key: '1' as const,
+                            name: project.couple_1?.trim() || 'Partner 1',
+                            role: project.couple_1_role,
+                            father: project.couple_1_father,
+                            mother: project.couple_1_mother,
+                            house: project.couple_1_house,
+                            place: project.couple_1_place,
+                            defaultRole: 'bride' as const,
+                            roleKey: 'couple_1_role' as const,
+                            fatherKey: 'couple_1_father' as const,
+                            motherKey: 'couple_1_mother' as const,
+                            houseKey: 'couple_1_house' as const,
+                            placeKey: 'couple_1_place' as const,
+                          },
+                          {
+                            key: '2' as const,
+                            name: project.couple_2?.trim() || 'Partner 2',
+                            role: project.couple_2_role,
+                            father: project.couple_2_father,
+                            mother: project.couple_2_mother,
+                            house: project.couple_2_house,
+                            place: project.couple_2_place,
+                            defaultRole: 'groom' as const,
+                            roleKey: 'couple_2_role' as const,
+                            fatherKey: 'couple_2_father' as const,
+                            motherKey: 'couple_2_mother' as const,
+                            houseKey: 'couple_2_house' as const,
+                            placeKey: 'couple_2_place' as const,
+                          },
+                        ]).map((side) => {
+                          const roleValue = side.role || side.defaultRole
+                          const preview = buildCoupleFamilySide({
+                            name: side.name,
+                            role: roleValue,
+                            father: side.father,
+                            mother: side.mother,
+                            house: side.house,
+                            place: side.place,
+                          })
+                          return (
+                            <div key={side.key} className="space-y-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-700/80">
+                                {side.name}
+                              </p>
+                              <div>
+                                <Label htmlFor={`couple-${side.key}-role`}>Role</Label>
+                                <Select
+                                  value={roleValue}
+                                  onValueChange={(val) =>
+                                    updateProject({ [side.roleKey]: val }, { immediate: true })
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`couple-${side.key}-role`}
+                                    className="mt-2 rounded-xl"
+                                  >
+                                    <SelectValue placeholder="Select role" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="bride">Bride</SelectItem>
+                                    <SelectItem value="groom">Groom</SelectItem>
+                                    <SelectItem value="partner">Partner</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor={`couple-${side.key}-father`}>Father&apos;s name</Label>
+                                <Input
+                                  id={`couple-${side.key}-father`}
+                                  defaultValue={side.father || ''}
+                                  placeholder="Father's full name"
+                                  onChange={(e) =>
+                                    updateProject({
+                                      [side.fatherKey]: e.target.value,
+                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
+                                    })
+                                  }
+                                  className="mt-2 rounded-xl"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`couple-${side.key}-mother`}>Mother&apos;s name</Label>
+                                <Input
+                                  id={`couple-${side.key}-mother`}
+                                  defaultValue={side.mother || ''}
+                                  placeholder="Mother's full name"
+                                  onChange={(e) =>
+                                    updateProject({
+                                      [side.motherKey]: e.target.value,
+                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
+                                    })
+                                  }
+                                  className="mt-2 rounded-xl"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`couple-${side.key}-house`}>House name</Label>
+                                <Input
+                                  id={`couple-${side.key}-house`}
+                                  defaultValue={side.house || ''}
+                                  placeholder="House or family name"
+                                  onChange={(e) =>
+                                    updateProject({ [side.houseKey]: e.target.value })
+                                  }
+                                  className="mt-2 rounded-xl"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`couple-${side.key}-place`}>Place</Label>
+                                <Input
+                                  id={`couple-${side.key}-place`}
+                                  defaultValue={side.place || ''}
+                                  placeholder="Place or locality"
+                                  onChange={(e) =>
+                                    updateProject({ [side.placeKey]: e.target.value })
+                                  }
+                                  className="mt-2 rounded-xl"
+                                />
+                              </div>
+                              {(preview.parents || preview.house || preview.place) ? (
+                                <div className="text-[11px] text-gray-500 leading-snug rounded-lg bg-white/60 px-3 py-2 border border-rose-100/60 space-y-0.5">
+                                  <p className="font-medium text-gray-600">Will show as:</p>
+                                  <p className="font-medium text-gray-800">{preview.name}</p>
+                                  {preview.relation ? <p>{preview.relation}</p> : null}
+                                  {preview.parents ? <p>{preview.parents}</p> : null}
+                                  {preview.house ? <p>{preview.house}</p> : null}
+                                  {preview.place ? <p>{preview.place}</p> : null}
+                                  {!preview.relation && formatRelationAbbrev(roleValue) ? (
+                                    <p className="text-gray-400">
+                                      (Add parents to show {formatRelationAbbrev(roleValue)})
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {project.event_template !== 'Birthday' ? (
                     <EventsIncludedEditor
                       project={project}
-                      onChange={(events) => updateProject({ events })}
+                      onChange={(events) => updateProject({ events }, { immediate: true })}
                     />
                   ) : (
                     <>
@@ -3008,7 +3267,25 @@ export default function ProjectDashboardPage() {
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-400 italic flex items-center gap-1.5"><span>✓</span> Changes are saved automatically</p>
+                  <p
+                    className={`text-xs flex items-center gap-1.5 ${
+                      projectSaveStatus === 'error'
+                        ? 'text-red-600'
+                        : projectSaveStatus === 'saving'
+                          ? 'text-amber-600'
+                          : 'text-gray-400 italic'
+                    }`}
+                  >
+                    {projectSaveStatus === 'saving' ? (
+                      <>Saving…</>
+                    ) : projectSaveStatus === 'error' ? (
+                      <><span>⚠</span> {projectSaveError || 'Couldn’t save changes'}</>
+                    ) : projectSaveStatus === 'saved' ? (
+                      <><span>✓</span> All changes saved</>
+                    ) : (
+                      <><span>✓</span> Changes are saved automatically</>
+                    )}
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -3114,6 +3391,7 @@ export default function ProjectDashboardPage() {
           guest={inviteGuest}
           project={project}
           projectId={projectId}
+          existingGuests={guests}
           onClose={() => setInviteGuest(null)}
           onSaved={(updated) => {
             setGuests((prev) =>

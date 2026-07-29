@@ -1,6 +1,7 @@
 // ── Notification types ────────────────────────────────────────────────────────
 export type NotificationType =
   | 'guest_added'
+  | 'guest_deleted'
   | 'rsvp_yes'
   | 'rsvp_no'
   | 'bulk_import'

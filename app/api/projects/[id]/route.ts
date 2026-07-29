@@ -1,5 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireAdmin } from '@/lib/admin-auth'
+import {
+  COUPLE_FAMILY_FIELDS,
+  isMissingCoupleFamilyColumn,
+} from '@/lib/couple-family'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -52,8 +56,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       'name', 'couple_1', 'couple_2', 'date', 'time',
       'venue', 'location', 'contact', 'maps_url',
       'event_template', 'status',
+      ...COUPLE_FAMILY_FIELDS,
     ] as const
-    type AllowedKey = typeof ALLOWED_FIELDS[number]
 
     const updates: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
@@ -85,6 +89,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .eq('id', id)
 
     if (error) {
+      if (isMissingCoupleFamilyColumn(error.message)) {
+        return NextResponse.json(
+          {
+            error:
+              'Couple family columns are missing. Run db/migrations/couple-family-schema.sql in Supabase, then try again.',
+          },
+          { status: 500 },
+        )
+      }
       if (/events/i.test(error.message || '')) {
         return NextResponse.json(
           {
