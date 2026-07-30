@@ -255,28 +255,36 @@ function StatCard({ label, value, sub, icon: Icon, accent, textColor, iconBg, ic
 }) {
   return (
     <Card
-      className={`group gap-0 py-0 overflow-hidden rounded-2xl bg-white/35 backdrop-blur-2xl border border-white/60 border-l-[3px] ${accent} shadow-[0_8px_32px_rgba(31,41,55,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] hover:bg-white/50 hover:shadow-[0_12px_40px_rgba(31,41,55,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white/80 transition-all duration-300`}
+      className="group relative min-h-[148px] gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_4px_18px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300/80 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)]"
     >
-      <CardContent className="relative px-5 py-5 sm:px-6 sm:py-6">
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/50 via-white/10 to-transparent"
-          aria-hidden
-        />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-[0.08em] leading-tight">
+      <div className={`absolute inset-x-0 top-0 border-t-[3px] ${accent}`} aria-hidden />
+      <div
+        className={`pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full ${iconBg} opacity-45 blur-2xl transition-transform duration-500 group-hover:scale-125`}
+        aria-hidden
+      />
+
+      <CardContent className="relative flex h-full min-h-[148px] flex-col px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.12em] text-slate-500 sm:text-[11px]">
               {label}
             </p>
-            <p className={`text-2xl sm:text-[1.75rem] font-semibold tracking-tight tabular-nums mt-2 ${textColor}`}>
+            <p className={`mt-2 text-3xl font-bold tracking-[-0.04em] tabular-nums sm:text-[2rem] ${textColor}`}>
               {value}
             </p>
-            <p className="text-[11px] sm:text-xs text-gray-500 mt-2 leading-snug line-clamp-2">{sub}</p>
           </div>
           <span
-            className={`inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${iconBg} shrink-0 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm`}
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} ring-1 ring-inset ring-black/[0.025] transition-transform duration-300 group-hover:scale-105`}
           >
-            <Icon className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${iconColor}`} strokeWidth={1.75} aria-hidden />
+            <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
           </span>
+        </div>
+
+        <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${iconBg} ring-2 ring-current ${iconColor}`} aria-hidden />
+          <p className="line-clamp-1 text-[11px] font-medium leading-snug text-slate-500 sm:text-xs">
+            {sub}
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -2397,24 +2405,28 @@ export default function ProjectDashboardPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
         <style>{`
           .admin-tabs-scroll,
+          .overview-panel-scroll,
           .admin-table-scroll,
           .admin-table-scroll [data-slot='table-container'] {
             scrollbar-width: thin;
             scrollbar-color: #D1D5DB #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar,
+          .overview-panel-scroll::-webkit-scrollbar,
           .admin-table-scroll::-webkit-scrollbar,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar {
             height: 8px;
             width: 8px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-track,
+          .overview-panel-scroll::-webkit-scrollbar-track,
           .admin-table-scroll::-webkit-scrollbar-track,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-track {
             background: #F3F4F6;
             border-radius: 999px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb,
+          .overview-panel-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb {
             background: #D1D5DB;
@@ -2422,6 +2434,7 @@ export default function ProjectDashboardPage() {
             border: 2px solid #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb:hover,
+          .overview-panel-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb:hover {
             background: #9CA3AF;
@@ -2610,64 +2623,68 @@ export default function ProjectDashboardPage() {
 
             {/* Category breakdown + Recent activity */}
             <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {categories.length} group{categories.length !== 1 ? 's' : ''}
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Guests by Category</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {categories.length} group{categories.length !== 1 ? 's' : ''} · {stats.total} guests
                       </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <BarChart3 className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-inset ring-violet-100">
+                      <BarChart3 className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-5">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-gutter:stable] sm:px-5 sm:py-5">
                   {categories.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No guests added yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No guests added yet</p>
                   )}
                   {categories.map(([cat, data]) => (
-                    <div key={cat}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-3 text-xs tabular-nums">
-                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.yes}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-red-500 font-semibold">
-                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.no}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-amber-600 font-semibold">
-                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.pending}
-                          </span>
-                          <span className="text-gray-400 font-semibold w-5 text-right">{data.total}</span>
-                        </div>
+                    <div
+                      key={cat}
+                      className="rounded-xl border border-slate-100 bg-slate-50/65 px-4 py-3.5 transition-colors hover:border-slate-200 hover:bg-slate-50"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-slate-800">{cat}</span>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-bold tabular-nums text-slate-500 ring-1 ring-inset ring-slate-200">
+                          {data.total} total
+                        </span>
                       </div>
-                      <div className="h-1.5 bg-white/50 rounded-full overflow-hidden flex ring-1 ring-black/[0.03]">
+                      <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] tabular-nums">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.yes} confirmed
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-600">
+                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.no} declined
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-700">
+                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.pending} pending
+                          </span>
+                      </div>
+                      <div
+                        className="flex h-2 overflow-hidden rounded-full bg-slate-200/80"
+                        aria-label={`${cat}: ${data.yes} confirmed, ${data.no} declined, ${data.pending} pending`}
+                      >
                         {data.yes > 0 && (
                           <div
-                            className="bg-emerald-400 transition-all"
+                            className="bg-emerald-500 transition-all"
                             style={{ width: `${(data.yes / data.total) * 100}%` }}
                           />
                         )}
                         {data.no > 0 && (
                           <div
-                            className="bg-red-300 transition-all"
+                            className="bg-red-400 transition-all"
                             style={{ width: `${(data.no / data.total) * 100}%` }}
                           />
                         )}
                         {data.pending > 0 && (
                           <div
-                            className="bg-amber-200 transition-all"
+                            className="bg-amber-300 transition-all"
                             style={{ width: `${(data.pending / data.total) * 100}%` }}
                           />
                         )}
@@ -2677,35 +2694,33 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs mt-1">Latest guest replies</CardDescription>
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Recent Responses</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {recentActivity.length > 0 ? `${recentActivity.length} latest guest replies` : 'Latest guest replies'}
+                      </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <Bell className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100">
+                      <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-3">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain px-4 py-2 [scrollbar-gutter:stable] sm:px-5">
                   {recentActivity.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No responses yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No responses yet</p>
                   )}
                   {recentActivity.map((g) => (
                     <div
                       key={g.id}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-white/25 hover:bg-white/45 ring-1 ring-white/40 transition-colors"
+                      className="flex items-center gap-3 px-1 py-3.5 transition-colors hover:bg-slate-50/80 sm:px-2"
                     >
                       <GuestAvatar name={g.name} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="truncate text-sm font-semibold text-slate-800">{g.name}</p>
+                        <p className="mt-0.5 truncate text-xs font-medium text-slate-400">
                           {g.guest_category || 'Other'}
                           {g.responded_at
                             ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -2713,12 +2728,12 @@ export default function ProjectDashboardPage() {
                         </p>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md shrink-0 backdrop-blur-sm ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold ring-1 ring-inset ${
                           g.rsvp_status === 'yes'
-                            ? 'bg-emerald-100/80 text-emerald-700'
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                             : g.rsvp_status === 'no'
-                              ? 'bg-red-100/80 text-red-600'
-                              : 'bg-amber-100/80 text-amber-700'
+                              ? 'bg-red-50 text-red-600 ring-red-100'
+                              : 'bg-amber-50 text-amber-700 ring-amber-100'
                         }`}
                       >
                         {g.rsvp_status === 'yes' ? (
