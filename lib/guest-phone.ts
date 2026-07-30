@@ -196,3 +196,34 @@ export function normalizeGuestPhoneForStorage(
 
   return { phone: null, error: parsed.error || 'Invalid phone number' }
 }
+
+/** True when two stored/entered phones refer to the same number (handles legacy formats). */
+export function guestPhonesEqual(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const na = normalizeGuestPhoneForStorage(a).phone
+  const nb = normalizeGuestPhoneForStorage(b).phone
+  if (!na || !nb) return false
+  return na === nb
+}
+
+/**
+ * Alternate string forms to query in DB (E.164 + legacy national),
+ * so duplicate checks still work for older rows.
+ */
+export function guestPhoneLookupVariants(
+  phone: string | null | undefined,
+): string[] {
+  const normalized = normalizeGuestPhoneForStorage(phone).phone
+  if (!normalized) return []
+
+  const variants = new Set<string>([normalized])
+  const digits = normalized.replace(/\D/g, '')
+  if (digits) {
+    variants.add(digits)
+    variants.add(`+${digits}`)
+    if (digits.length > 10) variants.add(digits.slice(-10))
+  }
+  return [...variants]
+}

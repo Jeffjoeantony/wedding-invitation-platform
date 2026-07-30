@@ -1,4 +1,5 @@
 import { getEventCopy } from '@/lib/eventCopy'
+import { buildCoupleFamilySide } from '@/lib/couple-family'
 import { parseMediaList, type MediaItem } from '@/lib/invite-media'
 import {
   buildEventDateISO,
@@ -34,6 +35,18 @@ export type InvitationConfig = {
   projectId?: string
   couple1: string
   couple2: string
+  /** D/o or S/o for partner 1 */
+  couple1Relation?: string
+  /** Father & mother names only (no Daughter/Son of) */
+  couple1Parents?: string
+  /** House / family name for partner 1 */
+  couple1House?: string
+  /** Place / locality for partner 1 */
+  couple1Place?: string
+  couple2Relation?: string
+  couple2Parents?: string
+  couple2House?: string
+  couple2Place?: string
   dateISO: string
   dateLabel: string
   time: string
@@ -165,6 +178,18 @@ export function buildInvitationConfig(
     id?: string
     couple_1?: string
     couple_2?: string
+    couple_1_parents?: string | null
+    couple_1_house?: string | null
+    couple_1_place?: string | null
+    couple_2_parents?: string | null
+    couple_2_house?: string | null
+    couple_2_place?: string | null
+    couple_1_role?: string | null
+    couple_2_role?: string | null
+    couple_1_father?: string | null
+    couple_1_mother?: string | null
+    couple_2_father?: string | null
+    couple_2_mother?: string | null
     date?: string
     time?: string
     venue?: string
@@ -189,6 +214,24 @@ export function buildInvitationConfig(
 ): InvitationConfig {
   const couple1 = event.couple_1?.trim() || 'Partner'
   const couple2 = event.couple_2?.trim() || 'Partner'
+  const family1 = buildCoupleFamilySide({
+    name: couple1,
+    role: event.couple_1_role || 'bride',
+    father: event.couple_1_father,
+    mother: event.couple_1_mother,
+    legacyParents: event.couple_1_parents,
+    house: event.couple_1_house,
+    place: event.couple_1_place,
+  })
+  const family2 = buildCoupleFamilySide({
+    name: couple2,
+    role: event.couple_2_role || 'groom',
+    father: event.couple_2_father,
+    mother: event.couple_2_mother,
+    legacyParents: event.couple_2_parents,
+    house: event.couple_2_house,
+    place: event.couple_2_place,
+  })
   const venue = event.venue?.trim() || ''
   const location = event.location?.trim() || ''
   const address = fullEventAddress(venue, location)
@@ -209,6 +252,14 @@ export function buildInvitationConfig(
     projectId: event.id || guest?.project_id,
     couple1,
     couple2,
+    couple1Relation: family1.relation,
+    couple1Parents: family1.parents,
+    couple1House: family1.house,
+    couple1Place: family1.place,
+    couple2Relation: family2.relation,
+    couple2Parents: family2.parents,
+    couple2House: family2.house,
+    couple2Place: family2.place,
     dateISO: primary?.dateISO || buildEventDateISO(event.date, event.time),
     dateLabel: primary?.dateLabel || formatEventDateLabel(event.date),
     time: primary?.time || formatEventTime(event.time),

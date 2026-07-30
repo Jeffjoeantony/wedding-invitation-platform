@@ -1,13 +1,149 @@
 'use client'
 
 import type { InvitationConfig } from '@/lib/invitation-config'
+import { coupleFamilySideHasDetails, splitParentsForDisplay } from '@/lib/couple-family'
 import { extractFirstName } from '@/lib/extract-first-name'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { InviteImage } from './invite-image'
 import { Sparkles } from './ornament'
+
+type FamilySide = {
+  name: string
+  relation?: string
+  parents?: string
+  house?: string
+  place?: string
+}
+
+/**
+ * Parents stay on one line by default for BOTH sides.
+ * If either line overflows, both sides force two lines after "&" so house/place stay aligned.
+ */
+function ParentsLine({
+  text,
+  stacked,
+  onNode,
+}: {
+  text: string
+  stacked: boolean
+  onNode: (el: HTMLParagraphElement | null) => void
+}) {
+  const parts = splitParentsForDisplay(text)
+  if (parts.length === 0) return null
+
+  const base =
+    'mt-0.5 w-full max-w-[17rem] text-center font-serif text-[clamp(0.68rem,2.4vw,0.82rem)] font-light leading-[1.4] tracking-[0.02em] text-foreground/75'
+
+  // Single line for both sides until overflow forces a shared stack
+  if (!stacked) {
+    return (
+      <p ref={onNode} className={`${base} whitespace-nowrap`}>
+        {parts.join(' & ')}
+      </p>
+    )
+  }
+
+  // Stacked: always two rows so both columns share the same height
+  if (parts.length === 1) {
+    return (
+      <p ref={onNode} className={base}>
+        <span className="block whitespace-nowrap">{parts[0]}</span>
+        <span className="block invisible select-none" aria-hidden>
+          &nbsp;
+        </span>
+      </p>
+    )
+  }
+
+  return (
+    <p ref={onNode} className={base}>
+      <span className="block whitespace-nowrap">
+        {parts[0]} &
+      </span>
+      <span className="block whitespace-nowrap">{parts.slice(1).join(' & ')}</span>
+    </p>
+  )
+}
+
+function FamilyDetailsBlock({ sides }: { sides: FamilySide[] }) {
+  const [stacked, setStacked] = useState(false)
+  const nodesRef = useRef<Map<string, HTMLParagraphElement>>(new Map())
+  const parentsKey = sides.map((s) => s.parents ?? '').join('|')
+
+  // Prefer one line whenever content changes or the viewport resizes
+  useLayoutEffect(() => {
+    setStacked(false)
+  }, [parentsKey])
+
+  useEffect(() => {
+    const onResize = () => setStacked(false)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (stacked) return
+    const nodes = [...nodesRef.current.values()]
+    if (nodes.length === 0) return
+    const anyOverflow = nodes.some((el) => el.scrollWidth > el.clientWidth + 1)
+    if (anyOverflow) setStacked(true)
+  }, [stacked, parentsKey, sides])
+
+  return (
+    <motion.div
+      className="relative z-[1] mt-8 w-full max-w-[460px] px-3 text-center"
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 1.35, duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <p className="font-serif text-[0.7rem] font-light italic tracking-[0.22em] text-gold/95">
+        Together with their families
+      </p>
+      <div className="mx-auto mt-3.5 h-px w-14 bg-gradient-to-r from-transparent via-gold/55 to-transparent" />
+      <div className="mt-7 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-7 sm:items-start">
+        {sides.map((side) => (
+          <div key={side.name} className="flex min-w-0 flex-col items-center px-1">
+            <p className="max-w-[16rem] font-serif text-[1.05rem] font-medium leading-snug tracking-[0.04em] text-foreground sm:text-[1.15rem]">
+              {side.name}
+            </p>
+            {side.relation ? (
+              <p className="mt-2 font-serif text-[0.72rem] font-light italic tracking-[0.14em] text-gold">
+                {side.relation}
+              </p>
+            ) : null}
+            {side.parents ? (
+              <ParentsLine
+                text={side.parents}
+                stacked={stacked}
+                onNode={(el) => {
+                  if (el) nodesRef.current.set(side.name, el)
+                  else nodesRef.current.delete(side.name)
+                }}
+              />
+            ) : null}
+            {side.house || side.place ? (
+              <div className="mt-1.5 flex flex-col items-center gap-0.5">
+                {side.house ? (
+                  <p className="max-w-[15rem] font-serif text-[0.8rem] font-light leading-snug tracking-[0.03em] text-foreground/85">
+                    {side.house}
+                  </p>
+                ) : null}
+                {side.place ? (
+                  <p className="max-w-[15rem] font-serif text-[0.72rem] font-light leading-snug tracking-[0.06em] text-muted-foreground">
+                    {side.place}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
 
 function HeroGreetingLine({ line }: { line: string }) {
   if (/^Dear\s+/i.test(line)) {
@@ -180,6 +316,23 @@ export function Hero({
   const couple1First = extractFirstName(config.couple1) || config.couple1
   const couple2First = extractFirstName(config.couple2) || config.couple2
   const monogram = `${couple1First[0] || ''}${couple2First[0] || ''}`
+  const familySides = [
+    {
+      name: config.couple1,
+      relation: config.couple1Relation,
+      parents: config.couple1Parents,
+      house: config.couple1House,
+      place: config.couple1Place,
+    },
+    {
+      name: config.couple2,
+      relation: config.couple2Relation,
+      parents: config.couple2Parents,
+      house: config.couple2House,
+      place: config.couple2Place,
+    },
+  ].filter(coupleFamilySideHasDetails)
+  const hasFamilyDetails = familySides.length > 0
   const [showHint, setShowHint] = useState(false)
   /** Latched: once true, cue + lift never return (even if guest scrolls back up). */
   const [dismissed, setDismissed] = useState(false)
@@ -203,7 +356,7 @@ export function Hero({
         return
       }
       setShowHint(true)
-    }, 4000)
+    }, 3000)
 
     return () => {
       window.removeEventListener('scroll', onScroll)
@@ -352,6 +505,8 @@ export function Hero({
             </p>
           </motion.div>
         </div>
+
+        {hasFamilyDetails ? <FamilyDetailsBlock sides={familySides} /> : null}
       </motion.div>
 
       <ScrollCue active={hintActive} />

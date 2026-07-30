@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { legacyPhoneToE164 } from '@/lib/guest-phone'
+import { DEFAULT_GUEST_CATEGORY, GUEST_CATEGORIES } from '@/lib/guest-categories'
+import { guestPhonesEqual, legacyPhoneToE164 } from '@/lib/guest-phone'
 import {
   effectiveInvitedTo,
   eventLabel,
@@ -24,16 +25,6 @@ import {
 } from '@/lib/project-events'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
-
-const GUEST_CATEGORIES = [
-  'Family',
-  'Friends',
-  'Bride Side',
-  'Groom Side',
-  'Neighbours',
-  'Office',
-  'Other',
-] as const
 
 type GuestLike = {
   id: string
@@ -68,6 +59,7 @@ export function GuestInvitePanel({
   open,
   onClose,
   onSaved,
+  existingGuests = [],
 }: {
   guest: GuestLike | null
   project: ProjectLike
@@ -75,6 +67,8 @@ export function GuestInvitePanel({
   open: boolean
   onClose: () => void
   onSaved: (guest: GuestLike) => void
+  /** Used for client-side phone uniqueness checks */
+  existingGuests?: Array<{ id: string; name: string; phone?: string | null }>
 }) {
   const projectEvents = resolveProjectEvents(project)
   const primaryId = primaryEventIdFromTemplate(project.event_template)
@@ -88,7 +82,7 @@ export function GuestInvitePanel({
   const [hideGreeting, setHideGreeting] = useState(false)
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
-  const [editCategory, setEditCategory] = useState('Other')
+  const [editCategory, setEditCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
   const [phoneError, setPhoneError] = useState('')
   const [phoneValid, setPhoneValid] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -110,7 +104,7 @@ export function GuestInvitePanel({
     setHideGreeting(Boolean(guest.hide_greeting))
     setEditName(guest.name || '')
     setEditPhone(legacyPhoneToE164(guest.phone) || '')
-    setEditCategory(guest.guest_category || 'Other')
+    setEditCategory(guest.guest_category || DEFAULT_GUEST_CATEGORY)
     setPhoneError('')
     setPhoneValid(true)
     setError(null)
@@ -136,6 +130,15 @@ export function GuestInvitePanel({
       setPhoneError('Enter a valid phone number')
       return
     }
+    if (editPhone.trim()) {
+      const dup = existingGuests.find(
+        (g) => g.id !== panelGuest.id && guestPhonesEqual(g.phone, editPhone),
+      )
+      if (dup) {
+        setPhoneError(`This phone number is already used by "${dup.name}"`)
+        return
+      }
+    }
 
     setSaving(true)
     setError(null)
@@ -159,13 +162,21 @@ export function GuestInvitePanel({
         }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      if (!res.ok) {
+        const message = data.error || 'Failed to save'
+        if (data.duplicate || /phone/i.test(message)) {
+          setPhoneError(message)
+        } else {
+          setError(message)
+        }
+        return
+      }
       onSaved({
         ...panelGuest,
         ...data,
         id: panelGuest.id,
         name,
-        phone: editPhone || undefined,
+        phone: data.phone ?? (editPhone || undefined),
         guest_category: editCategory,
         invited_to: Array.isArray(data.invited_to) ? data.invited_to : invited_to,
         rsvp_by_event:
