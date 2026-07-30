@@ -128,8 +128,7 @@ interface Project {
   location: string
   contact: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' |
-    'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
+  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' | string
   status: string
   gallery_images?: MediaItem[] | unknown
   events?: ProjectEvent[] | unknown
@@ -3483,11 +3482,6 @@ export default function ProjectDashboardPage() {
                         <SelectItem value="Reception">🥂 Reception</SelectItem>
                         <SelectItem value="Mehendi">🌿 Mehendi</SelectItem>
                         <SelectItem value="Haldi">🌼 Haldi</SelectItem>
-                        <SelectItem value="Save The Date">📅 Save The Date</SelectItem>
-                        <SelectItem value="Birthday">🎂 Birthday</SelectItem>
-                        <SelectItem value="Housewarming">🏡 Housewarming</SelectItem>
-                        <SelectItem value="Corporate Event">🏢 Corporate Event</SelectItem>
-                        <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-400 mt-1.5">

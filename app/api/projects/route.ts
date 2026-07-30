@@ -67,7 +67,6 @@ export async function POST(req: NextRequest) {
 
     const ALLOWED_EVENT_TYPES = [
       'Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi',
-      'Save The Date', 'Birthday', 'Housewarming', 'Corporate Event', 'Custom Event',
     ]
     // The type the user selected (used for display)
     const event_template_display = ALLOWED_EVENT_TYPES.includes(String(body.event_template ?? ''))
