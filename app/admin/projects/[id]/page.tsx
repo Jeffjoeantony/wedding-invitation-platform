@@ -1772,6 +1772,74 @@ export default function ProjectDashboardPage() {
     }
   }
 
+  const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
+    // Block blank project name from being queued
+    if ('name' in updates) {
+      const trimmed = String(updates.name ?? '').trim()
+      if (!trimmed) {
+        setProjectSaveStatus('error')
+        setProjectSaveError('Project name is required')
+        return
+      }
+      updates = { ...updates, name: trimmed }
+    }
+
+    // Optimistic local merge so typing stays smooth
+    setProject((prev) => {
+      if (!prev) return prev
+      return { ...prev, ...updates }
+    })
+    setProjectSaveError('')
+    setProjectSaveStatus('saving')
+
+    pendingProjectUpdatesRef.current = { ...pendingProjectUpdatesRef.current, ...updates }
+
+    const flush = async () => {
+      const batch = { ...pendingProjectUpdatesRef.current }
+      pendingProjectUpdatesRef.current = {}
+      if (Object.keys(batch).length === 0) return
+
+      if ('name' in batch && !String(batch.name ?? '').trim()) {
+        delete batch.name
+        if (Object.keys(batch).length === 0) {
+          setProjectSaveStatus('error')
+          setProjectSaveError('Project name is required')
+          return
+        }
+      }
+
+      setProjectSaveStatus('saving')
+      const res = await fetch(`/api/projects/${projectId}/event`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        const message =
+          res.status === 429
+            ? 'Too many saves — wait a moment and try again'
+            : data.error || 'Failed to update project'
+        setProjectSaveStatus('error')
+        setProjectSaveError(message)
+        // Re-sync from server so UI matches persisted data
+        try {
+          const refresh = await fetch(`/api/projects/${projectId}/event`)
+          if (refresh.ok) {
+            const proj = await refresh.json()
+            projectNameRef.current = proj.name || ''
+            setProject(proj)
+            setProjectFormKey((k) => k + 1)
+          }
+        } catch {
+          /* ignore refetch errors */
+        }
+        return
+      }
+      setProjectSaveStatus('saved')
+      setProjectSaveError('')
+    }
+
     if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
 
     if (options?.immediate) {
