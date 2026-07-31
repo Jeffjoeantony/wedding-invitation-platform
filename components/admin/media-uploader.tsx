@@ -38,8 +38,8 @@ export function MediaUploader({
   return (
     <div className="space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-800">{title}</p>
-        {description && <p className="text-xs text-gray-400 mt-0.5">{description}</p>}
+        {title ? <p className="text-sm font-semibold text-gray-800">{title}</p> : null}
+        {description ? <p className="text-xs text-gray-400 mt-0.5">{description}</p> : null}
         <p className="text-[11px] text-gray-400 mt-1">
           {images.length}/{max} uploaded · JPEG, PNG, WebP · max 5 MB each
         </p>

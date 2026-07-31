@@ -1,9 +1,15 @@
 import type { ReactNode } from 'react'
+import { Toaster } from '@/components/ui/sonner'
 
 /**
- * Admin shell marker — theme toggle lives in dashboard UI.
- * ThemeProvider is at the root; invite routes force light separately.
+ * Admin shell — toast host for dashboard feedback.
+ * ThemeProvider is at the root when present; invite routes force light separately.
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  return <div className="admin-app min-h-screen">{children}</div>
+  return (
+    <div className="admin-app min-h-screen">
+      {children}
+      <Toaster />
+    </div>
+  )
 }

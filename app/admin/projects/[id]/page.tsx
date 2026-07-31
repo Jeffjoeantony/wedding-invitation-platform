@@ -58,7 +58,8 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
-import { addNotification, playNotificationSound } from '@/lib/notifications'
+import { addNotification, notifyError, notifyInfo, notifySuccess, playNotificationSound } from '@/lib/notifications'
+import { toast } from 'sonner'
 import { getDashboardTheme } from '@/lib/dashboardTheme'
 import {
   formatBirthdayPersonsDisplay,
@@ -68,7 +69,7 @@ import {
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
-import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
+import { EventDetailsPanel } from '@/components/admin/event-details-panel'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
 import { formatGuestPhoneDisplay, guestPhonesEqual, toWhatsAppDigits } from '@/lib/guest-phone'
@@ -84,11 +85,8 @@ import {
   guestExportColumnOrder,
   invitedToLabels,
   parseRsvpByEvent,
-  resetEventsToPrimary,
-  resolveProjectEvents,
   type ProjectEvent,
 } from '@/lib/project-events'
-import { buildCoupleFamilySide, formatRelationAbbrev, showsCoupleFamilyDetails } from '@/lib/couple-family'
 
 interface Guest {
   id: string
@@ -454,6 +452,7 @@ Looking forward to seeing you! 😊`
       : `/invite/open/${project.id}`
     navigator.clipboard.writeText(url)
     setOpenLinkCopied(true)
+    notifySuccess('Open invite link copied', 'Anyone with this link can open the invite.')
     setTimeout(() => setOpenLinkCopied(false), 2000)
   }
 
@@ -1556,10 +1555,12 @@ export default function ProjectDashboardPage() {
     const name = newGuestName.trim()
     if (!name) {
       setAddGuestError('Guest name is required')
+      notifyError('Guest name required', 'Enter the guest’s full name to continue.')
       return
     }
     if (!phoneValid) {
       setPhoneError('Enter a valid phone number')
+      notifyError('Invalid phone number', 'Enter a valid phone number to continue.')
       return
     }
     // Same name OK; phone must be unique in this project
@@ -1567,6 +1568,7 @@ export default function ProjectDashboardPage() {
       const dup = guests.find((g) => guestPhonesEqual(g.phone, newGuestPhone))
       if (dup) {
         setPhoneError(`This phone number is already used by "${dup.name}"`)
+        notifyError('Phone already used', `This number belongs to "${dup.name}".`)
         return
       }
     }
@@ -1578,6 +1580,7 @@ export default function ProjectDashboardPage() {
       )
       if (dupEmail) {
         setEmailError(`This email is already used by "${dupEmail.name}"`)
+        notifyError('Email already used', `This email belongs to "${dupEmail.name}".`)
         return
       }
     }
@@ -1600,15 +1603,20 @@ export default function ProjectDashboardPage() {
         const field = typeof err.field === 'string' ? err.field : ''
         if (field === 'email' || (!field && /email/i.test(message))) {
           setEmailError(message)
+          notifyError('Could not add guest', message)
         } else if (field === 'phone' || err.blankPhoneConflict) {
           if (err.blankPhoneConflict || !newGuestPhone.trim()) setAddGuestError(message)
           else setPhoneError(message)
+          notifyError('Could not add guest', message)
         } else if (field === 'name' || field === 'unknown' || field === 'token') {
           setAddGuestError(message)
+          notifyError('Could not add guest', message)
         } else if (err.duplicate && /phone/i.test(message)) {
           setPhoneError(message)
+          notifyError('Could not add guest', message)
         } else {
           setAddGuestError(message)
+          notifyError('Could not add guest', message)
         }
         return
       }
@@ -1646,6 +1654,7 @@ export default function ProjectDashboardPage() {
       }
     } catch {
       setAddGuestError('Could not add the guest. Check your connection and try again.')
+      notifyError('Could not add guest', 'Check your connection and try again.')
     } finally {
       setAdding(false)
     }
@@ -1665,8 +1674,11 @@ export default function ProjectDashboardPage() {
         next = parseMediaList(data.images)
         setGalleryImages(next)
       }
+      notifySuccess('Gallery updated', `${files.length} image${files.length === 1 ? '' : 's'} uploaded.`)
     } catch (e) {
-      setGalleryError(e instanceof Error ? e.message : 'Upload failed')
+      const message = e instanceof Error ? e.message : 'Upload failed'
+      setGalleryError(message)
+      notifyError('Gallery upload failed', message)
     } finally {
       setGalleryUploading(false)
     }
@@ -1680,10 +1692,13 @@ export default function ProjectDashboardPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setGalleryError(data.error || 'Delete failed')
+      const message = data.error || 'Delete failed'
+      setGalleryError(message)
+      notifyError('Could not remove image', message)
       return
     }
     setGalleryImages(parseMediaList(data.images))
+    notifyInfo('Image removed', 'Gallery photo deleted.')
   }
 
   const uploadLastAddedMoments = async (files: File[]) => {
@@ -1710,8 +1725,11 @@ export default function ProjectDashboardPage() {
           ),
         )
       }
+      notifySuccess('Moments updated', `Photos added for ${lastAddedGuest.name}.`)
     } catch (e) {
-      setMomentsError(e instanceof Error ? e.message : 'Upload failed')
+      const message = e instanceof Error ? e.message : 'Upload failed'
+      setMomentsError(message)
+      notifyError('Moments upload failed', message)
     } finally {
       setMomentsUploading(false)
     }
@@ -1727,6 +1745,7 @@ export default function ProjectDashboardPage() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       setMomentsError(data.error || 'Delete failed')
+      notifyError('Could not remove moment', data.error || 'Delete failed')
       return
     }
     const next = parseMediaList(data.moments)
@@ -1738,6 +1757,7 @@ export default function ProjectDashboardPage() {
           : g,
       ),
     )
+    notifyInfo('Moment removed', `Photo removed from ${lastAddedGuest.name}'s invite.`)
   }
 
   const requestDeleteGuest = (id: string, name: string) => {
@@ -1768,6 +1788,7 @@ export default function ProjectDashboardPage() {
       playNotificationSound('warning')
     } else {
       setDeleteError(`Failed to delete "${name}". Please try again.`)
+      notifyError('Could not delete guest', `Failed to remove "${name}". Please try again.`)
       setTimeout(() => setDeleteError(''), 4000)
     }
     setDeletingId(null)
@@ -1781,6 +1802,10 @@ export default function ProjectDashboardPage() {
       if (!trimmed) {
         setProjectSaveStatus('error')
         setProjectSaveError('Project name is required')
+        toast.error('Project name required', {
+          id: 'project-name',
+          description: 'Enter a project name before saving.',
+        })
         return
       }
       updates = { ...updates, name: trimmed }
@@ -1806,6 +1831,10 @@ export default function ProjectDashboardPage() {
         if (Object.keys(batch).length === 0) {
           setProjectSaveStatus('error')
           setProjectSaveError('Project name is required')
+          toast.error('Project name required', {
+            id: 'project-name',
+            description: 'Enter a project name before saving.',
+          })
           return
         }
       }
@@ -1824,6 +1853,7 @@ export default function ProjectDashboardPage() {
             : data.error || 'Failed to update project'
         setProjectSaveStatus('error')
         setProjectSaveError(message)
+        toast.error('Could not save project', { id: 'project-save', description: message })
         // Re-sync from server so UI matches persisted data
         try {
           const refresh = await fetch(`/api/projects/${projectId}/event`)
@@ -1840,6 +1870,7 @@ export default function ProjectDashboardPage() {
       }
       setProjectSaveStatus('saved')
       setProjectSaveError('')
+      toast.success('Changes saved', { id: 'project-save', duration: 1800 })
     }
 
     if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
@@ -1879,9 +1910,10 @@ export default function ProjectDashboardPage() {
     setDeletingProject(true)
     const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
     if (res.ok) {
+      notifySuccess('Project deleted', `"${project?.name}" has been permanently removed.`)
       router.push('/admin')
     } else {
-      alert('Failed to delete project. Please try again.')
+      notifyError('Could not delete project', 'Please try again.')
       setDeletingProject(false)
     }
   }
@@ -1890,6 +1922,7 @@ export default function ProjectDashboardPage() {
     const lower = file.name.toLowerCase()
     if (!lower.endsWith('.xlsx') && !lower.endsWith('.xls') && !lower.endsWith('.csv')) {
       setImportResult('✗ Please upload an XLSX, XLS, or CSV file.')
+      notifyError('Invalid file', 'Please upload an XLSX, XLS, or CSV file.')
       return
     }
     setImportFile(file)
@@ -1909,6 +1942,7 @@ export default function ProjectDashboardPage() {
       } catch {
         setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
         setImportFile(null)
+        notifyError('Could not read file', 'Make sure it is a valid Excel or CSV.')
       }
     }
     reader.readAsArrayBuffer(file)
@@ -2014,9 +2048,14 @@ export default function ProjectDashboardPage() {
           setImportResult(
             `✗ Import failed: ${err.error}${detail ? ` (${detail})` : ''}`,
           )
+          notifyError(
+            'Import failed',
+            `${err.error || 'Could not import guests'}${detail ? ` (${detail})` : ''}`,
+          )
         }
       } catch {
         setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
+        notifyError('Could not read file', 'Make sure it is a valid Excel or CSV.')
       } finally {
         setImporting(false)
       }
@@ -2037,6 +2076,7 @@ export default function ProjectDashboardPage() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Guests')
     XLSX.writeFile(wb, `${project?.name ?? 'guests'}-links.xlsx`)
+    notifySuccess('Excel exported', 'Guest list downloaded as XLSX.')
   }
 
   const handleExportCSV = () => {
@@ -2055,6 +2095,7 @@ export default function ProjectDashboardPage() {
     a.download = `${project?.name ?? 'guests'}-links.csv`
     a.click()
     URL.revokeObjectURL(url)
+    notifySuccess('CSV exported', 'Guest list downloaded as CSV.')
   }
 
   /** Quick WhatsApp: link-only message (opens WhatsApp; user taps Send). */
@@ -2271,7 +2312,10 @@ export default function ProjectDashboardPage() {
 
               {/* Refresh button */}
               <button
-                onClick={fetchData}
+                onClick={async () => {
+                  await fetchData()
+                  notifySuccess('Dashboard refreshed', 'Guest list and project data are up to date.')
+                }}
                 disabled={refreshing}
                 className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
                 style={{ opacity: refreshing ? 0.6 : 1 }}
@@ -2321,13 +2365,7 @@ export default function ProjectDashboardPage() {
 
 
       {/* ── Main content ── */}
-      <div
-        className={`max-w-7xl mx-auto px-3 sm:px-6 ${
-          activeTab === 'add-guest' || activeTab === 'import-export'
-            ? 'py-3 sm:py-4'
-            : 'py-5 sm:py-8'
-        }`}
-      >
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
         <style>{`
           .admin-tabs-scroll,
           .admin-table-scroll,
@@ -2871,6 +2909,7 @@ export default function ProjectDashboardPage() {
                                     `${window.location.origin}/invite/${guest.unique_token}`,
                                   )
                                   setCopiedId(guest.id)
+                                  notifySuccess('Link copied', `Invite link for ${guest.name} copied.`)
                                   setTimeout(() => setCopiedId(null), 2000)
                                 }}
                               >
@@ -3115,6 +3154,7 @@ export default function ProjectDashboardPage() {
                                 onClick={async () => {
                                   await navigator.clipboard.writeText(addGuestInviteUrl)
                                   setCopiedId(lastAddedGuest?.id ?? null)
+                                  notifySuccess('Link copied', 'Personal invite link copied to clipboard.')
                                   setTimeout(() => setCopiedId(null), 2000)
                                 }}
                                 className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
@@ -3699,360 +3739,33 @@ export default function ProjectDashboardPage() {
           </AnimatedTabsContent>
 
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="event" className="mt-0 space-y-6">
+          <AnimatedTabsContent value="event" className="mt-0 pb-8">
             {project && (
-              <Card className={`${theme.glassCard} max-w-2xl`} key={projectFormKey}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🎊</span>
-                    <div>
-                      <CardTitle>Event Details</CardTitle>
-                      <CardDescription>
-                        Update your {project.event_template ?? 'event'} information
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-
-                  {/* Project name */}
-                  <div>
-                    <Label htmlFor="project-name">Project Name</Label>
-                    <Input id="project-name" defaultValue={project.name}
-                      onChange={(e) => updateProject({ name: e.target.value })}
-                      className="mt-2 rounded-xl" />
-                  </div>
-
-                  {/* Event type */}
-                  <div>
-                    <Label htmlFor="event-type">Event Type</Label>
-                    <Select
-                      value={project.event_template ?? 'Wedding'}
-                      onValueChange={(val) => {
-                        const nextTemplate = val as Project['event_template']
-                        // Reset Events included to ONLY the new primary (drop previous extras)
-                        const nextEvents = resetEventsToPrimary(project, nextTemplate || 'Wedding')
-                        updateProject(
-                          { event_template: nextTemplate, events: nextEvents },
-                          { immediate: true },
-                        )
-                      }}
-                    >
-                      <SelectTrigger id="event-type" className="mt-2 rounded-xl">
-                        <SelectValue placeholder="Select event type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Wedding">💍 Wedding</SelectItem>
-                        <SelectItem value="Engagement">💑 Engagement</SelectItem>
-                        <SelectItem value="Reception">🥂 Reception</SelectItem>
-                        <SelectItem value="Mehendi">🌿 Mehendi</SelectItem>
-                        <SelectItem value="Haldi">🌼 Haldi</SelectItem>
-                        <SelectItem value="Save The Date">📅 Save The Date</SelectItem>
-                        <SelectItem value="Birthday">🎂 Birthday</SelectItem>
-                        <SelectItem value="Housewarming">🏡 Housewarming</SelectItem>
-                        <SelectItem value="Corporate Event">🏢 Corporate Event</SelectItem>
-                        <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      Theme/wording preset. Use &quot;Events included&quot; below to invite for Engagement and Wedding together.
-                    </p>
-                  </div>
-
-                  {project.event_template === 'Birthday' ? (
-                    <BirthdayPersonsFields
-                      couple1={project.couple_1}
-                      couple2={project.couple_2}
-                      onUpdatePrimary={(name) => updateProject({ couple_1: name })}
-                      onUpdateAdditional={(names) => updateProject({ couple_2: serializeAdditionalBirthdayPersons(names) })}
-                    />
-                  ) : (
-                    /* ── Wedding / all other events: Partner 1 + Partner 2 ── */
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>Partner 1 full name</Label>
-                        <Input
-                          defaultValue={project.couple_1}
-                          placeholder="e.g. Rita Maria Chacko"
-                          onChange={(e) => updateProject({ couple_1: e.target.value })}
-                          className="mt-2 rounded-xl"
-                        />
-                        <p className="mt-1.5 text-[11px] text-gray-500">
-                          Invite name card shows the first name only; family section shows the full name.
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Partner 2 full name</Label>
-                        <Input
-                          defaultValue={project.couple_2}
-                          placeholder="e.g. Alan Joseph"
-                          onChange={(e) => updateProject({ couple_2: e.target.value })}
-                          className="mt-2 rounded-xl"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {showsCoupleFamilyDetails(project.event_template) ? (
-                    <div className="rounded-2xl border border-rose-100/80 bg-rose-50/40 p-4 sm:p-5 space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">Family details</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Role drives D/o or S/o. Invite shows name, relation, parents, house, then place.
-                        </p>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {([
-                          {
-                            key: '1' as const,
-                            name: project.couple_1?.trim() || 'Partner 1',
-                            role: project.couple_1_role,
-                            father: project.couple_1_father,
-                            mother: project.couple_1_mother,
-                            house: project.couple_1_house,
-                            place: project.couple_1_place,
-                            defaultRole: 'bride' as const,
-                            roleKey: 'couple_1_role' as const,
-                            fatherKey: 'couple_1_father' as const,
-                            motherKey: 'couple_1_mother' as const,
-                            houseKey: 'couple_1_house' as const,
-                            placeKey: 'couple_1_place' as const,
-                          },
-                          {
-                            key: '2' as const,
-                            name: project.couple_2?.trim() || 'Partner 2',
-                            role: project.couple_2_role,
-                            father: project.couple_2_father,
-                            mother: project.couple_2_mother,
-                            house: project.couple_2_house,
-                            place: project.couple_2_place,
-                            defaultRole: 'groom' as const,
-                            roleKey: 'couple_2_role' as const,
-                            fatherKey: 'couple_2_father' as const,
-                            motherKey: 'couple_2_mother' as const,
-                            houseKey: 'couple_2_house' as const,
-                            placeKey: 'couple_2_place' as const,
-                          },
-                        ]).map((side) => {
-                          const roleValue = side.role || side.defaultRole
-                          const preview = buildCoupleFamilySide({
-                            name: side.name,
-                            role: roleValue,
-                            father: side.father,
-                            mother: side.mother,
-                            house: side.house,
-                            place: side.place,
-                          })
-                          return (
-                            <div key={side.key} className="space-y-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-700/80">
-                                {side.name}
-                              </p>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-role`}>Role</Label>
-                                <Select
-                                  value={roleValue}
-                                  onValueChange={(val) =>
-                                    updateProject({ [side.roleKey]: val }, { immediate: true })
-                                  }
-                                >
-                                  <SelectTrigger
-                                    id={`couple-${side.key}-role`}
-                                    className="mt-2 rounded-xl"
-                                  >
-                                    <SelectValue placeholder="Select role" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="bride">Bride</SelectItem>
-                                    <SelectItem value="groom">Groom</SelectItem>
-                                    <SelectItem value="partner">Partner</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-father`}>Father&apos;s name</Label>
-                                <Input
-                                  id={`couple-${side.key}-father`}
-                                  defaultValue={side.father || ''}
-                                  placeholder="Father's full name"
-                                  onChange={(e) =>
-                                    updateProject({
-                                      [side.fatherKey]: e.target.value,
-                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
-                                    })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-mother`}>Mother&apos;s name</Label>
-                                <Input
-                                  id={`couple-${side.key}-mother`}
-                                  defaultValue={side.mother || ''}
-                                  placeholder="Mother's full name"
-                                  onChange={(e) =>
-                                    updateProject({
-                                      [side.motherKey]: e.target.value,
-                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
-                                    })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-house`}>House name</Label>
-                                <Input
-                                  id={`couple-${side.key}-house`}
-                                  defaultValue={side.house || ''}
-                                  placeholder="House or family name"
-                                  onChange={(e) =>
-                                    updateProject({ [side.houseKey]: e.target.value })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-place`}>Place</Label>
-                                <Input
-                                  id={`couple-${side.key}-place`}
-                                  defaultValue={side.place || ''}
-                                  placeholder="Place or locality"
-                                  onChange={(e) =>
-                                    updateProject({ [side.placeKey]: e.target.value })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              {(preview.parents || preview.house || preview.place) ? (
-                                <div className="text-[11px] text-gray-500 leading-snug rounded-lg bg-white/60 px-3 py-2 border border-rose-100/60 space-y-0.5">
-                                  <p className="font-medium text-gray-600">Will show as:</p>
-                                  <p className="font-medium text-gray-800">{preview.name}</p>
-                                  {preview.relation ? <p>{preview.relation}</p> : null}
-                                  {preview.parents ? <p>{preview.parents}</p> : null}
-                                  {preview.house ? <p>{preview.house}</p> : null}
-                                  {preview.place ? <p>{preview.place}</p> : null}
-                                  {!preview.relation && formatRelationAbbrev(roleValue) ? (
-                                    <p className="text-gray-400">
-                                      (Add parents to show {formatRelationAbbrev(roleValue)})
-                                    </p>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {project.event_template !== 'Birthday' ? (
-                    <EventsIncludedEditor
-                      project={project}
-                      onChange={(events) => updateProject({ events }, { immediate: true })}
-                    />
-                  ) : (
-                    <>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>Date</Label>
-                          <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
-                            onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
-                        </div>
-                        <div>
-                          <Label>Time</Label>
-                          <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Venue</Label>
-                        <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
-                      </div>
-                      <div>
-                        <Label>Location / City</Label>
-                        <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <Label>Contact Number</Label>
-                    <Input defaultValue={project.contact} onChange={(e) => updateProject({ contact: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
-                  {project.event_template === 'Birthday' ? (
-                  <div>
-                    <Label>Maps Link or Address</Label>
-                    <Input defaultValue={project.maps_url || ''} onChange={(e) => updateProject({ maps_url: e.target.value })}
-                      placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
-                    <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
-                  </div>
-                  ) : null}
-
-                  <div className="border-t border-gray-100 pt-5">
-                    <MediaUploader
-                      title="Invite gallery"
-                      description="Shared photos shown on every invite link (open + personal)."
-                      images={galleryImages}
-                      max={MAX_GALLERY_IMAGES}
-                      uploading={galleryUploading}
-                      onUpload={uploadGalleryFiles}
-                      onRemove={removeGalleryImage}
-                    />
-                    {galleryError && (
-                      <p className="text-xs text-red-600 mt-2">{galleryError}</p>
-                    )}
-                  </div>
-
-                  <p
-                    className={`text-xs flex items-center gap-1.5 ${
-                      projectSaveStatus === 'error'
-                        ? 'text-red-600'
-                        : projectSaveStatus === 'saving'
-                          ? 'text-amber-600'
-                          : 'text-gray-400 italic'
-                    }`}
-                  >
-                    {projectSaveStatus === 'saving' ? (
-                      <>Saving…</>
-                    ) : projectSaveStatus === 'error' ? (
-                      <><span>⚠</span> {projectSaveError || 'Couldn’t save changes'}</>
-                    ) : projectSaveStatus === 'saved' ? (
-                      <><span>✓</span> All changes saved</>
-                    ) : (
-                      <><span>✓</span> Changes are saved automatically</>
-                    )}
-                  </p>
-                </CardContent>
-              </Card>
+              <EventDetailsPanel
+                project={project}
+                projectFormKey={projectFormKey}
+                projectSaveStatus={projectSaveStatus}
+                projectSaveError={projectSaveError}
+                galleryImages={galleryImages}
+                galleryUploading={galleryUploading}
+                galleryError={galleryError}
+                deletingProject={deletingProject}
+                birthdayFields={
+                  <BirthdayPersonsFields
+                    couple1={project.couple_1}
+                    couple2={project.couple_2}
+                    onUpdatePrimary={(name) => updateProject({ couple_1: name })}
+                    onUpdateAdditional={(names) =>
+                      updateProject({ couple_2: serializeAdditionalBirthdayPersons(names) })
+                    }
+                  />
+                }
+                onUpdateProject={updateProject}
+                onUploadGallery={uploadGalleryFiles}
+                onRemoveGalleryImage={removeGalleryImage}
+                onDeleteProject={handleDeleteProject}
+              />
             )}
-
-            {/* Danger Zone */}
-            <Card className="bg-red-50 border border-red-200 rounded-2xl max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <div>
-                    <CardTitle className="text-red-800">Danger Zone</CardTitle>
-                    <CardDescription className="text-red-600">Irreversible actions — proceed with caution</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between gap-4 p-4 bg-white rounded-xl border border-red-200">
-                  <div>
-                    <p className="text-sm font-semibold text-red-800">Delete this project</p>
-                    <p className="text-xs text-red-600 mt-0.5">Permanently deletes all guests, RSVP data, and invitation links.</p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deletingProject}
-                    onClick={handleDeleteProject}
-                    className="shrink-0 rounded-xl"
-                  >
-                    {deletingProject ? 'Deleting…' : 'Delete Project'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </AnimatedTabsContent>
 
         </Tabs>
