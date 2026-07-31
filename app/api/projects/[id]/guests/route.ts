@@ -29,6 +29,97 @@ const GUEST_SELECT_LEGACY =
 const MISSING_GUEST_COLUMN =
   /(invited_to|rsvp_by_event|rsvp_headline|greeting_line|hide_greeting)/i
 
+type GuestConflictField = 'phone' | 'email' | 'name' | 'token' | 'unknown'
+
+/** Map Postgres/Supabase unique violations to a field + user-facing message. */
+function conflictFromUniqueError(
+  error: { message?: string; details?: string; hint?: string },
+  opts: { phone: string | null; email: string | null },
+): { field: GuestConflictField; error: string; duplicate: true; blankPhoneConflict?: boolean } {
+  const message = error.message || ''
+  const details = error.details || ''
+  const hint = error.hint || ''
+  const blob = `${message} ${details} ${hint}`
+  const lower = blob.toLowerCase()
+
+  const keyCols = (blob.match(/Key\s*\(([^)]+)\)/i)?.[1] || '').toLowerCase()
+  const constraint = (blob.match(/constraint\s+"?([a-z0-9_]+)"?/i)?.[1] || '').toLowerCase()
+
+  const mentions = (col: string) =>
+    keyCols.includes(col) ||
+    constraint.includes(col) ||
+    new RegExp(`\\b${col}\\b`).test(lower)
+
+  if (mentions('unique_token') || mentions('token')) {
+    return {
+      field: 'token',
+      error: 'Could not create a unique invite link. Please try again.',
+      duplicate: true,
+    }
+  }
+
+  if (mentions('email')) {
+    return {
+      field: 'email',
+      error: opts.email
+        ? 'This email is already used by another guest'
+        : 'Another guest already has a blank email under a unique email rule. Leave email empty only after fixing the database constraint, or enter a unique email.',
+      duplicate: true,
+    }
+  }
+
+  if (mentions('phone')) {
+    if (!opts.phone) {
+      return {
+        field: 'phone',
+        error:
+          'Another guest already has no phone number. Enter a unique phone for this guest — phone is optional only when no other guest is blank.',
+        duplicate: true,
+        blankPhoneConflict: true,
+      }
+    }
+    return {
+      field: 'phone',
+      error: 'This phone number is already used by another guest',
+      duplicate: true,
+    }
+  }
+
+  // Name uniqueness is not intended by the product; surface it clearly.
+  if (mentions('name')) {
+    return {
+      field: 'name',
+      error:
+        'A guest with this name already exists (database still enforces unique names). Same names should be allowed — run db/migrations/fix-guest-uniques.sql, or use a slightly different name for now.',
+      duplicate: true,
+    }
+  }
+
+  // Fallback: infer from what we tried to insert
+  if (opts.email && /email/i.test(blob)) {
+    return { field: 'email', error: 'This email is already used by another guest', duplicate: true }
+  }
+  if (opts.phone && /phone/i.test(blob)) {
+    return { field: 'phone', error: 'This phone number is already used by another guest', duplicate: true }
+  }
+  if (!opts.phone && /phone/i.test(blob)) {
+    return {
+      field: 'phone',
+      error:
+        'Another guest already has no phone number. Enter a unique phone for this guest — phone is optional only when no other guest is blank.',
+      duplicate: true,
+      blankPhoneConflict: true,
+    }
+  }
+
+  console.error('[guests] Unclassified unique constraint:', { message, details, hint })
+  return {
+    field: 'unknown',
+    error: 'Could not add guest due to a data conflict. Check phone/email uniqueness in the database and try again.',
+    duplicate: true,
+  }
+}
+
 /** Phone must be unique per project; same names are allowed. */
 async function findGuestWithPhone(
   supabase: ReturnType<typeof createAdminClient>,
@@ -68,6 +159,30 @@ async function findGuestWithPhone(
 
   const { data: looseRows } = await loose
   return (looseRows ?? []).find((g) => guestPhonesEqual(g.phone, phone)) ?? null
+}
+
+async function findGuestWithEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  email: string,
+  excludeGuestId?: string,
+): Promise<{ id: string; name: string; email: string | null } | null> {
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return null
+
+  let query = supabase
+    .from('guests')
+    .select('id, name, email')
+    .eq('project_id', projectId)
+    .ilike('email', normalized)
+    .limit(5)
+
+  if (excludeGuestId) query = query.neq('id', excludeGuestId)
+
+  const { data } = await query
+  return (
+    (data ?? []).find((g) => String(g.email || '').trim().toLowerCase() === normalized) ?? null
+  )
 }
 
 function withGuestDefaults(g: Record<string, unknown>): Record<string, unknown> {
@@ -198,11 +313,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const phoneNorm = normalizeGuestPhoneForStorage(body.phone)
     if (phoneNorm.error) {
-      return NextResponse.json({ error: phoneNorm.error }, { status: 400 })
+      return NextResponse.json({ error: phoneNorm.error, field: 'phone' }, { status: 400 })
     }
     const phone = phoneNorm.phone
-    const email = body.email ? String(body.email).trim().slice(0, 200) : null
+    const emailRaw = typeof body.email === 'string' ? body.email.trim().slice(0, 200) : ''
+    const email = emailRaw ? emailRaw : null
     const guest_category = String(body.guest_category || 'Other').trim().slice(0, 100)
+    const parsedPax = Number.parseInt(String(body.pax_count ?? 1), 10)
+    const pax_count = Number.isFinite(parsedPax) ? Math.max(1, Math.min(50, parsedPax)) : 1
 
     const supabase = createAdminClient()
     const eventIds = await defaultInvitedTo(supabase, id)
@@ -220,6 +338,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           {
             error: `This phone number is already used by "${dup.name}"`,
             duplicate: true,
+            field: 'phone',
+          },
+          { status: 409 },
+        )
+      }
+    }
+
+    if (email) {
+      const dupEmail = await findGuestWithEmail(supabase, id, email)
+      if (dupEmail) {
+        return NextResponse.json(
+          {
+            error: `This email is already used by "${dupEmail.name}"`,
+            duplicate: true,
+            field: 'email',
           },
           { status: 409 },
         )
@@ -233,6 +366,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       phone,
       email,
       guest_category,
+      pax_count,
       rsvp_status: 'pending',
       project_id: id,
       unique_token,
@@ -248,6 +382,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         phone,
         email,
         guest_category,
+        pax_count,
         rsvp_status: 'pending',
         project_id: id,
         unique_token,
@@ -259,34 +394,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (error) {
       if (error.code === '23505') {
-        const isGlobalConstraint = error.message?.includes('guests_phone_unique')
-        const isPerProjectConstraint = error.message?.includes('guests_project_phone_unique')
-
-        if (isPerProjectConstraint) {
-          return NextResponse.json(
-            {
-              error: 'This phone number is already used by another guest',
-              duplicate: true,
-            },
-            { status: 409 },
-          )
-        }
-
-        if (isGlobalConstraint && phone) {
-          return NextResponse.json(
-            {
-              error:
-                'This phone number is already used by another guest. Choose a different number or leave phone blank.',
-              duplicate: true,
-            },
-            { status: 409 },
-          )
-        }
-
-        return NextResponse.json(
-          { error: 'This phone number is already used by another guest', duplicate: true },
-          { status: 409 },
-        )
+        const conflict = conflictFromUniqueError(error, { phone, email })
+        return NextResponse.json(conflict, { status: 409 })
       }
 
       console.error('[POST /api/projects/[id]/guests] Supabase error:', error)
@@ -400,6 +509,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           {
             error: `This phone number is already used by "${dup.name}"`,
             duplicate: true,
+            field: 'phone',
+          },
+          { status: 409 },
+        )
+      }
+    }
+
+    if ('email' in updates && updates.email) {
+      const dupEmail = await findGuestWithEmail(
+        supabase,
+        id,
+        updates.email as string,
+        guestId,
+      )
+      if (dupEmail) {
+        return NextResponse.json(
+          {
+            error: `This email is already used by "${dupEmail.name}"`,
+            duplicate: true,
+            field: 'email',
           },
           { status: 409 },
         )
@@ -416,13 +545,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (error) {
       if (error.code === '23505') {
-        return NextResponse.json(
-          {
-            error: 'This phone number is already used by another guest',
-            duplicate: true,
-          },
-          { status: 409 },
-        )
+        const conflict = conflictFromUniqueError(error, {
+          phone:
+            'phone' in updates
+              ? ((updates.phone as string | null) ?? null)
+              : null,
+          email:
+            'email' in updates
+              ? ((updates.email as string | null) ?? null)
+              : null,
+        })
+        return NextResponse.json(conflict, { status: 409 })
       }
       if (MISSING_GUEST_COLUMN.test(error.message || '')) {
         return NextResponse.json(
