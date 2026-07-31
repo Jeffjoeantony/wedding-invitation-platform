@@ -51,7 +51,6 @@ export function showsCoupleFamilyDetails(template?: string | null) {
     case 'Reception':
     case 'Mehendi':
     case 'Haldi':
-    case 'Save The Date':
       return true
     default:
       return false

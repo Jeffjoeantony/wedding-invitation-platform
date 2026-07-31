@@ -105,6 +105,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const ALLOWED_EVENT_TYPES = ['Wedding', 'Engagement', 'Reception', 'Mehendi', 'Haldi']
+    if (
+      typeof updates.event_template === 'string' &&
+      !ALLOWED_EVENT_TYPES.includes(updates.event_template)
+    ) {
+      return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
+    }
+
     const supabase = createAdminClient()
 
     if ('events' in body) {

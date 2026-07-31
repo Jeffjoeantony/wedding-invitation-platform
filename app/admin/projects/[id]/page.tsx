@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as XLSX from 'xlsx'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -42,6 +43,9 @@ import {
   Home,
   Building2,
   Sparkles,
+  X,
+  ArrowDownAZ,
+  ArrowUpZA,
   type LucideIcon,
 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
@@ -68,6 +72,8 @@ import {
 } from '@/lib/invite-media'
 import {
   buildGuestExportRows,
+  effectiveInvitedTo,
+  eventLabel,
   guestExportColumnOrder,
   invitedToLabels,
   parseRsvpByEvent,
@@ -88,6 +94,7 @@ interface Guest {
   guest_category?: string | null
   opened_at?: string
   responded_at?: string
+  created_at?: string
   moments?: MediaItem[] | unknown
   /** Count from Storage — set by guests list API */
   moments_count?: number
@@ -121,8 +128,7 @@ interface Project {
   location: string
   contact: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' |
-    'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
+  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' | string
   status: string
   gallery_images?: MediaItem[] | unknown
   events?: ProjectEvent[] | unknown
@@ -249,28 +255,36 @@ function StatCard({ label, value, sub, icon: Icon, accent, textColor, iconBg, ic
 }) {
   return (
     <Card
-      className={`group gap-0 py-0 overflow-hidden rounded-2xl bg-white/35 backdrop-blur-2xl border border-white/60 border-l-[3px] ${accent} shadow-[0_8px_32px_rgba(31,41,55,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] hover:bg-white/50 hover:shadow-[0_12px_40px_rgba(31,41,55,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white/80 transition-all duration-300`}
+      className="group relative min-h-[148px] gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_4px_18px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300/80 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)]"
     >
-      <CardContent className="relative px-5 py-5 sm:px-6 sm:py-6">
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/50 via-white/10 to-transparent"
-          aria-hidden
-        />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-[0.08em] leading-tight">
+      <div className={`absolute inset-x-0 top-0 border-t-[3px] ${accent}`} aria-hidden />
+      <div
+        className={`pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full ${iconBg} opacity-45 blur-2xl transition-transform duration-500 group-hover:scale-125`}
+        aria-hidden
+      />
+
+      <CardContent className="relative flex h-full min-h-[148px] flex-col px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.12em] text-slate-500 sm:text-[11px]">
               {label}
             </p>
-            <p className={`text-2xl sm:text-[1.75rem] font-semibold tracking-tight tabular-nums mt-2 ${textColor}`}>
+            <p className={`mt-2 text-3xl font-bold tracking-[-0.04em] tabular-nums sm:text-[2rem] ${textColor}`}>
               {value}
             </p>
-            <p className="text-[11px] sm:text-xs text-gray-500 mt-2 leading-snug line-clamp-2">{sub}</p>
           </div>
           <span
-            className={`inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${iconBg} shrink-0 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm`}
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} ring-1 ring-inset ring-black/[0.025] transition-transform duration-300 group-hover:scale-105`}
           >
-            <Icon className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${iconColor}`} strokeWidth={1.75} aria-hidden />
+            <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
           </span>
+        </div>
+
+        <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${iconBg} ring-2 ring-current ${iconColor}`} aria-hidden />
+          <p className="line-clamp-1 text-[11px] font-medium leading-snug text-slate-500 sm:text-xs">
+            {sub}
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -1382,7 +1396,13 @@ export default function ProjectDashboardPage() {
   const [guests, setGuests] = useState<Guest[]>([])
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [openedFilter, setOpenedFilter] = useState<'all' | 'not_opened' | 'opened'>('all')
+  const [phoneFilter, setPhoneFilter] = useState<'all' | 'no_phone' | 'has_phone'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [invitedToFilter, setInvitedToFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'opened' | 'responded' | 'category' | 'status' | 'added'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
@@ -1418,6 +1438,13 @@ export default function ProjectDashboardPage() {
   const [momentsUploading, setMomentsUploading] = useState(false)
   const [momentsError, setMomentsError] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
+  const [selectedGuestIds, setSelectedGuestIds] = useState<Set<string>>(new Set())
+  const [bulkCopyDone, setBulkCopyDone] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkPendingDelete, setBulkPendingDelete] = useState<Guest[] | null>(null)
+  const [waQueue, setWaQueue] = useState<Guest[] | null>(null)
+  const [waQueueIndex, setWaQueueIndex] = useState(0)
+  const [waQueueSentIds, setWaQueueSentIds] = useState<Set<string>>(new Set())
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
   const [projectSaveStatus, setProjectSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -1432,6 +1459,14 @@ export default function ProjectDashboardPage() {
     const active = list.querySelector<HTMLElement>('[data-state="active"]')
     if (!active) return
     active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [activeTab])
+
+  // Leave guest selection behind when navigating away from the list
+  useEffect(() => {
+    if (activeTab !== 'guests') {
+      setSelectedGuestIds(new Set())
+      setBulkCopyDone(false)
+    }
   }, [activeTab])
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
@@ -1670,6 +1705,12 @@ export default function ProjectDashboardPage() {
     const res = await fetch(`/api/projects/${projectId}/guests?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
+      setSelectedGuestIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       if (inviteGuest?.id === id) setInviteGuest(null)
       if (momentsGuest?.id === id) setMomentsGuest(null)
       if (lastAddedGuest?.id === id) setLastAddedGuest(null)
@@ -1689,6 +1730,46 @@ export default function ProjectDashboardPage() {
     }
     setDeletingId(null)
     setGuestPendingDelete(null)
+  }
+
+  const confirmBulkDeleteGuests = async () => {
+    if (!bulkPendingDelete?.length) return
+    setBulkDeleting(true)
+    const failed: string[] = []
+    const deletedIds = new Set<string>()
+
+    for (const guest of bulkPendingDelete) {
+      const res = await fetch(`/api/projects/${projectId}/guests?id=${guest.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        deletedIds.add(guest.id)
+      } else {
+        failed.push(guest.name)
+      }
+    }
+
+    if (deletedIds.size > 0) {
+      setGuests((prev) => prev.filter((g) => !deletedIds.has(g.id)))
+      setSelectedGuestIds((prev) => {
+        const next = new Set(prev)
+        deletedIds.forEach((id) => next.delete(id))
+        return next
+      })
+      if (inviteGuest && deletedIds.has(inviteGuest.id)) setInviteGuest(null)
+      if (momentsGuest && deletedIds.has(momentsGuest.id)) setMomentsGuest(null)
+      if (lastAddedGuest && deletedIds.has(lastAddedGuest.id)) setLastAddedGuest(null)
+    }
+
+    setBulkDeleting(false)
+    setBulkPendingDelete(null)
+
+    if (failed.length > 0) {
+      setDeleteError(
+        failed.length === 1
+          ? `Failed to delete "${failed[0]}". Please try again.`
+          : `Failed to delete ${failed.length} guests. Please try again.`,
+      )
+      setTimeout(() => setDeleteError(''), 4000)
+    }
   }
 
   const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
@@ -1947,6 +2028,49 @@ export default function ProjectDashboardPage() {
     )
   }
 
+  const toggleGuestSelected = (id: string) => {
+    setSelectedGuestIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setBulkCopyDone(false)
+  }
+
+  const clearGuestSelection = () => {
+    setSelectedGuestIds(new Set())
+    setBulkCopyDone(false)
+  }
+
+  const startWaQueueFromSelection = (queueGuests: Guest[]) => {
+    const withPhone = queueGuests.filter((g) => toWhatsAppDigits(g.phone))
+    if (withPhone.length === 0) {
+      setDeleteError('None of the selected guests have a WhatsApp-ready phone number.')
+      setTimeout(() => setDeleteError(''), 4000)
+      return
+    }
+    setWaQueue(withPhone)
+    setWaQueueIndex(0)
+    setWaQueueSentIds(new Set())
+  }
+
+  const copySelectedInviteLinks = async (selected: Guest[]) => {
+    if (selected.length === 0) return
+    const origin =
+      (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
+      window.location.origin
+    const text = selected.map((g) => `${origin}/invite/${g.unique_token}`).join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setBulkCopyDone(true)
+      setTimeout(() => setBulkCopyDone(false), 2200)
+    } catch {
+      setDeleteError('Could not copy links. Please try again.')
+      setTimeout(() => setDeleteError(''), 4000)
+    }
+  }
+
   // ── Derived stats ────────────────────────────────────────────────────────────
   const responded = guests.filter((g) => g.rsvp_status !== 'pending').length
   const stats = {
@@ -1972,18 +2096,128 @@ export default function ProjectDashboardPage() {
   })
   const categories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total)
 
+  const projectEvents = project ? resolveProjectEvents(project) : []
+  const invitedToOptions = projectEvents.map((e) => ({
+    id: e.id,
+    label: eventLabel(e),
+  }))
+
   const recentActivity = [...guests]
     .filter((g) => g.responded_at)
     .sort((a, b) => new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime())
     .slice(0, 4)
 
-  const filteredGuests = guests.filter((g) => {
-    const matchFilter = filter === 'all' || g.rsvp_status === filter
-    const term = search.toLowerCase()
-    const matchSearch = !term || g.name.toLowerCase().includes(term) ||
-      (g.phone || '').includes(term) || (g.guest_category || '').toLowerCase().includes(term)
-    return matchFilter && matchSearch
-  })
+  const statusSortOrder: Record<string, number> = { pending: 0, yes: 1, no: 2 }
+
+  const filteredGuests = guests
+    .filter((g) => {
+      const matchStatus = statusFilter === 'all' || g.rsvp_status === statusFilter
+      const matchOpened =
+        openedFilter === 'all' ||
+        (openedFilter === 'opened' ? !!g.opened_at : !g.opened_at)
+      const hasPhone = !!toWhatsAppDigits(g.phone)
+      const matchPhone =
+        phoneFilter === 'all' ||
+        (phoneFilter === 'has_phone' ? hasPhone : !hasPhone)
+
+      const guestCategory = g.guest_category || 'Other'
+      const matchCategory = categoryFilter === 'all' || guestCategory === categoryFilter
+
+      const matchInvitedTo =
+        invitedToFilter === 'all' ||
+        (project
+          ? effectiveInvitedTo(project, g.invited_to).includes(invitedToFilter)
+          : false)
+
+      const term = search.toLowerCase()
+      const matchSearch =
+        !term ||
+        g.name.toLowerCase().includes(term) ||
+        (g.phone || '').includes(term) ||
+        (g.guest_category || '').toLowerCase().includes(term)
+
+      return matchStatus && matchOpened && matchPhone && matchCategory && matchInvitedTo && matchSearch
+    })
+    .slice()
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1
+
+      const compareText = (left: string, right: string) =>
+        left.localeCompare(right, undefined, { sensitivity: 'base' }) * dir
+
+      const compareDate = (left?: string | null, right?: string | null) => {
+        const leftTime = left ? new Date(left).getTime() : null
+        const rightTime = right ? new Date(right).getTime() : null
+        if (leftTime == null && rightTime == null) return 0
+        // Empty dates always sink to the bottom, regardless of direction
+        if (leftTime == null) return 1
+        if (rightTime == null) return -1
+        return (leftTime - rightTime) * dir
+      }
+
+      switch (sortBy) {
+        case 'added':
+          return compareDate(a.created_at, b.created_at) || compareText(a.name, b.name)
+        case 'opened':
+          return compareDate(a.opened_at, b.opened_at) || compareText(a.name, b.name)
+        case 'responded':
+          return compareDate(a.responded_at, b.responded_at) || compareText(a.name, b.name)
+        case 'category':
+          return (
+            compareText(a.guest_category || 'Other', b.guest_category || 'Other') ||
+            compareText(a.name, b.name)
+          )
+        case 'status': {
+          const statusDiff =
+            ((statusSortOrder[a.rsvp_status] ?? 99) - (statusSortOrder[b.rsvp_status] ?? 99)) * dir
+          return statusDiff || compareText(a.name, b.name)
+        }
+        case 'name':
+        default:
+          return compareText(a.name, b.name)
+      }
+    })
+
+  const hasActiveFilters =
+    statusFilter !== 'all' ||
+    openedFilter !== 'all' ||
+    phoneFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    invitedToFilter !== 'all'
+
+  const hasCustomSort = sortBy !== 'name' || sortDir !== 'asc'
+
+  const selectedGuests = guests.filter((g) => selectedGuestIds.has(g.id))
+  const selectedCount = selectedGuests.length
+  const filteredSelectedCount = filteredGuests.filter((g) => selectedGuestIds.has(g.id)).length
+  const allFilteredSelected =
+    filteredGuests.length > 0 && filteredSelectedCount === filteredGuests.length
+  const someFilteredSelected =
+    filteredSelectedCount > 0 && filteredSelectedCount < filteredGuests.length
+  const selectedWithPhoneCount = selectedGuests.filter((g) => toWhatsAppDigits(g.phone)).length
+
+  const setAllFilteredSelected = (checked: boolean) => {
+    setSelectedGuestIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        filteredGuests.forEach((g) => next.add(g.id))
+      } else {
+        filteredGuests.forEach((g) => next.delete(g.id))
+      }
+      return next
+    })
+    setBulkCopyDone(false)
+  }
+
+  const clearAllFilters = () => {
+    setStatusFilter('all')
+    setOpenedFilter('all')
+    setPhoneFilter('all')
+    setCategoryFilter('all')
+    setInvitedToFilter('all')
+    setSortBy('name')
+    setSortDir('asc')
+  }
 
   const projectDateStr = project?.date
     ? new Date(project.date + 'T00:00:00').toLocaleDateString('en-US', {
@@ -2171,24 +2405,28 @@ export default function ProjectDashboardPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
         <style>{`
           .admin-tabs-scroll,
+          .overview-panel-scroll,
           .admin-table-scroll,
           .admin-table-scroll [data-slot='table-container'] {
             scrollbar-width: thin;
             scrollbar-color: #D1D5DB #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar,
+          .overview-panel-scroll::-webkit-scrollbar,
           .admin-table-scroll::-webkit-scrollbar,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar {
             height: 8px;
             width: 8px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-track,
+          .overview-panel-scroll::-webkit-scrollbar-track,
           .admin-table-scroll::-webkit-scrollbar-track,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-track {
             background: #F3F4F6;
             border-radius: 999px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb,
+          .overview-panel-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb {
             background: #D1D5DB;
@@ -2196,15 +2434,15 @@ export default function ProjectDashboardPage() {
             border: 2px solid #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb:hover,
+          .overview-panel-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb:hover {
             background: #9CA3AF;
           }
           .admin-table-scroll [data-slot='table-container'] {
-            overflow-x: auto;
+            overflow-x: hidden;
             overflow-y: auto;
             max-height: calc(2.5rem + 10 * 3.85rem); /* header + 10 guest rows */
-            padding-bottom: 6px;
             -webkit-overflow-scrolling: touch;
             scroll-behavior: smooth;
             overscroll-behavior: contain;
@@ -2385,64 +2623,68 @@ export default function ProjectDashboardPage() {
 
             {/* Category breakdown + Recent activity */}
             <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {categories.length} group{categories.length !== 1 ? 's' : ''}
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Guests by Category</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {categories.length} group{categories.length !== 1 ? 's' : ''} · {stats.total} guests
                       </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <BarChart3 className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-inset ring-violet-100">
+                      <BarChart3 className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-5">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-gutter:stable] sm:px-5 sm:py-5">
                   {categories.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No guests added yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No guests added yet</p>
                   )}
                   {categories.map(([cat, data]) => (
-                    <div key={cat}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-3 text-xs tabular-nums">
-                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.yes}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-red-500 font-semibold">
-                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.no}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-amber-600 font-semibold">
-                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.pending}
-                          </span>
-                          <span className="text-gray-400 font-semibold w-5 text-right">{data.total}</span>
-                        </div>
+                    <div
+                      key={cat}
+                      className="rounded-xl border border-slate-100 bg-slate-50/65 px-4 py-3.5 transition-colors hover:border-slate-200 hover:bg-slate-50"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-slate-800">{cat}</span>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-bold tabular-nums text-slate-500 ring-1 ring-inset ring-slate-200">
+                          {data.total} total
+                        </span>
                       </div>
-                      <div className="h-1.5 bg-white/50 rounded-full overflow-hidden flex ring-1 ring-black/[0.03]">
+                      <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] tabular-nums">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.yes} confirmed
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-600">
+                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.no} declined
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-700">
+                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.pending} pending
+                          </span>
+                      </div>
+                      <div
+                        className="flex h-2 overflow-hidden rounded-full bg-slate-200/80"
+                        aria-label={`${cat}: ${data.yes} confirmed, ${data.no} declined, ${data.pending} pending`}
+                      >
                         {data.yes > 0 && (
                           <div
-                            className="bg-emerald-400 transition-all"
+                            className="bg-emerald-500 transition-all"
                             style={{ width: `${(data.yes / data.total) * 100}%` }}
                           />
                         )}
                         {data.no > 0 && (
                           <div
-                            className="bg-red-300 transition-all"
+                            className="bg-red-400 transition-all"
                             style={{ width: `${(data.no / data.total) * 100}%` }}
                           />
                         )}
                         {data.pending > 0 && (
                           <div
-                            className="bg-amber-200 transition-all"
+                            className="bg-amber-300 transition-all"
                             style={{ width: `${(data.pending / data.total) * 100}%` }}
                           />
                         )}
@@ -2452,35 +2694,33 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs mt-1">Latest guest replies</CardDescription>
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Recent Responses</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {recentActivity.length > 0 ? `${recentActivity.length} latest guest replies` : 'Latest guest replies'}
+                      </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <Bell className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100">
+                      <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-3">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain px-4 py-2 [scrollbar-gutter:stable] sm:px-5">
                   {recentActivity.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No responses yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No responses yet</p>
                   )}
                   {recentActivity.map((g) => (
                     <div
                       key={g.id}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-white/25 hover:bg-white/45 ring-1 ring-white/40 transition-colors"
+                      className="flex items-center gap-3 px-1 py-3.5 transition-colors hover:bg-slate-50/80 sm:px-2"
                     >
                       <GuestAvatar name={g.name} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="truncate text-sm font-semibold text-slate-800">{g.name}</p>
+                        <p className="mt-0.5 truncate text-xs font-medium text-slate-400">
                           {g.guest_category || 'Other'}
                           {g.responded_at
                             ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -2488,12 +2728,12 @@ export default function ProjectDashboardPage() {
                         </p>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md shrink-0 backdrop-blur-sm ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold ring-1 ring-inset ${
                           g.rsvp_status === 'yes'
-                            ? 'bg-emerald-100/80 text-emerald-700'
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                             : g.rsvp_status === 'no'
-                              ? 'bg-red-100/80 text-red-600'
-                              : 'bg-amber-100/80 text-amber-700'
+                              ? 'bg-red-50 text-red-600 ring-red-100'
+                              : 'bg-amber-50 text-amber-700 ring-amber-100'
                         }`}
                       >
                         {g.rsvp_status === 'yes' ? (
@@ -2568,53 +2808,193 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 pt-1">
-                {/* Filter pills */}
-                <div className="admin-tabs-scroll -mx-1 px-1 overflow-x-auto pb-1">
-                  <div className="flex gap-2 w-max min-w-full">
-                  {([
-                    { key: 'all', label: 'All', count: guests.length },
-                    { key: 'pending', label: 'Pending', count: stats.pending },
-                    { key: 'yes', label: 'Confirmed', count: stats.confirmed },
-                    { key: 'no', label: 'Declined', count: stats.declined },
-                  ] as const).map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all shrink-0 ${
-                        filter === f.key ? theme.filterActive : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {f.label}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        filter === f.key ? theme.filterActiveBadge : 'bg-gray-200 text-gray-500'
-                      }`}>{f.count}</span>
-                    </button>
-                  ))}
+                {/* Single unified filter + sort bar */}
+                <div className="rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5">
+                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                      <Select
+                        value={statusFilter}
+                        onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Status: All</SelectItem>
+                          <SelectItem value="pending">Pending ({stats.pending})</SelectItem>
+                          <SelectItem value="yes">Confirmed ({stats.confirmed})</SelectItem>
+                          <SelectItem value="no">Declined ({stats.declined})</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={openedFilter}
+                        onValueChange={(v) => setOpenedFilter(v as typeof openedFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Opened" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Opened: Any</SelectItem>
+                          <SelectItem value="not_opened">
+                            Not opened ({guests.filter((g) => !g.opened_at).length})
+                          </SelectItem>
+                          <SelectItem value="opened">
+                            Opened ({guests.filter((g) => !!g.opened_at).length})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={phoneFilter}
+                        onValueChange={(v) => setPhoneFilter(v as typeof phoneFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Phone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Phone: Any</SelectItem>
+                          <SelectItem value="has_phone">
+                            Has phone ({guests.filter((g) => !!toWhatsAppDigits(g.phone)).length})
+                          </SelectItem>
+                          <SelectItem value="no_phone">
+                            No / invalid ({guests.filter((g) => !toWhatsAppDigits(g.phone)).length})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[145px]">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Category: All</SelectItem>
+                          {categories.map(([cat, data]) => (
+                            <SelectItem key={cat} value={cat}>
+                              {cat} ({data.total})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={invitedToFilter} onValueChange={setInvitedToFilter}>
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[150px]">
+                          <SelectValue placeholder="Invited to" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Invited to: All</SelectItem>
+                          {invitedToOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex w-[calc(50%_-_3px)] items-center gap-1 sm:w-auto">
+                        <Select
+                          value={sortBy}
+                          onValueChange={(v) => {
+                            const next = v as typeof sortBy
+                            setSortBy(next)
+                            // Dates default to newest-first; text/status to A→Z / pending→yes→no
+                            setSortDir(
+                              next === 'opened' || next === 'responded' || next === 'added'
+                                ? 'desc'
+                                : 'asc',
+                            )
+                          }}
+                        >
+                          <SelectTrigger className="h-9 w-full rounded-lg border-gray-200 bg-white text-xs sm:w-[150px]">
+                            <SelectValue placeholder="Sort" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="name">Sort: Name</SelectItem>
+                            <SelectItem value="added">Sort: Recently added</SelectItem>
+                            <SelectItem value="opened">Sort: Opened</SelectItem>
+                            <SelectItem value="responded">Sort: Responded</SelectItem>
+                            <SelectItem value="category">Sort: Category</SelectItem>
+                            <SelectItem value="status">Sort: Status</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <button
+                          type="button"
+                          aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                          title={
+                            sortBy === 'opened' || sortBy === 'responded' || sortBy === 'added'
+                              ? sortDir === 'desc'
+                                ? 'Newest first'
+                                : 'Oldest first'
+                              : sortDir === 'asc'
+                                ? 'A → Z'
+                                : 'Z → A'
+                          }
+                          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50"
+                        >
+                          {sortDir === 'asc' ? (
+                            <ArrowDownAZ className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpZA className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {(hasActiveFilters || hasCustomSort) && (
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 self-start lg:self-center"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Clear
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Table — ~10 rows visible; rest scroll. min-width forces horizontal scroll on mobile */}
-                <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
-                  <Table className="min-w-[960px]">
+                {/* Compact fixed layout keeps every column and action visible without horizontal scrolling. */}
+                <div className={`admin-table-scroll rounded-xl border bg-white/40 ${selectedCount > 0 ? 'border-rose-200/80' : 'border-gray-100'}`}>
+                  <Table className="w-full table-fixed">
                     <TableHeader className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm [&_tr]:border-b">
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[120px]">Invited to</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
-                        <TableHead className="min-w-[280px] text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
+                        <TableHead className="w-[4%] pl-2 pr-0">
+                          <Checkbox
+                            aria-label={allFilteredSelected ? 'Deselect all visible guests' : 'Select all visible guests'}
+                            checked={
+                              allFilteredSelected
+                                ? true
+                                : someFilteredSelected
+                                  ? 'indeterminate'
+                                  : false
+                            }
+                            disabled={filteredGuests.length === 0}
+                            onCheckedChange={(value) => setAllFilteredSelected(value === true)}
+                            className="border-gray-300 data-[state=checked]:border-rose-700 data-[state=checked]:bg-rose-700 data-[state=indeterminate]:border-rose-700 data-[state=indeterminate]:bg-rose-700"
+                          />
+                        </TableHead>
+                        <TableHead className="w-[19%] px-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Guest</TableHead>
+                        <TableHead className="w-[9%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Category</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Invited to</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Status</TableHead>
+                        <TableHead className="w-[5%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Pax</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Opened</TableHead>
+                        <TableHead className="w-[11%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Responded</TableHead>
+                        <TableHead className="w-[22%] px-1 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredGuests.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-16 text-gray-400">
+                          <TableCell colSpan={9} className="text-center py-16 text-gray-400">
                             <div className="flex flex-col items-center gap-2">
                               <span className="text-4xl">🔍</span>
-                              <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
+                              <p className="text-sm">
+                                {search || hasActiveFilters
+                                  ? 'No guests match your filters.'
+                                  : 'No guests yet.'}
+                              </p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -2627,82 +3007,99 @@ export default function ProjectDashboardPage() {
                         const invitedLabels = project
                           ? invitedToLabels(guest.invited_to, project)
                           : []
+                        const isSelected = selectedGuestIds.has(guest.id)
                         return (
                         <TableRow
                           key={guest.id}
-                          className={`transition-colors group border-gray-50 cursor-pointer ${theme.tableRowHover}`}
+                          data-state={isSelected ? 'selected' : undefined}
+                          className={`transition-colors group border-gray-50 cursor-pointer ${
+                            isSelected
+                              ? 'bg-rose-50/70 hover:bg-rose-50/90'
+                              : theme.tableRowHover
+                          }`}
                           onClick={() => setInviteGuest(guest)}
                         >
-                          <TableCell>
-                            <div className="flex items-center gap-3">
+                          <TableCell
+                            className="pl-2 pr-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              aria-label={`Select ${guest.name}`}
+                              checked={isSelected}
+                              onCheckedChange={() => toggleGuestSelected(guest.id)}
+                              className="border-gray-300 data-[state=checked]:border-rose-700 data-[state=checked]:bg-rose-700"
+                            />
+                          </TableCell>
+                          <TableCell className="overflow-hidden px-1.5">
+                            <div className="flex min-w-0 items-center gap-2">
                               <GuestAvatar name={guest.name} />
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
                                 {guest.phone && (
-                                  <p className="text-xs text-gray-400 font-mono">
+                                  <p className="truncate text-[10px] text-gray-400 font-mono">
                                     {formatGuestPhoneDisplay(guest.phone) || guest.phone}
                                   </p>
                                 )}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
+                          <TableCell className="overflow-hidden px-1">
+                            <span className="block truncate rounded-sm bg-gray-100 px-1.5 py-1 text-center text-[10px] font-medium text-gray-600">
                               {guest.guest_category || 'Other'}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                          <TableCell className="overflow-hidden px-1">
+                            <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
                               {invitedLabels.map((label) => (
                                 <span
                                   key={label}
-                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700"
+                                  className="block truncate rounded-sm bg-rose-50 px-1.5 py-1 text-center text-[10px] font-semibold text-rose-700"
                                 >
                                   {label}
                                 </span>
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                          <TableCell className="px-1">
+                            <span className={`block truncate rounded-sm px-1.5 py-1 text-center text-[10px] font-semibold ${
                               guest.rsvp_status === 'yes' ? 'bg-emerald-100 text-emerald-700' :
                               guest.rsvp_status === 'no' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
                             }`}>
                               {guest.rsvp_status === 'yes' ? '✓ Yes' : guest.rsvp_status === 'no' ? '✗ No' : '⏳ Pending'}
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.rsvp_status === 'yes' ? (
-                              <span className="text-sm font-semibold text-emerald-700">
-                                {guest.pax_count}<span className="text-xs font-normal text-gray-400 ml-1">{guest.pax_count === 1 ? 'person' : 'people'}</span>
-                              </span>
+                              <span className="text-xs font-semibold text-emerald-700">{guest.pax_count}</span>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.opened_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">{new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                                <p className="text-gray-400">{new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                              <div className="text-[10px]">
+                                <p className="truncate font-medium text-gray-700">{new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                <p className="truncate text-gray-400">{new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
-                            ) : <span className="text-xs text-gray-300 italic">Not yet</span>}
+                            ) : <span className="text-[10px] text-gray-300 italic">Not yet</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.responded_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">{new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                                <p className="text-gray-400">{new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                              <div className="text-[10px]">
+                                <p className="truncate font-medium text-gray-700">{new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                <p className="truncate text-gray-400">{new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="px-1 text-center">
                             <div
-                              className="ml-auto grid w-max grid-cols-[7.25rem_2rem_7.5rem_2rem] items-center justify-items-stretch gap-1.5"
+                              className="flex items-center justify-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className={`h-8 w-full justify-center rounded-lg px-2 text-xs transition-all ${
+                                aria-label={`Copy invite link for ${guest.name}`}
+                                title={copiedId === guest.id ? 'Invite link copied' : 'Copy invite link'}
+                                className={`h-8 w-8 rounded-lg p-0 transition-all ${
                                   copiedId === guest.id
                                     ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                                     : theme.copyLinkBtn
@@ -2716,12 +3113,9 @@ export default function ProjectDashboardPage() {
                                 }}
                               >
                                 {copiedId === guest.id ? (
-                                  '✓ Copied!'
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
                                 ) : (
-                                  <span className="inline-flex items-center gap-1">
-                                    <Link2 className="h-3.5 w-3.5 shrink-0" />
-                                    Copy
-                                  </span>
+                                  <Link2 className="h-3.5 w-3.5" />
                                 )}
                               </Button>
                               <Button
@@ -2746,7 +3140,7 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
+                                className="h-8 rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
                                 onClick={() => setMomentsGuest(guest)}
                               >
                                 Moments{momentCount > 0 ? ` (${momentCount})` : ''}
@@ -2770,16 +3164,106 @@ export default function ProjectDashboardPage() {
                     </TableBody>
                   </Table>
                 </div>
-                <p className="text-[11px] text-gray-400 sm:hidden pt-1">
-                  Scroll sideways in the list for status, pax, and actions
-                </p>
               </CardContent>
             </Card>
+
+            {/* Bulk selection bar */}
+            <AnimatePresence>
+              {selectedCount > 0 && (
+                <motion.div
+                  key="guest-selection-bar"
+                  className="sticky bottom-4 z-30 mx-auto max-w-4xl"
+                  role="toolbar"
+                  aria-label="Guest selection actions"
+                  initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-gray-950/95 px-4 py-3 text-white shadow-[0_16px_48px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                    <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/15 px-2.5 text-sm font-bold tabular-nums">
+                      {selectedCount}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-tight">
+                        {selectedCount === 1 ? '1 guest selected' : `${selectedCount} guests selected`}
+                      </p>
+                      {!allFilteredSelected && filteredGuests.length > filteredSelectedCount && (
+                        <button
+                          type="button"
+                          className="mt-0.5 text-xs font-medium text-rose-200 hover:text-white underline-offset-2 hover:underline"
+                          onClick={() => setAllFilteredSelected(true)}
+                        >
+                          Select all {filteredGuests.length} visible
+                        </button>
+                      )}
+                      {selectedCount > selectedWithPhoneCount && (
+                        <p className="mt-0.5 text-[11px] text-white/55">
+                          {selectedWithPhoneCount} with WhatsApp number
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-white/20 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => copySelectedInviteLinks(selectedGuests)}
+                    >
+                      <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                      {bulkCopyDone ? 'Copied!' : 'Copy links'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 rounded-xl bg-[#25D366] px-3 text-xs font-semibold text-white hover:bg-[#1da851] disabled:opacity-40"
+                      disabled={selectedWithPhoneCount === 0}
+                      title={
+                        selectedWithPhoneCount === 0
+                          ? 'No selected guests have a phone number'
+                          : 'Open WhatsApp one guest at a time'
+                      }
+                      onClick={() => startWaQueueFromSelection(selectedGuests)}
+                    >
+                      <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />
+                      WhatsApp ({selectedWithPhoneCount})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-red-400/40 bg-red-500/15 px-3 text-xs text-red-100 hover:bg-red-500/25 hover:text-white"
+                      onClick={() => setBulkPendingDelete(selectedGuests)}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                    <button
+                      type="button"
+                      aria-label="Clear selection"
+                      className="ml-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white"
+                      onClick={clearGuestSelection}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </AnimatedTabsContent>
 
           {/* Delete error toast */}
           {deleteError && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium text-red-700 bg-red-50 border border-red-200">
+            <div
+              className={`fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700 shadow-xl ${
+                selectedCount > 0 ? 'bottom-24' : 'bottom-6'
+              }`}
+            >
               <span>⚠</span> {deleteError}
             </div>
           )}
@@ -3013,11 +3497,6 @@ export default function ProjectDashboardPage() {
                         <SelectItem value="Reception">🥂 Reception</SelectItem>
                         <SelectItem value="Mehendi">🌿 Mehendi</SelectItem>
                         <SelectItem value="Haldi">🌼 Haldi</SelectItem>
-                        <SelectItem value="Save The Date">📅 Save The Date</SelectItem>
-                        <SelectItem value="Birthday">🎂 Birthday</SelectItem>
-                        <SelectItem value="Housewarming">🏡 Housewarming</SelectItem>
-                        <SelectItem value="Corporate Event">🏢 Corporate Event</SelectItem>
-                        <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-gray-400 mt-1.5">
@@ -3382,6 +3861,174 @@ export default function ProjectDashboardPage() {
               {deletingId ? 'Deleting…' : 'Yes, delete'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!bulkPendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !bulkDeleting) setBulkPendingDelete(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {bulkPendingDelete?.length ?? 0} guest
+              {(bulkPendingDelete?.length ?? 0) === 1 ? '' : 's'}?
+            </DialogTitle>
+            <DialogDescription>
+              Remove the selected guests from this list. Their invite links will stop working.
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {bulkPendingDelete && bulkPendingDelete.length > 0 && (
+            <ul className="max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm text-gray-700">
+              {bulkPendingDelete.slice(0, 8).map((g) => (
+                <li key={g.id} className="truncate py-0.5 font-medium">
+                  {g.name}
+                </li>
+              ))}
+              {bulkPendingDelete.length > 8 && (
+                <li className="py-0.5 text-xs text-gray-400">
+                  +{bulkPendingDelete.length - 8} more
+                </li>
+              )}
+            </ul>
+          )}
+          <DialogFooter className="gap-3 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={bulkDeleting}
+              onClick={() => setBulkPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              disabled={bulkDeleting}
+              onClick={confirmBulkDeleteGuests}
+            >
+              {bulkDeleting ? 'Deleting…' : 'Yes, delete selected'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!waQueue}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWaQueue(null)
+            setWaQueueIndex(0)
+            setWaQueueSentIds(new Set())
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          {waQueue && waQueue.length > 0 && (() => {
+            const current = waQueue[Math.min(waQueueIndex, waQueue.length - 1)]
+            const sentCount = waQueueSentIds.size
+            const allDone = sentCount >= waQueue.length
+            const isCurrentSent = waQueueSentIds.has(current.id)
+            const progressPct = Math.round((sentCount / waQueue.length) * 100)
+
+            const markSentAndAdvance = () => {
+              setWaQueueSentIds((prev) => new Set([...prev, current.id]))
+              if (waQueueIndex < waQueue.length - 1) {
+                setTimeout(() => setWaQueueIndex((i) => i + 1), 280)
+              }
+            }
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>WhatsApp send queue</DialogTitle>
+                  <DialogDescription>
+                    Opens one chat at a time. Tap Send in WhatsApp, then continue here for the next guest.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
+                      <span>
+                        {sentCount} of {waQueue.length} opened
+                      </span>
+                      <span className="font-semibold text-gray-700">{progressPct}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-[#25D366] transition-all duration-300"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {!allDone ? (
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Guest {waQueueIndex + 1} of {waQueue.length}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">{current.name}</p>
+                      <p className="mt-0.5 font-mono text-xs text-gray-500">
+                        {formatGuestPhoneDisplay(current.phone) || current.phone}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-6 text-center">
+                      <p className="text-base font-semibold text-emerald-800">Queue complete</p>
+                      <p className="mt-1 text-sm text-emerald-700/80">
+                        WhatsApp was opened for all {waQueue.length} guests with a phone number.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => {
+                      setWaQueue(null)
+                      setWaQueueIndex(0)
+                      setWaQueueSentIds(new Set())
+                    }}
+                  >
+                    {allDone ? 'Done' : 'Close'}
+                  </Button>
+                  {!allDone && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={() => {
+                          markSentAndAdvance()
+                        }}
+                      >
+                        Skip
+                      </Button>
+                      <Button
+                        type="button"
+                        className="rounded-xl bg-[#25D366] text-white hover:bg-[#1da851]"
+                        onClick={() => {
+                          sendGuestInviteWhatsApp(current)
+                          markSentAndAdvance()
+                        }}
+                      >
+                        <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />
+                        {isCurrentSent ? 'Send again' : 'Send via WhatsApp'}
+                      </Button>
+                    </div>
+                  )}
+                </DialogFooter>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
