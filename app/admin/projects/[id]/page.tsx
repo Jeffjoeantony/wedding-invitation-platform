@@ -3261,7 +3261,7 @@ export default function ProjectDashboardPage() {
                           </TableCell>
                           <TableCell className="px-1 text-center">
                             <div
-                              className="flex items-center justify-center gap-1"
+                              className="mx-auto grid w-max grid-cols-[2rem_2rem_6.5rem_2rem] items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
@@ -3269,7 +3269,7 @@ export default function ProjectDashboardPage() {
                                 size="sm"
                                 aria-label={`Copy invite link for ${guest.name}`}
                                 title={copiedId === guest.id ? 'Invite link copied' : 'Copy invite link'}
-                                className={`h-8 w-8 rounded-lg p-0 transition-all ${
+                                className={`h-8 w-8 justify-self-center rounded-lg p-0 transition-all ${
                                   copiedId === guest.id
                                     ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                                     : theme.copyLinkBtn
@@ -3311,7 +3311,7 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
+                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-1.5 text-xs tabular-nums text-amber-800 hover:bg-amber-50"
                                 onClick={() => setMomentsGuest(guest)}
                               >
                                 Moments{momentCount > 0 ? ` (${momentCount})` : ''}
