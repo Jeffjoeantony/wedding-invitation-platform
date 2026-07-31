@@ -42,6 +42,19 @@ import {
   Home,
   Building2,
   Sparkles,
+  UserPlus,
+  UserRoundPlus,
+  Minus,
+  Plus,
+  Copy,
+  Lightbulb,
+  PhoneCall,
+  ShieldCheck,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  BookOpen,
+  History,
   type LucideIcon,
 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
@@ -1386,7 +1399,9 @@ export default function ProjectDashboardPage() {
   const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
+  const [newGuestEmail, setNewGuestEmail] = useState('')
   const [newGuestCategory, setNewGuestCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
+  const [newGuestPax, setNewGuestPax] = useState(1)
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -1404,8 +1419,16 @@ export default function ProjectDashboardPage() {
   const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState('')
+  const [importDragOver, setImportDragOver] = useState(false)
+  const [lastImportSummary, setLastImportSummary] = useState<{
+    fileName: string
+    count: number
+    at: Date
+  } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
   const [addGuestError, setAddGuestError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [phoneValid, setPhoneValid] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
@@ -1424,6 +1447,10 @@ export default function ProjectDashboardPage() {
   const [projectSaveError, setProjectSaveError] = useState('')
   const [projectFormKey, setProjectFormKey] = useState(0)
   const tabsListRef = useRef<HTMLDivElement>(null)
+  const addGuestNameRef = useRef<HTMLInputElement>(null)
+  const addGuestIntentRef = useRef<'default' | 'another'>('default')
+  const lastAddedMomentsRef = useRef<HTMLDivElement>(null)
+  const shouldScrollToMomentsRef = useRef(false)
 
   // Keep the active navbar tab in view when switching on narrow screens
   useEffect(() => {
@@ -1432,7 +1459,20 @@ export default function ProjectDashboardPage() {
     const active = list.querySelector<HTMLElement>('[data-state="active"]')
     if (!active) return
     active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    if (activeTab === 'add-guest' || activeTab === 'import-export') {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
   }, [activeTab])
+
+  // After adding a guest, scroll so the Moments section is reachable
+  useEffect(() => {
+    if (!lastAddedGuest || !shouldScrollToMomentsRef.current) return
+    shouldScrollToMomentsRef.current = false
+    const id = window.requestAnimationFrame(() => {
+      lastAddedMomentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [lastAddedGuest])
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
 
@@ -1508,8 +1548,11 @@ export default function ProjectDashboardPage() {
 
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
+    const addAnother = addGuestIntentRef.current === 'another'
+    addGuestIntentRef.current = 'default'
     setAddGuestError('')
     setPhoneError('')
+    setEmailError('')
     const name = newGuestName.trim()
     if (!name) {
       setAddGuestError('Guest name is required')
@@ -1527,24 +1570,51 @@ export default function ProjectDashboardPage() {
         return
       }
     }
+    const email = newGuestEmail.trim()
+    if (email) {
+      const emailNorm = email.toLowerCase()
+      const dupEmail = guests.find(
+        (g) => String(g.email || '').trim().toLowerCase() === emailNorm,
+      )
+      if (dupEmail) {
+        setEmailError(`This email is already used by "${dupEmail.name}"`)
+        return
+      }
+    }
     setAdding(true)
-    const res = await fetch(`/api/projects/${projectId}/guests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        phone: newGuestPhone || null,
-        guest_category: newGuestCategory,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      const message = err.error || 'Failed to add guest. Please try again.'
-      if (err.duplicate || /phone/i.test(message)) setPhoneError(message)
-      else setAddGuestError(message)
-    } else {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/guests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          phone: newGuestPhone || null,
+          email: email || null,
+          guest_category: newGuestCategory,
+          pax_count: newGuestPax,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        const message = err.error || 'Failed to add guest. Please try again.'
+        const field = typeof err.field === 'string' ? err.field : ''
+        if (field === 'email' || (!field && /email/i.test(message))) {
+          setEmailError(message)
+        } else if (field === 'phone' || err.blankPhoneConflict) {
+          if (err.blankPhoneConflict || !newGuestPhone.trim()) setAddGuestError(message)
+          else setPhoneError(message)
+        } else if (field === 'name' || field === 'unknown' || field === 'token') {
+          setAddGuestError(message)
+        } else if (err.duplicate && /phone/i.test(message)) {
+          setPhoneError(message)
+        } else {
+          setAddGuestError(message)
+        }
+        return
+      }
+
       const data = await res.json()
-      setGuests([data, ...guests])
+      setGuests((prev) => [data, ...prev])
       // Update snapshot so this guest isn't treated as new on next poll
       prevGuestsRef.current[data.id] = 'pending'
       setLastAddedGuest(data)
@@ -1561,11 +1631,24 @@ export default function ProjectDashboardPage() {
       playNotificationSound('success')
       setNewGuestName('')
       setNewGuestPhone('')
+      setNewGuestEmail('')
+      setNewGuestCategory(DEFAULT_GUEST_CATEGORY)
+      setNewGuestPax(1)
       setPhoneError('')
+      setEmailError('')
       setPhoneValid(true)
       setAddGuestError('')
+
+      if (addAnother) {
+        requestAnimationFrame(() => addGuestNameRef.current?.focus())
+      } else {
+        shouldScrollToMomentsRef.current = true
+      }
+    } catch {
+      setAddGuestError('Could not add the guest. Check your connection and try again.')
+    } finally {
+      setAdding(false)
     }
-    setAdding(false)
   }
 
   const uploadGalleryFiles = async (files: File[]) => {
@@ -1803,27 +1886,66 @@ export default function ProjectDashboardPage() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const processImportFile = (file: File) => {
+    const lower = file.name.toLowerCase()
+    if (!lower.endsWith('.xlsx') && !lower.endsWith('.xls') && !lower.endsWith('.csv')) {
+      setImportResult('✗ Please upload an XLSX, XLS, or CSV file.')
+      return
+    }
     setImportFile(file)
     setImportResult('')
     setImportPreview([])
+    setImportPreviewCols([])
     const reader = new FileReader()
     reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-      const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      const preview = rows.slice(0, 5)
-      setImportPreview(preview)
-      setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
+        const wb = XLSX.read(data, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        const preview = rows.slice(0, 5)
+        setImportPreview(preview)
+        setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+      } catch {
+        setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
+        setImportFile(null)
+      }
     }
     reader.readAsArrayBuffer(file)
   }
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    processImportFile(file)
+    // Allow re-selecting the same file
+    e.target.value = ''
+  }
+
+  const downloadImportTemplate = () => {
+    const rows = [
+      {
+        Name: 'Priya Sharma',
+        Phone: '+91 98765 43210',
+        Email: 'priya@example.com',
+        Category: 'Family',
+      },
+      {
+        Name: 'Arjun Mehta',
+        Phone: '+91 91234 56789',
+        Email: '',
+        Category: 'Friends',
+      },
+    ]
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['Name', 'Phone', 'Email', 'Category'] })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Guests')
+    XLSX.writeFile(wb, 'guest-import-template.xlsx')
+  }
+
   const handleBulkImport = () => {
     if (!importFile) return
+    const fileName = importFile.name
     setImporting(true)
     const reader = new FileReader()
     reader.onload = async (evt) => {
@@ -1864,6 +1986,11 @@ export default function ProjectDashboardPage() {
               ? `✓ ${result.message || parts.join('. ')}`
               : `✓ ${result.message || 'Import complete'}`,
           )
+          setLastImportSummary({
+            fileName,
+            count: typeof result.count === 'number' ? result.count : 0,
+            at: new Date(),
+          })
           addNotification({
             type: 'bulk_import',
             title: `Import Complete 📥`,
@@ -1990,6 +2117,32 @@ export default function ProjectDashboardPage() {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : ''
+  const hasAddGuestDraft = Boolean(
+    newGuestName.trim() ||
+      newGuestPhone ||
+      newGuestEmail.trim() ||
+      newGuestPax !== 1 ||
+      newGuestCategory !== DEFAULT_GUEST_CATEGORY,
+  )
+  const addGuestInviteUrl =
+    lastAddedGuest && !hasAddGuestDraft
+      ? `${
+          (typeof process !== 'undefined' &&
+            process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
+          (typeof window !== 'undefined' ? window.location.origin : '')
+        }/invite/${lastAddedGuest.unique_token}`
+      : ''
+  const importStep: 1 | 2 | 3 =
+    importing || (Boolean(importResult.startsWith('✓')) && !importFile)
+      ? 3
+      : importFile
+        ? 2
+        : 1
+  const importPrimaryLabel = importing
+    ? 'Importing…'
+    : importFile
+      ? `Import "${importFile.name}"`
+      : 'Select a file to continue'
 
   const theme = getDashboardTheme(project?.event_template)
   const HeaderIcon =
@@ -2168,7 +2321,13 @@ export default function ProjectDashboardPage() {
 
 
       {/* ── Main content ── */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
+      <div
+        className={`max-w-7xl mx-auto px-3 sm:px-6 ${
+          activeTab === 'add-guest' || activeTab === 'import-export'
+            ? 'py-3 sm:py-4'
+            : 'py-5 sm:py-8'
+        }`}
+      >
         <style>{`
           .admin-tabs-scroll,
           .admin-table-scroll,
@@ -2785,172 +2944,747 @@ export default function ProjectDashboardPage() {
           )}
 
           {/* ══ ADD GUEST ═════════════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="add-guest" className="mt-0">
-            <div className="max-w-md space-y-4">
-              <Card className={theme.glassCard}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">👤</span>
-                    <div>
-                      <CardTitle>Add New Guest</CardTitle>
-                      <CardDescription>Create a personalised invitation</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={addGuest} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Guest Name *</Label>
-                      <Input id="name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)}
-                        placeholder="Full name" className="mt-2 rounded-xl" required />
-                    </div>
-                    <GuestPhoneInput
-                      id="phone"
-                      value={newGuestPhone}
-                      onChange={(e164) => {
-                        setNewGuestPhone(e164)
-                        setPhoneError('')
-                      }}
-                      onValidityChange={setPhoneValid}
-                      error={phoneError}
-                    />
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
-                        <SelectTrigger className="mt-2 rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {GUEST_CATEGORIES.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {addGuestError && (
-                      <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-                        <span className="shrink-0 mt-0.5">⚠</span><span>{addGuestError}</span>
+          <AnimatedTabsContent value="add-guest" className="mt-0 pb-8">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
+              <div className="min-w-0 space-y-4">
+                <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_10px_35px_rgba(31,41,55,0.07)]">
+                  <CardHeader className="border-b border-gray-100 px-5 py-4 sm:px-7">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100">
+                          <UserPlus className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div>
+                          <CardTitle className="font-serif text-2xl font-semibold tracking-tight text-gray-900">
+                            Add a new guest
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Create a personalised invitation for this guest.
+                          </CardDescription>
+                        </div>
                       </div>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError}
-                      className={`w-full rounded-xl ${theme.primaryBtn}`}
-                    >
-                      {adding ? 'Adding…' : '+ Add Guest'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              {lastAddedGuest && (
-                <Card className={theme.glassCard}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Moments with {lastAddedGuest.name}</CardTitle>
-                    <CardDescription>
-                      Optional — up to {MAX_GUEST_MOMENTS} photos on their personal invite only.
-                    </CardDescription>
+                      <div className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100">
+                        <Users className="h-3.5 w-3.5" aria-hidden />
+                        {guests.length} guests added
+                      </div>
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {momentsError && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {momentsError}
+                  <CardContent className="px-5 py-4 sm:px-7">
+                    <form onSubmit={addGuest} className="space-y-4">
+                      <div>
+                        <Label htmlFor="add-guest-name">
+                          Full name <span className="text-rose-600">*</span>
+                        </Label>
+                        <Input
+                          ref={addGuestNameRef}
+                          id="add-guest-name"
+                          value={newGuestName}
+                          onChange={(e) => {
+                            setNewGuestName(e.target.value)
+                            setAddGuestError('')
+                          }}
+                          placeholder="e.g., Priya Sharma"
+                          autoComplete="name"
+                          className="mt-2 h-11 rounded-xl border-gray-200 bg-white"
+                          required
+                        />
                       </div>
-                    )}
-                    <MediaUploader
-                      title="Add images"
-                      images={lastAddedMoments}
-                      max={MAX_GUEST_MOMENTS}
-                      uploading={momentsUploading}
-                      onUpload={uploadLastAddedMoments}
-                      onRemove={removeLastAddedMoment}
-                    />
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <GuestPhoneInput
+                          id="add-guest-phone"
+                          label="Phone"
+                          value={newGuestPhone}
+                          onChange={(e164) => {
+                            setNewGuestPhone(e164)
+                            setPhoneError('')
+                          }}
+                          onValidityChange={setPhoneValid}
+                          error={phoneError}
+                        />
+                        <div>
+                          <Label htmlFor="add-guest-email">
+                            Email <span className="font-normal text-gray-400">(optional)</span>
+                          </Label>
+                          <div className="relative mt-2">
+                            <Mail
+                              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                              aria-hidden
+                            />
+                            <Input
+                              id="add-guest-email"
+                              type="email"
+                              value={newGuestEmail}
+                              onChange={(e) => {
+                                setNewGuestEmail(e.target.value)
+                                setEmailError('')
+                              }}
+                              placeholder="optional@email.com"
+                              autoComplete="email"
+                              className={`h-9 rounded-xl border-gray-200 bg-white pl-10 ${
+                                emailError ? 'border-red-400 focus-visible:ring-red-300' : ''
+                              }`}
+                            />
+                          </div>
+                          {emailError ? (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                              <span>⚠</span> {emailError}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <fieldset>
+                        <legend className="text-sm font-medium text-gray-700">Guest category</legend>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {GUEST_CATEGORIES.map((category) => {
+                            const selected = newGuestCategory === category
+                            return (
+                              <button
+                                key={category}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => setNewGuestCategory(category)}
+                                className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 ${
+                                  selected
+                                    ? 'border-rose-600 bg-rose-50 text-rose-700 shadow-sm'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-rose-200 hover:bg-rose-50/40'
+                                }`}
+                              >
+                                {category}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </fieldset>
+
+                      <div className="grid gap-4 md:grid-cols-[11rem_minmax(0,1fr)]">
+                        <div>
+                          <Label htmlFor="add-guest-pax">Number of attendees</Label>
+                          <div className="mt-2 flex h-11 w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
+                            <button
+                              type="button"
+                              aria-label="Decrease number of attendees"
+                              onClick={() => setNewGuestPax((count) => Math.max(1, count - 1))}
+                              disabled={newGuestPax <= 1}
+                              className="inline-flex w-11 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35"
+                            >
+                              <Minus className="h-4 w-4" aria-hidden />
+                            </button>
+                            <Input
+                              id="add-guest-pax"
+                              type="number"
+                              min={1}
+                              max={50}
+                              value={newGuestPax}
+                              onChange={(e) =>
+                                setNewGuestPax(
+                                  Math.max(1, Math.min(50, Number.parseInt(e.target.value, 10) || 1)),
+                                )
+                              }
+                              className="h-full min-w-0 flex-1 rounded-none border-0 text-center font-semibold tabular-nums shadow-none focus-visible:ring-0"
+                            />
+                            <button
+                              type="button"
+                              aria-label="Increase number of attendees"
+                              onClick={() => setNewGuestPax((count) => Math.min(50, count + 1))}
+                              disabled={newGuestPax >= 50}
+                              className="inline-flex w-11 items-center justify-center border-l border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35"
+                            >
+                              <Plus className="h-4 w-4" aria-hidden />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label>Personalised invitation link</Label>
+                          <div className="mt-2 flex h-11 min-w-0 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/55 px-3">
+                            <Link2 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden />
+                            <span
+                              className={`min-w-0 flex-1 truncate text-xs ${
+                                addGuestInviteUrl
+                                  ? 'font-mono text-gray-700'
+                                  : 'text-gray-400'
+                              }`}
+                            >
+                              {addGuestInviteUrl || 'Generated securely after adding the guest'}
+                            </span>
+                            {addGuestInviteUrl ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await navigator.clipboard.writeText(addGuestInviteUrl)
+                                  setCopiedId(lastAddedGuest?.id ?? null)
+                                  setTimeout(() => setCopiedId(null), 2000)
+                                }}
+                                className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                              >
+                                <Copy className="h-3.5 w-3.5" aria-hidden />
+                                {copiedId === lastAddedGuest?.id ? 'Copied' : 'Copy'}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      {addGuestError && (
+                        <div
+                          role="alert"
+                          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                        >
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span>{addGuestError}</span>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row">
+                        <Button
+                          type="submit"
+                          disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError || !!emailError}
+                          onClick={() => {
+                            addGuestIntentRef.current = 'default'
+                          }}
+                          className={`h-11 flex-1 rounded-xl ${theme.primaryBtn}`}
+                        >
+                          <UserPlus className="h-4 w-4" aria-hidden />
+                          {adding ? 'Adding guest…' : 'Add guest'}
+                        </Button>
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError || !!emailError}
+                          onClick={() => {
+                            addGuestIntentRef.current = 'another'
+                          }}
+                          className="h-11 flex-1 rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                        >
+                          <UserRoundPlus className="h-4 w-4" aria-hidden />
+                          Add &amp; add another
+                        </Button>
+                      </div>
+                    </form>
                   </CardContent>
                 </Card>
-              )}
+
+                {lastAddedGuest && (
+                  <Card
+                    ref={lastAddedMomentsRef}
+                    className="rounded-2xl border border-gray-200/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.06)]"
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg">
+                        Moments with {lastAddedGuest.name}
+                      </CardTitle>
+                      <CardDescription>
+                        Optional — up to {MAX_GUEST_MOMENTS} photos on their personal invite only.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {momentsError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                          {momentsError}
+                        </div>
+                      )}
+                      <MediaUploader
+                        title="Add images"
+                        images={lastAddedMoments}
+                        max={MAX_GUEST_MOMENTS}
+                        uploading={momentsUploading}
+                        onUpload={uploadLastAddedMoments}
+                        onRemove={removeLastAddedMoment}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <aside className="min-w-0 self-start space-y-5 lg:sticky lg:top-24">
+                <Card className="gap-0 rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="border-b border-gray-100 px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-rose-600" aria-hidden />
+                      <CardTitle className="font-serif text-base">Quick tips</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4 px-5 py-5">
+                    {[
+                      {
+                        icon: PhoneCall,
+                        title: 'Use an accurate phone number',
+                        text: 'A valid number makes opening the invite in WhatsApp quick and reliable.',
+                      },
+                      {
+                        icon: UserPlus,
+                        title: 'Personalisation makes it special',
+                        text: 'Use the guest’s preferred full name and the right category.',
+                      },
+                      {
+                        icon: ShieldCheck,
+                        title: 'Every invite link is unique',
+                        text: 'The secure personal link is generated after the guest is added.',
+                      },
+                    ].map((tip) => {
+                      const TipIcon = tip.icon
+                      return (
+                        <div key={tip.title} className="flex gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                            <TipIcon className="h-4 w-4" aria-hidden />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{tip.title}</p>
+                            <p className="mt-0.5 text-xs leading-relaxed text-gray-500">{tip.text}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              </aside>
             </div>
           </AnimatedTabsContent>
 
           {/* ══ IMPORT / EXPORT ═══════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="import-export" className="mt-0 space-y-6">
-            <Card className={`${theme.glassCard} max-w-2xl`}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📥</span>
-                  <div>
-                    <CardTitle>Import from Excel / CSV</CardTitle>
-                    <CardDescription>Upload a spreadsheet — tokens and links are auto-generated.</CardDescription>
+          <AnimatedTabsContent value="import-export" className="mt-0 space-y-5">
+            {/* First viewport: import + export + tips */}
+            <div className="grid items-stretch gap-4 lg:min-h-[calc(100dvh-12.5rem)] lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,1fr)]">
+              {/* ── Import card ── */}
+              <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_10px_35px_rgba(31,41,55,0.07)]">
+                <CardHeader className="shrink-0 border-b border-gray-100 px-5 py-3 sm:px-6">
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <CardTitle className="font-serif text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
+                        Import guest list
+                      </CardTitle>
+                      <CardDescription className="mt-0.5 text-xs sm:text-sm">
+                        Upload a spreadsheet — invite links are generated automatically.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={downloadImportTemplate}
+                      className="h-9 shrink-0 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Download className="h-4 w-4" aria-hidden />
+                      Download template
+                    </Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <label htmlFor="import-file" className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl p-10 cursor-pointer transition-colors ${theme.importDropzone}`}>
-                  <span className="text-4xl">📂</span>
-                  <p className="text-gray-700 font-light text-sm">{importFile ? importFile.name : 'Click to upload or drag & drop'}</p>
-                  <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
-                  <input id="import-file" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
-                </label>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
-                  <p className="font-semibold text-amber-900 mb-1">Expected columns (case-insensitive):</p>
-                  <p className="font-mono text-amber-800 text-xs">Name · Phone · Email · Category</p>
-                  <p className="text-amber-700 text-xs mt-1">Only <strong>Name</strong> is required.</p>
-                </div>
-                {importPreview.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2 font-medium">Preview — first {importPreview.length} rows:</p>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="text-xs w-full">
-                        <thead className="bg-gray-50">
-                          <tr>{importPreviewCols.map((col) => <th key={col} className="px-3 py-2 text-left text-gray-700 font-semibold border-b border-gray-200">{col}</th>)}</tr>
+                </CardHeader>
+
+                <CardContent className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4 sm:px-6">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        importFileInputRef.current?.click()
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setImportDragOver(true)
+                    }}
+                    onDragLeave={() => setImportDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setImportDragOver(false)
+                      const file = e.dataTransfer.files?.[0]
+                      if (file) processImportFile(file)
+                    }}
+                    onClick={() => importFileInputRef.current?.click()}
+                    className={`flex min-h-[8.5rem] flex-1 flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed px-5 py-5 text-center transition-colors ${
+                      importDragOver
+                        ? 'border-rose-400 bg-rose-50/80'
+                        : importFile
+                          ? 'border-rose-200 bg-rose-50/40'
+                          : 'border-rose-200/80 bg-rose-50/30 hover:border-rose-300 hover:bg-rose-50/50'
+                    }`}
+                  >
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+                      <Upload className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">
+                        {importFile ? importFile.name : 'Drop your file here or choose a file'}
+                      </p>
+                      {!importFile && (
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          Spreadsheet with guest names and optional contact details
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        importFileInputRef.current?.click()
+                      }}
+                      className={`h-9 rounded-xl ${theme.primaryBtn}`}
+                    >
+                      Choose file
+                    </Button>
+                    <input
+                      ref={importFileInputRef}
+                      id="import-file"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                    <p>
+                      Accepted formats:{' '}
+                      <span className="font-medium text-gray-700">XLSX, XLS, CSV</span>
+                    </p>
+                    <p>
+                      Maximum <span className="font-medium text-gray-700">500 guests</span>
+                    </p>
+                  </div>
+
+                  <div
+                    id="import-file-structure"
+                    className="shrink-0 rounded-xl border border-gray-100 bg-gray-50/70 p-3"
+                  >
+                    <p className="text-sm font-semibold text-gray-800">Required file structure</p>
+                    <p className="mt-0.5 text-[11px] text-gray-500">
+                      Column headers are matched case-insensitively. Only Name is required.
+                    </p>
+                    <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                      <table className="w-full min-w-[420px] text-left text-xs">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            {[
+                              { label: 'Name', badge: 'Required', required: true },
+                              { label: 'Phone', badge: 'Optional', required: false },
+                              { label: 'Email', badge: 'Optional', required: false },
+                              { label: 'Category', badge: 'Optional', required: false },
+                            ].map((col) => (
+                              <th key={col.label} className="px-3 py-2 font-semibold">
+                                <span className="inline-flex flex-wrap items-center gap-1.5">
+                                  {col.label}
+                                  <span
+                                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      col.required
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}
+                                  >
+                                    {col.badge}
+                                  </span>
+                                </span>
+                              </th>
+                            ))}
+                          </tr>
                         </thead>
                         <tbody>
-                          {importPreview.map((row, i) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                              {importPreviewCols.map((col) => <td key={col} className="px-3 py-2 text-gray-700">{String(row[col] ?? '')}</td>)}
-                            </tr>
-                          ))}
+                          <tr className="text-gray-700">
+                            <td className="px-3 py-2">Priya Sharma</td>
+                            <td className="px-3 py-2">+91 98765 43210</td>
+                            <td className="px-3 py-2">priya@example.com</td>
+                            <td className="px-3 py-2">Family</td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
-                )}
-                {importResult && (
-                  <p className={`text-sm font-semibold px-4 py-3 rounded-xl ${importResult.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                    {importResult}
-                  </p>
-                )}
-                <Button onClick={handleBulkImport} disabled={!importFile || importing} className={`w-full rounded-xl ${theme.primaryBtn}`}>
-                  {importing ? 'Importing…' : importFile ? `Import "${importFile.name}"` : 'Select a file first'}
-                </Button>
-              </CardContent>
-            </Card>
 
-            <Card className={`${theme.glassCard} max-w-2xl`}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📤</span>
-                  <div>
-                    <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>
-                      Download the full guest list with invite links and per-event RSVP status.
-                    </CardDescription>
+                  {(importPreview.length > 0 || importResult) && (
+                    <div className="min-h-0 max-h-28 shrink space-y-2 overflow-y-auto">
+                      {importPreview.length > 0 && (
+                        <div>
+                          <p className="mb-1.5 text-xs font-medium text-gray-700">
+                            Preview — first {importPreview.length} row
+                            {importPreview.length === 1 ? '' : 's'}
+                          </p>
+                          <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  {importPreviewCols.map((col) => (
+                                    <th
+                                      key={col}
+                                      className="border-b border-gray-200 px-3 py-1.5 text-left font-semibold text-gray-700"
+                                    >
+                                      {col}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {importPreview.map((row, i) => (
+                                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                                    {importPreviewCols.map((col) => (
+                                      <td key={col} className="px-3 py-1.5 text-gray-700">
+                                        {String(row[col] ?? '')}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {importResult && (
+                        <p
+                          role="status"
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                            importResult.startsWith('✓')
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}
+                        >
+                          {importResult}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-auto flex shrink-0 flex-col gap-2.5 border-t border-gray-100 pt-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                      {[
+                        { step: 1 as const, label: 'Upload file' },
+                        { step: 2 as const, label: 'Review guests' },
+                        { step: 3 as const, label: 'Import' },
+                      ].map((item, index) => {
+                        const active = importStep === item.step
+                        const done = importStep > item.step
+                        return (
+                          <div key={item.step} className="flex items-center gap-2 sm:gap-3">
+                            {index > 0 && (
+                              <span
+                                className={`hidden h-px w-5 sm:block ${
+                                  done || active ? 'bg-rose-300' : 'bg-gray-200'
+                                }`}
+                                aria-hidden
+                              />
+                            )}
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                                  active
+                                    ? 'bg-rose-600 text-white'
+                                    : done
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-gray-100 text-gray-400'
+                                }`}
+                              >
+                                {done ? <CheckCircle2 className="h-3 w-3" aria-hidden /> : item.step}
+                              </span>
+                              <span
+                                className={`text-[11px] font-medium sm:text-xs ${
+                                  active ? 'text-gray-900' : done ? 'text-rose-700' : 'text-gray-400'
+                                }`}
+                              >
+                                {item.label}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleBulkImport}
+                      disabled={!importFile || importing}
+                      className={`h-10 w-full rounded-xl text-sm font-semibold ${
+                        !importFile || importing
+                          ? 'bg-gray-200 text-gray-500 hover:bg-gray-200'
+                          : theme.primaryBtn
+                      }`}
+                    >
+                      <Upload className="h-4 w-4" aria-hidden />
+                      {importPrimaryLabel}
+                    </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Sidebar ── */}
+              <aside className="flex min-h-0 flex-col gap-4">
+                <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="shrink-0 border-b border-gray-100 px-4 py-3 sm:px-5">
+                    <CardTitle className="font-serif text-lg font-semibold text-gray-900">
+                      Export guest data
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Download the full list with invite links and RSVP status.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-1 flex-col gap-3 px-4 py-3.5 sm:px-5">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: 'Total guests', value: stats.total, icon: Users },
+                        { label: 'Responded', value: responded, icon: CheckCircle2 },
+                        { label: 'Pending', value: stats.pending, icon: Clock },
+                      ].map((stat) => {
+                        const StatIcon = stat.icon
+                        return (
+                          <div
+                            key={stat.label}
+                            className="rounded-xl bg-gray-50 px-2 py-2.5 text-center ring-1 ring-inset ring-gray-100"
+                          >
+                            <StatIcon className="mx-auto h-3.5 w-3.5 text-rose-600" aria-hidden />
+                            <p className="mt-1 text-base font-semibold tabular-nums text-gray-900">
+                              {stat.value}
+                            </p>
+                            <p className="text-[10px] font-medium leading-tight text-gray-500">
+                              {stat.label}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        onClick={handleExportExcel}
+                        disabled={guests.length === 0}
+                        className={`h-10 w-full rounded-xl ${theme.primaryBtn}`}
+                      >
+                        <Download className="h-4 w-4" aria-hidden />
+                        Export Excel (.xlsx)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleExportCSV}
+                        disabled={guests.length === 0}
+                        className="h-10 w-full rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                      >
+                        <Download className="h-4 w-4" aria-hidden />
+                        Export CSV
+                      </Button>
+                    </div>
+
+                    <div className="mt-auto">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        Includes
+                      </p>
+                      <ul className="mt-1.5 space-y-1">
+                        {[
+                          'Contact details',
+                          'Unique invitation links',
+                          'RSVP status',
+                          'Guest category',
+                        ].map((item) => (
+                          <li key={item} className="flex items-center gap-2 text-xs text-gray-700 sm:text-sm">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-hidden />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                      {guests.length === 0 && (
+                        <p className="mt-2 text-xs text-gray-400">
+                          Add or import guests first to enable export.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shrink-0 gap-0 rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="border-b border-gray-100 px-4 py-3 sm:px-5">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-rose-600" aria-hidden />
+                      <CardTitle className="font-serif text-base">Before you import</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 px-4 py-3.5 sm:px-5">
+                    {[
+                      {
+                        n: '1',
+                        title: 'Download the template',
+                        text: 'Use the provided columns so names and phones map correctly.',
+                      },
+                      {
+                        n: '2',
+                        title: 'Check phone country codes',
+                        text: 'Include the country code (e.g. +91) for reliable WhatsApp invites.',
+                      },
+                      {
+                        n: '3',
+                        title: 'Review duplicates',
+                        text: 'Rows with phones already on the list are skipped during import.',
+                      },
+                    ].map((tip) => (
+                      <div key={tip.n} className="flex gap-2.5">
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-50 text-[11px] font-bold text-rose-700">
+                          {tip.n}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{tip.title}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">{tip.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </aside>
+            </div>
+
+            {/* Below the fold — scroll to see */}
+            <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+              <CardHeader className="border-b border-gray-100 px-5 py-4 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-rose-600" aria-hidden />
+                  <CardTitle className="font-serif text-lg">Recent imports</CardTitle>
                 </div>
+                <CardDescription>
+                  Shown for this browser session after a successful import.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-gray-50 rounded-xl p-4 text-sm">
-                  <p className="text-gray-700"><strong>{guests.length}</strong> guests · links will use:</p>
-                  <p className="font-mono text-xs text-gray-500 mt-1 break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/invite/<em>TOKEN</em>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button onClick={handleExportExcel} disabled={guests.length === 0} className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl">
-                    ⬇ Export Excel (.xlsx)
-                  </Button>
-                  <Button onClick={handleExportCSV} disabled={guests.length === 0} variant="outline" className="border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-xl">
-                    ⬇ Export CSV
-                  </Button>
-                </div>
-                {guests.length === 0 && <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>}
+              <CardContent className="px-0 py-0">
+                {lastImportSummary ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-left text-sm">
+                      <thead className="border-b border-gray-100 bg-gray-50/80 text-xs uppercase tracking-wide text-gray-500">
+                        <tr>
+                          <th className="px-5 py-3 font-semibold sm:px-6">File name</th>
+                          <th className="px-5 py-3 font-semibold">Status</th>
+                          <th className="px-5 py-3 font-semibold">Guests</th>
+                          <th className="px-5 py-3 font-semibold sm:px-6">Imported on</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-gray-50">
+                          <td className="px-5 py-3.5 sm:px-6">
+                            <span className="inline-flex items-center gap-2 font-medium text-gray-800">
+                              <FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden />
+                              {lastImportSummary.fileName}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100">
+                              Completed
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 tabular-nums text-gray-700">
+                            {lastImportSummary.count}
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-600 sm:px-6">
+                            {lastImportSummary.at.toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="px-5 py-8 text-center sm:px-6">
+                    <p className="text-sm font-medium text-gray-700">No imports yet this session</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Successful uploads will appear here until you leave this page.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </AnimatedTabsContent>
