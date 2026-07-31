@@ -88,6 +88,7 @@ import {
   guestExportColumnOrder,
   invitedToLabels,
   parseRsvpByEvent,
+  resolveProjectEvents,
   type ProjectEvent,
 } from '@/lib/project-events'
 
