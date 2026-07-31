@@ -615,9 +615,8 @@ export function EventDetailsPanel({
       {/* Sidebar */}
       <aside className="min-w-0 self-start space-y-5 lg:sticky lg:top-24">
         <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
-          <CardHeader className="border-b border-gray-100 px-5 py-4">
+          <CardHeader className="border-b border-gray-100 px-5 py-3">
             <CardTitle className="font-serif text-base">Invite preview</CardTitle>
-            <CardDescription>How names and family details will read.</CardDescription>
           </CardHeader>
           <CardContent className="px-5 py-5">
             <div className="relative overflow-hidden rounded-2xl border border-rose-100 bg-gradient-to-b from-rose-50/80 via-white to-amber-50/40 px-5 py-6 text-center shadow-inner">

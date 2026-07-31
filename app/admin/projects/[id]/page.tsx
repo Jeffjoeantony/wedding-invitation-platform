@@ -43,9 +43,6 @@ import {
   Building2,
   Sparkles,
   UserPlus,
-  UserRoundPlus,
-  Minus,
-  Plus,
   Copy,
   Lightbulb,
   PhoneCall,
@@ -1400,7 +1397,6 @@ export default function ProjectDashboardPage() {
   const [newGuestPhone, setNewGuestPhone] = useState('')
   const [newGuestEmail, setNewGuestEmail] = useState('')
   const [newGuestCategory, setNewGuestCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
-  const [newGuestPax, setNewGuestPax] = useState(1)
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -1447,7 +1443,6 @@ export default function ProjectDashboardPage() {
   const [projectFormKey, setProjectFormKey] = useState(0)
   const tabsListRef = useRef<HTMLDivElement>(null)
   const addGuestNameRef = useRef<HTMLInputElement>(null)
-  const addGuestIntentRef = useRef<'default' | 'another'>('default')
   const lastAddedMomentsRef = useRef<HTMLDivElement>(null)
   const shouldScrollToMomentsRef = useRef(false)
 
@@ -1547,8 +1542,6 @@ export default function ProjectDashboardPage() {
 
   const addGuest = async (e: React.FormEvent) => {
     e.preventDefault()
-    const addAnother = addGuestIntentRef.current === 'another'
-    addGuestIntentRef.current = 'default'
     setAddGuestError('')
     setPhoneError('')
     setEmailError('')
@@ -1594,7 +1587,7 @@ export default function ProjectDashboardPage() {
           phone: newGuestPhone || null,
           email: email || null,
           guest_category: newGuestCategory,
-          pax_count: newGuestPax,
+          pax_count: 1,
         }),
       })
       if (!res.ok) {
@@ -1641,17 +1634,12 @@ export default function ProjectDashboardPage() {
       setNewGuestPhone('')
       setNewGuestEmail('')
       setNewGuestCategory(DEFAULT_GUEST_CATEGORY)
-      setNewGuestPax(1)
       setPhoneError('')
       setEmailError('')
       setPhoneValid(true)
       setAddGuestError('')
-
-      if (addAnother) {
-        requestAnimationFrame(() => addGuestNameRef.current?.focus())
-      } else {
-        shouldScrollToMomentsRef.current = true
-      }
+      shouldScrollToMomentsRef.current = true
+      requestAnimationFrame(() => addGuestNameRef.current?.focus())
     } catch {
       setAddGuestError('Could not add the guest. Check your connection and try again.')
       notifyError('Could not add guest', 'Check your connection and try again.')
@@ -2158,21 +2146,6 @@ export default function ProjectDashboardPage() {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : ''
-  const hasAddGuestDraft = Boolean(
-    newGuestName.trim() ||
-      newGuestPhone ||
-      newGuestEmail.trim() ||
-      newGuestPax !== 1 ||
-      newGuestCategory !== DEFAULT_GUEST_CATEGORY,
-  )
-  const addGuestInviteUrl =
-    lastAddedGuest && !hasAddGuestDraft
-      ? `${
-          (typeof process !== 'undefined' &&
-            process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
-          (typeof window !== 'undefined' ? window.location.origin : '')
-        }/invite/${lastAddedGuest.unique_token}`
-      : ''
   const importStep: 1 | 2 | 3 =
     importing || (Boolean(importResult.startsWith('✓')) && !importFile)
       ? 3
@@ -2802,7 +2775,7 @@ export default function ProjectDashboardPage() {
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
                         <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
-                        <TableHead className="min-w-[280px] text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
+                        <TableHead className="min-w-[280px] text-center text-xs font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2891,9 +2864,9 @@ export default function ProjectDashboardPage() {
                               </div>
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-center">
                             <div
-                              className="ml-auto grid w-max grid-cols-[7.25rem_2rem_7.5rem_2rem] items-center justify-items-stretch gap-1.5"
+                              className="mx-auto grid w-max grid-cols-[7.25rem_2rem_7.5rem_2rem] items-center justify-items-stretch gap-1.5"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
@@ -3097,76 +3070,6 @@ export default function ProjectDashboardPage() {
                         </div>
                       </fieldset>
 
-                      <div className="grid gap-4 md:grid-cols-[11rem_minmax(0,1fr)]">
-                        <div>
-                          <Label htmlFor="add-guest-pax">Number of attendees</Label>
-                          <div className="mt-2 flex h-11 w-full overflow-hidden rounded-xl border border-gray-200 bg-white">
-                            <button
-                              type="button"
-                              aria-label="Decrease number of attendees"
-                              onClick={() => setNewGuestPax((count) => Math.max(1, count - 1))}
-                              disabled={newGuestPax <= 1}
-                              className="inline-flex w-11 items-center justify-center border-r border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35"
-                            >
-                              <Minus className="h-4 w-4" aria-hidden />
-                            </button>
-                            <Input
-                              id="add-guest-pax"
-                              type="number"
-                              min={1}
-                              max={50}
-                              value={newGuestPax}
-                              onChange={(e) =>
-                                setNewGuestPax(
-                                  Math.max(1, Math.min(50, Number.parseInt(e.target.value, 10) || 1)),
-                                )
-                              }
-                              className="h-full min-w-0 flex-1 rounded-none border-0 text-center font-semibold tabular-nums shadow-none focus-visible:ring-0"
-                            />
-                            <button
-                              type="button"
-                              aria-label="Increase number of attendees"
-                              onClick={() => setNewGuestPax((count) => Math.min(50, count + 1))}
-                              disabled={newGuestPax >= 50}
-                              className="inline-flex w-11 items-center justify-center border-l border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-35"
-                            >
-                              <Plus className="h-4 w-4" aria-hidden />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label>Personalised invitation link</Label>
-                          <div className="mt-2 flex h-11 min-w-0 items-center gap-2 rounded-xl border border-rose-100 bg-rose-50/55 px-3">
-                            <Link2 className="h-4 w-4 shrink-0 text-rose-500" aria-hidden />
-                            <span
-                              className={`min-w-0 flex-1 truncate text-xs ${
-                                addGuestInviteUrl
-                                  ? 'font-mono text-gray-700'
-                                  : 'text-gray-400'
-                              }`}
-                            >
-                              {addGuestInviteUrl || 'Generated securely after adding the guest'}
-                            </span>
-                            {addGuestInviteUrl ? (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await navigator.clipboard.writeText(addGuestInviteUrl)
-                                  setCopiedId(lastAddedGuest?.id ?? null)
-                                  notifySuccess('Link copied', 'Personal invite link copied to clipboard.')
-                                  setTimeout(() => setCopiedId(null), 2000)
-                                }}
-                                className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                              >
-                                <Copy className="h-3.5 w-3.5" aria-hidden />
-                                {copiedId === lastAddedGuest?.id ? 'Copied' : 'Copy'}
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-
                       {addGuestError && (
                         <div
                           role="alert"
@@ -3177,29 +3080,14 @@ export default function ProjectDashboardPage() {
                         </div>
                       )}
 
-                      <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row">
+                      <div className="border-t border-gray-100 pt-4">
                         <Button
                           type="submit"
                           disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError || !!emailError}
-                          onClick={() => {
-                            addGuestIntentRef.current = 'default'
-                          }}
-                          className={`h-11 flex-1 rounded-xl ${theme.primaryBtn}`}
+                          className={`h-11 w-full rounded-xl ${theme.primaryBtn}`}
                         >
                           <UserPlus className="h-4 w-4" aria-hidden />
                           {adding ? 'Adding guest…' : 'Add guest'}
-                        </Button>
-                        <Button
-                          type="submit"
-                          variant="outline"
-                          disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError || !!emailError}
-                          onClick={() => {
-                            addGuestIntentRef.current = 'another'
-                          }}
-                          className="h-11 flex-1 rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
-                        >
-                          <UserRoundPlus className="h-4 w-4" aria-hidden />
-                          Add &amp; add another
                         </Button>
                       </div>
                     </form>
@@ -3348,11 +3236,7 @@ export default function ProjectDashboardPage() {
                       <p className="text-sm font-medium text-gray-800">
                         {importFile ? importFile.name : 'Drop your file here or choose a file'}
                       </p>
-                      {!importFile && (
-                        <p className="mt-0.5 text-xs text-gray-500">
-                          Spreadsheet with guest names and optional contact details
-                        </p>
-                      )}
+
                     </div>
                     <Button
                       type="button"
@@ -3390,7 +3274,7 @@ export default function ProjectDashboardPage() {
                   >
                     <p className="text-sm font-semibold text-gray-800">Required file structure</p>
                     <p className="mt-0.5 text-[11px] text-gray-500">
-                      Column headers are matched case-insensitively. Only Name is required.
+                      Column headers are matched case-insensitively.
                     </p>
                     <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-white">
                       <table className="w-full min-w-[420px] text-left text-xs">
@@ -3603,22 +3487,6 @@ export default function ProjectDashboardPage() {
                     </div>
 
                     <div className="mt-auto">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                        Includes
-                      </p>
-                      <ul className="mt-1.5 space-y-1">
-                        {[
-                          'Contact details',
-                          'Unique invitation links',
-                          'RSVP status',
-                          'Guest category',
-                        ].map((item) => (
-                          <li key={item} className="flex items-center gap-2 text-xs text-gray-700 sm:text-sm">
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-hidden />
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
                       {guests.length === 0 && (
                         <p className="mt-2 text-xs text-gray-400">
                           Add or import guests first to enable export.
