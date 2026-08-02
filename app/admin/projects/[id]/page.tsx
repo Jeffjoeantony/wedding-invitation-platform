@@ -68,6 +68,7 @@ import {
   serializeAdditionalBirthdayPersons,
 } from '@/lib/birthdayPersons'
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
+import { buildInviteShareTitle } from '@/lib/invite-metadata'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventDetailsPanel } from '@/components/admin/event-details-panel'
@@ -470,6 +471,18 @@ Looking forward to seeing you! 😊`
 
   const OpenInviteLinkBar = () => {
     if (!project?.id) return null
+    const shareTitle = buildInviteShareTitle({
+      couple_1: project.couple_1,
+      couple_2: project.couple_2,
+      event_template: project.event_template,
+      events: project.events,
+      date: project.date,
+      time: project.time,
+      venue: project.venue,
+      location: project.location,
+      maps_url: project.maps_url,
+      openInvite: true,
+    })
     return (
       <div style={{
         ...card,
@@ -490,6 +503,9 @@ Looking forward to seeing you! 😊`
               </p>
               <p style={{ color: '#166534', fontSize: 12, margin: '4px 0 0', lineHeight: 1.5 }}>
                 Share with anyone — no guest name, no RSVP or headcount. Unique to this project.
+              </p>
+              <p style={{ color: '#14532D', fontSize: 12, margin: '8px 0 0', fontWeight: 700, lineHeight: 1.4 }}>
+                Link preview title: {shareTitle}
               </p>
               <p style={{
                 color: '#15803D', fontSize: 11, margin: '8px 0 0', fontFamily: 'monospace',

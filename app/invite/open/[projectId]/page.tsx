@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const supabase = createAdminClient()
     const { data: event } = await supabase
       .from('projects')
-      .select('id,couple_1,couple_2,event_template,date')
+      .select('id,couple_1,couple_2,event_template,date,time,venue,location,maps_url,events')
       .eq('id', projectId)
       .single()
 
