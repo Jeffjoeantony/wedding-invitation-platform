@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import type { AppNotification } from '@/lib/notifications'
 import {
   clearNotifications,
@@ -31,61 +30,6 @@ const CFG: Record<string, { icon: string; accent: string; bg: string; border: st
   system:          { icon: '🔔', accent: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
 }
 const DEFAULT_CFG = { icon: '🔔', accent: '#6B7280', bg: '#F9FAFB', border: '#E5E7EB' }
-
-// ── Individual Toast ──────────────────────────────────────────────────────────
-function Toast({ notif, onDismiss }: { notif: AppNotification; onDismiss: () => void }) {
-  const [visible, setVisible] = useState(false)
-  const cfg = CFG[notif.type] ?? DEFAULT_CFG
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setVisible(true), 16)
-    const t2 = setTimeout(() => { setVisible(false); setTimeout(onDismiss, 360) }, 4800)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [onDismiss])
-
-  return (
-    <div
-      onClick={() => { setVisible(false); setTimeout(onDismiss, 360) }}
-      style={{
-        display: 'flex', alignItems: 'flex-start', gap: 12,
-        background: cfg.bg,
-        border: `1px solid ${cfg.border}`,
-        borderLeft: `4px solid ${cfg.accent}`,
-        borderRadius: 14,
-        padding: '13px 16px 13px 13px',
-        width: 340,
-        boxShadow: '0 10px 40px rgba(0,0,0,0.14), 0 2px 10px rgba(0,0,0,0.07)',
-        cursor: 'pointer',
-        transform: visible ? 'translateX(0) scale(1)' : 'translateX(110%) scale(0.95)',
-        opacity: visible ? 1 : 0,
-        transition: 'all 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        position: 'relative',
-        overflow: 'hidden',
-        fontFamily: "'Inter', -apple-system, sans-serif",
-      }}
-    >
-      <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0, marginTop: 2 }}>{cfg.icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontWeight: 700, fontSize: 13, color: '#111827', margin: '0 0 3px', lineHeight: 1.3 }}>
-          {notif.title}
-        </p>
-        <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 4px', lineHeight: 1.45 }}>
-          {notif.message}
-        </p>
-        <p style={{ fontSize: 11, color: '#9CA3AF', margin: 0, fontWeight: 500 }}>
-          just now
-        </p>
-      </div>
-      <span style={{ color: '#D1D5DB', fontSize: 18, lineHeight: 1, flexShrink: 0 }}>×</span>
-      {/* Progress bar */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0,
-        height: 3, background: cfg.accent, opacity: 0.35,
-        animation: 'notif-shrink 4.8s linear forwards',
-      }} />
-    </div>
-  )
-}
 
 // ── Notification Dropdown ─────────────────────────────────────────────────────
 function NotificationDropdown({
@@ -256,15 +200,14 @@ function NotificationDropdown({
  * Drop-in component that renders:
  *  1. A bell icon with unread badge (inline, place it in your topbar)
  *  2. A notification dropdown (appears below the bell)
- *  3. Toast popups (bottom-right corner, via React portal)
+ *
+ * Toast popups are handled by Sonner via `addNotification` / `notify*`.
  *
  * Usage: <NotificationSystem />
  */
 export default function NotificationSystem() {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [toasts, setToasts] = useState<AppNotification[]>([])
   const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const refresh = useCallback(() => {
@@ -272,14 +215,9 @@ export default function NotificationSystem() {
   }, [])
 
   useEffect(() => {
-    setMounted(true)
     refresh()
 
-    const onNew = (e: Event) => {
-      const notif = (e as CustomEvent<AppNotification>).detail
-      setToasts((prev) => [...prev, notif])
-      refresh()
-    }
+    const onNew = () => refresh()
     const onChange = () => refresh()
 
     window.addEventListener('goldleaf_notification', onNew)
@@ -319,12 +257,18 @@ export default function NotificationSystem() {
     }
   }
 
-  const dismissToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
-
   return (
     <>
+      <style>{`
+        @keyframes notif-badge-pulse {
+          0%, 100% { transform: scale(1); }
+          50%       { transform: scale(1.2); }
+        }
+        @keyframes notif-dropdown-in {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0)   scale(1); }
+        }
+      `}</style>
       {/* ── Bell button ── */}
       <div ref={dropdownRef} style={{ position: 'relative' }}>
         <button
@@ -388,39 +332,6 @@ export default function NotificationSystem() {
           />
         )}
       </div>
-
-      {/* ── Toast Container (portal to document.body) ── */}
-      {mounted && createPortal(
-        <>
-          <style>{`
-            @keyframes notif-shrink {
-              from { width: 100%; }
-              to   { width: 0%; }
-            }
-            @keyframes notif-badge-pulse {
-              0%, 100% { transform: scale(1); }
-              50%       { transform: scale(1.2); }
-            }
-            @keyframes notif-dropdown-in {
-              from { opacity: 0; transform: translateY(-6px) scale(0.97); }
-              to   { opacity: 1; transform: translateY(0)   scale(1); }
-            }
-          `}</style>
-          <div style={{
-            position: 'fixed', top: 80, right: 24,
-            zIndex: 99999,
-            display: 'flex', flexDirection: 'column', gap: 10,
-            pointerEvents: 'none',
-          }}>
-            {toasts.map((t) => (
-              <div key={t.id} style={{ pointerEvents: 'all' }}>
-                <Toast notif={t} onDismiss={() => dismissToast(t.id)} />
-              </div>
-            ))}
-          </div>
-        </>,
-        document.body
-      )}
     </>
   )
 }

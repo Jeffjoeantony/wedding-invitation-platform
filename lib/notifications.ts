@@ -1,3 +1,5 @@
+import { toast } from 'sonner'
+
 // ── Notification types ────────────────────────────────────────────────────────
 export type NotificationType =
   | 'guest_added'
@@ -26,6 +28,43 @@ const EVENT_NEW = 'goldleaf_notification'
 const EVENT_CHANGED = 'goldleaf_notifications_changed'
 const MAX_NOTIFICATIONS = 60
 
+// ── Toast helpers (Sonner) ────────────────────────────────────────────────────
+export function notifySuccess(title: string, description?: string) {
+  toast.success(title, description ? { description } : undefined)
+}
+
+export function notifyError(title: string, description?: string) {
+  toast.error(title, description ? { description } : undefined)
+}
+
+export function notifyInfo(title: string, description?: string) {
+  toast.message(title, description ? { description } : undefined)
+}
+
+export function notifyWarning(title: string, description?: string) {
+  toast.error(title, description ? { description } : undefined)
+}
+
+function toastFromNotification(notif: AppNotification) {
+  const opts = { description: notif.message }
+  switch (notif.type) {
+    case 'guest_added':
+    case 'rsvp_yes':
+    case 'project_created':
+      toast.success(notif.title, opts)
+      break
+    case 'guest_deleted':
+    case 'rsvp_no':
+      toast.error(notif.title, opts)
+      break
+    case 'bulk_import':
+      toast.message(notif.title, opts)
+      break
+    default:
+      toast.message(notif.title, opts)
+  }
+}
+
 // ── Storage helpers ───────────────────────────────────────────────────────────
 export function getNotifications(): AppNotification[] {
   if (typeof window === 'undefined') return []
@@ -38,8 +77,12 @@ export function getNotifications(): AppNotification[] {
   }
 }
 
+/**
+ * Persist a notification (bell history) and show a toast.
+ */
 export function addNotification(
-  notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>
+  notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>,
+  options?: { toast?: boolean },
 ): AppNotification {
   const newNotif: AppNotification = {
     ...notif,
@@ -50,8 +93,13 @@ export function addNotification(
   const updated = [newNotif, ...getNotifications()].slice(0, MAX_NOTIFICATIONS)
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
 
-  // Broadcast so any open tab / component can react
+  // Broadcast so any open tab / component can react (bell dropdown)
   window.dispatchEvent(new CustomEvent(EVENT_NEW, { detail: newNotif }))
+
+  if (options?.toast !== false) {
+    toastFromNotification(newNotif)
+  }
+
   return newNotif
 }
 

@@ -99,13 +99,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invitation not found' }, { status: 404 })
     }
 
-    // Track first open — best-effort, don't fail request if this fails
-    if (!guestRow.opened_at) {
-      await supabase
-        .from('guests')
-        .update({ opened_at: new Date().toISOString() })
-        .eq('id', guestRow.id)
-    }
+    // Track the most recent open — best-effort, don't fail request if this fails
+    await supabase
+      .from('guests')
+      .update({ opened_at: new Date().toISOString() })
+      .eq('id', guestRow.id)
 
     let { data: event, error: eventError } = await supabase
       .from('projects')

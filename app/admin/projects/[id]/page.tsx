@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import * as XLSX from 'xlsx'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -42,10 +43,24 @@ import {
   Home,
   Building2,
   Sparkles,
+  UserPlus,
+  Copy,
+  Lightbulb,
+  PhoneCall,
+  ShieldCheck,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  BookOpen,
+  History,
+  X,
+  ArrowDownAZ,
+  ArrowUpZA,
   type LucideIcon,
 } from 'lucide-react'
 import NotificationSystem from '@/components/NotificationSystem'
-import { addNotification, playNotificationSound } from '@/lib/notifications'
+import { addNotification, notifyError, notifyInfo, notifySuccess, playNotificationSound } from '@/lib/notifications'
+import { toast } from 'sonner'
 import { getDashboardTheme } from '@/lib/dashboardTheme'
 import {
   formatBirthdayPersonsDisplay,
@@ -55,7 +70,7 @@ import {
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
-import { EventsIncludedEditor } from '@/components/admin/events-included-editor'
+import { EventDetailsPanel } from '@/components/admin/event-details-panel'
 import { GuestInvitePanel } from '@/components/admin/guest-invite-panel'
 import { GuestPhoneInput } from '@/components/admin/guest-phone-input'
 import { formatGuestPhoneDisplay, guestPhonesEqual, toWhatsAppDigits } from '@/lib/guest-phone'
@@ -68,14 +83,14 @@ import {
 } from '@/lib/invite-media'
 import {
   buildGuestExportRows,
+  effectiveInvitedTo,
+  eventLabel,
   guestExportColumnOrder,
   invitedToLabels,
   parseRsvpByEvent,
-  resetEventsToPrimary,
   resolveProjectEvents,
   type ProjectEvent,
 } from '@/lib/project-events'
-import { buildCoupleFamilySide, formatRelationAbbrev, showsCoupleFamilyDetails } from '@/lib/couple-family'
 
 interface Guest {
   id: string
@@ -88,6 +103,7 @@ interface Guest {
   guest_category?: string | null
   opened_at?: string
   responded_at?: string
+  created_at?: string
   moments?: MediaItem[] | unknown
   /** Count from Storage — set by guests list API */
   moments_count?: number
@@ -121,8 +137,7 @@ interface Project {
   location: string
   contact: string
   maps_url?: string
-  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' |
-    'Save The Date' | 'Birthday' | 'Housewarming' | 'Corporate Event' | 'Custom Event'
+  event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' | string
   status: string
   gallery_images?: MediaItem[] | unknown
   events?: ProjectEvent[] | unknown
@@ -249,28 +264,36 @@ function StatCard({ label, value, sub, icon: Icon, accent, textColor, iconBg, ic
 }) {
   return (
     <Card
-      className={`group gap-0 py-0 overflow-hidden rounded-2xl bg-white/35 backdrop-blur-2xl border border-white/60 border-l-[3px] ${accent} shadow-[0_8px_32px_rgba(31,41,55,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] hover:bg-white/50 hover:shadow-[0_12px_40px_rgba(31,41,55,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white/80 transition-all duration-300`}
+      className="group relative min-h-[148px] gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_4px_18px_rgba(15,23,42,0.045)] transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300/80 hover:shadow-[0_14px_34px_rgba(15,23,42,0.09)]"
     >
-      <CardContent className="relative px-5 py-5 sm:px-6 sm:py-6">
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/50 via-white/10 to-transparent"
-          aria-hidden
-        />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium text-gray-500 uppercase tracking-[0.08em] leading-tight">
+      <div className={`absolute inset-x-0 top-0 border-t-[3px] ${accent}`} aria-hidden />
+      <div
+        className={`pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full ${iconBg} opacity-45 blur-2xl transition-transform duration-500 group-hover:scale-125`}
+        aria-hidden
+      />
+
+      <CardContent className="relative flex h-full min-h-[148px] flex-col px-4 py-4 sm:px-5 sm:py-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase leading-tight tracking-[0.12em] text-slate-500 sm:text-[11px]">
               {label}
             </p>
-            <p className={`text-2xl sm:text-[1.75rem] font-semibold tracking-tight tabular-nums mt-2 ${textColor}`}>
+            <p className={`mt-2 text-3xl font-bold tracking-[-0.04em] tabular-nums sm:text-[2rem] ${textColor}`}>
               {value}
             </p>
-            <p className="text-[11px] sm:text-xs text-gray-500 mt-2 leading-snug line-clamp-2">{sub}</p>
           </div>
           <span
-            className={`inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl ${iconBg} shrink-0 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm`}
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} ring-1 ring-inset ring-black/[0.025] transition-transform duration-300 group-hover:scale-105`}
           >
-            <Icon className={`h-4 w-4 sm:h-[18px] sm:w-[18px] ${iconColor}`} strokeWidth={1.75} aria-hidden />
+            <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
           </span>
+        </div>
+
+        <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-3">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${iconBg} ring-2 ring-current ${iconColor}`} aria-hidden />
+          <p className="line-clamp-1 text-[11px] font-medium leading-snug text-slate-500 sm:text-xs">
+            {sub}
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -441,6 +464,7 @@ Looking forward to seeing you! 😊`
       : `/invite/open/${project.id}`
     navigator.clipboard.writeText(url)
     setOpenLinkCopied(true)
+    notifySuccess('Open invite link copied', 'Anyone with this link can open the invite.')
     setTimeout(() => setOpenLinkCopied(false), 2000)
   }
 
@@ -1382,10 +1406,17 @@ export default function ProjectDashboardPage() {
   const [guests, setGuests] = useState<Guest[]>([])
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'yes' | 'no'>('all')
+  const [openedFilter, setOpenedFilter] = useState<'all' | 'not_opened' | 'opened'>('all')
+  const [phoneFilter, setPhoneFilter] = useState<'all' | 'no_phone' | 'has_phone'>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [invitedToFilter, setInvitedToFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'opened' | 'responded' | 'category' | 'status' | 'added'>('name')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [search, setSearch] = useState('')
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestPhone, setNewGuestPhone] = useState('')
+  const [newGuestEmail, setNewGuestEmail] = useState('')
   const [newGuestCategory, setNewGuestCategory] = useState<string>(DEFAULT_GUEST_CATEGORY)
   const [adding, setAdding] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -1404,8 +1435,16 @@ export default function ProjectDashboardPage() {
   const [importPreviewCols, setImportPreviewCols] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState('')
+  const [importDragOver, setImportDragOver] = useState(false)
+  const [lastImportSummary, setLastImportSummary] = useState<{
+    fileName: string
+    count: number
+    at: Date
+  } | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
   const [addGuestError, setAddGuestError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [phoneValid, setPhoneValid] = useState(true)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
@@ -1418,12 +1457,22 @@ export default function ProjectDashboardPage() {
   const [momentsUploading, setMomentsUploading] = useState(false)
   const [momentsError, setMomentsError] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
+  const [selectedGuestIds, setSelectedGuestIds] = useState<Set<string>>(new Set())
+  const [bulkCopyDone, setBulkCopyDone] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkPendingDelete, setBulkPendingDelete] = useState<Guest[] | null>(null)
+  const [waQueue, setWaQueue] = useState<Guest[] | null>(null)
+  const [waQueueIndex, setWaQueueIndex] = useState(0)
+  const [waQueueSentIds, setWaQueueSentIds] = useState<Set<string>>(new Set())
   const [momentsGuest, setMomentsGuest] = useState<Guest | null>(null)
   const [inviteGuest, setInviteGuest] = useState<Guest | null>(null)
   const [projectSaveStatus, setProjectSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [projectSaveError, setProjectSaveError] = useState('')
   const [projectFormKey, setProjectFormKey] = useState(0)
   const tabsListRef = useRef<HTMLDivElement>(null)
+  const addGuestNameRef = useRef<HTMLInputElement>(null)
+  const lastAddedMomentsRef = useRef<HTMLDivElement>(null)
+  const shouldScrollToMomentsRef = useRef(false)
 
   // Keep the active navbar tab in view when switching on narrow screens
   useEffect(() => {
@@ -1432,6 +1481,26 @@ export default function ProjectDashboardPage() {
     const active = list.querySelector<HTMLElement>('[data-state="active"]')
     if (!active) return
     active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    if (activeTab === 'add-guest' || activeTab === 'import-export') {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    }
+  }, [activeTab])
+
+  // After adding a guest, scroll so the Moments section is reachable
+  useEffect(() => {
+    if (!lastAddedGuest || !shouldScrollToMomentsRef.current) return
+    shouldScrollToMomentsRef.current = false
+    const id = window.requestAnimationFrame(() => {
+      lastAddedMomentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => window.cancelAnimationFrame(id)
+  }, [lastAddedGuest])
+  // Leave guest selection behind when navigating away from the list
+  useEffect(() => {
+    if (activeTab !== 'guests') {
+      setSelectedGuestIds(new Set())
+      setBulkCopyDone(false)
+    }
   }, [activeTab])
 
   // ── Send Invitations: all state now lives inside SendInvitationsPanel ─────────
@@ -1510,13 +1579,16 @@ export default function ProjectDashboardPage() {
     e.preventDefault()
     setAddGuestError('')
     setPhoneError('')
+    setEmailError('')
     const name = newGuestName.trim()
     if (!name) {
       setAddGuestError('Guest name is required')
+      notifyError('Guest name required', 'Enter the guest’s full name to continue.')
       return
     }
     if (!phoneValid) {
       setPhoneError('Enter a valid phone number')
+      notifyError('Invalid phone number', 'Enter a valid phone number to continue.')
       return
     }
     // Same name OK; phone must be unique in this project
@@ -1524,27 +1596,61 @@ export default function ProjectDashboardPage() {
       const dup = guests.find((g) => guestPhonesEqual(g.phone, newGuestPhone))
       if (dup) {
         setPhoneError(`This phone number is already used by "${dup.name}"`)
+        notifyError('Phone already used', `This number belongs to "${dup.name}".`)
+        return
+      }
+    }
+    const email = newGuestEmail.trim()
+    if (email) {
+      const emailNorm = email.toLowerCase()
+      const dupEmail = guests.find(
+        (g) => String(g.email || '').trim().toLowerCase() === emailNorm,
+      )
+      if (dupEmail) {
+        setEmailError(`This email is already used by "${dupEmail.name}"`)
+        notifyError('Email already used', `This email belongs to "${dupEmail.name}".`)
         return
       }
     }
     setAdding(true)
-    const res = await fetch(`/api/projects/${projectId}/guests`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        phone: newGuestPhone || null,
-        guest_category: newGuestCategory,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      const message = err.error || 'Failed to add guest. Please try again.'
-      if (err.duplicate || /phone/i.test(message)) setPhoneError(message)
-      else setAddGuestError(message)
-    } else {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/guests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          phone: newGuestPhone || null,
+          email: email || null,
+          guest_category: newGuestCategory,
+          pax_count: 1,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        const message = err.error || 'Failed to add guest. Please try again.'
+        const field = typeof err.field === 'string' ? err.field : ''
+        if (field === 'email' || (!field && /email/i.test(message))) {
+          setEmailError(message)
+          notifyError('Could not add guest', message)
+        } else if (field === 'phone' || err.blankPhoneConflict) {
+          if (err.blankPhoneConflict || !newGuestPhone.trim()) setAddGuestError(message)
+          else setPhoneError(message)
+          notifyError('Could not add guest', message)
+        } else if (field === 'name' || field === 'unknown' || field === 'token') {
+          setAddGuestError(message)
+          notifyError('Could not add guest', message)
+        } else if (err.duplicate && /phone/i.test(message)) {
+          setPhoneError(message)
+          notifyError('Could not add guest', message)
+        } else {
+          setAddGuestError(message)
+          notifyError('Could not add guest', message)
+        }
+        return
+      }
+
       const data = await res.json()
-      setGuests([data, ...guests])
+      setGuests((prev) => [data, ...prev])
       // Update snapshot so this guest isn't treated as new on next poll
       prevGuestsRef.current[data.id] = 'pending'
       setLastAddedGuest(data)
@@ -1561,11 +1667,20 @@ export default function ProjectDashboardPage() {
       playNotificationSound('success')
       setNewGuestName('')
       setNewGuestPhone('')
+      setNewGuestEmail('')
+      setNewGuestCategory(DEFAULT_GUEST_CATEGORY)
       setPhoneError('')
+      setEmailError('')
       setPhoneValid(true)
       setAddGuestError('')
+      shouldScrollToMomentsRef.current = true
+      requestAnimationFrame(() => addGuestNameRef.current?.focus())
+    } catch {
+      setAddGuestError('Could not add the guest. Check your connection and try again.')
+      notifyError('Could not add guest', 'Check your connection and try again.')
+    } finally {
+      setAdding(false)
     }
-    setAdding(false)
   }
 
   const uploadGalleryFiles = async (files: File[]) => {
@@ -1582,8 +1697,11 @@ export default function ProjectDashboardPage() {
         next = parseMediaList(data.images)
         setGalleryImages(next)
       }
+      notifySuccess('Gallery updated', `${files.length} image${files.length === 1 ? '' : 's'} uploaded.`)
     } catch (e) {
-      setGalleryError(e instanceof Error ? e.message : 'Upload failed')
+      const message = e instanceof Error ? e.message : 'Upload failed'
+      setGalleryError(message)
+      notifyError('Gallery upload failed', message)
     } finally {
       setGalleryUploading(false)
     }
@@ -1597,10 +1715,13 @@ export default function ProjectDashboardPage() {
     )
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
-      setGalleryError(data.error || 'Delete failed')
+      const message = data.error || 'Delete failed'
+      setGalleryError(message)
+      notifyError('Could not remove image', message)
       return
     }
     setGalleryImages(parseMediaList(data.images))
+    notifyInfo('Image removed', 'Gallery photo deleted.')
   }
 
   const uploadLastAddedMoments = async (files: File[]) => {
@@ -1627,8 +1748,11 @@ export default function ProjectDashboardPage() {
           ),
         )
       }
+      notifySuccess('Moments updated', `Photos added for ${lastAddedGuest.name}.`)
     } catch (e) {
-      setMomentsError(e instanceof Error ? e.message : 'Upload failed')
+      const message = e instanceof Error ? e.message : 'Upload failed'
+      setMomentsError(message)
+      notifyError('Moments upload failed', message)
     } finally {
       setMomentsUploading(false)
     }
@@ -1644,6 +1768,7 @@ export default function ProjectDashboardPage() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) {
       setMomentsError(data.error || 'Delete failed')
+      notifyError('Could not remove moment', data.error || 'Delete failed')
       return
     }
     const next = parseMediaList(data.moments)
@@ -1655,6 +1780,7 @@ export default function ProjectDashboardPage() {
           : g,
       ),
     )
+    notifyInfo('Moment removed', `Photo removed from ${lastAddedGuest.name}'s invite.`)
   }
 
   const requestDeleteGuest = (id: string, name: string) => {
@@ -1670,6 +1796,12 @@ export default function ProjectDashboardPage() {
     const res = await fetch(`/api/projects/${projectId}/guests?id=${id}`, { method: 'DELETE' })
     if (res.ok) {
       setGuests((prev) => prev.filter((g) => g.id !== id))
+      setSelectedGuestIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       if (inviteGuest?.id === id) setInviteGuest(null)
       if (momentsGuest?.id === id) setMomentsGuest(null)
       if (lastAddedGuest?.id === id) setLastAddedGuest(null)
@@ -1685,10 +1817,51 @@ export default function ProjectDashboardPage() {
       playNotificationSound('warning')
     } else {
       setDeleteError(`Failed to delete "${name}". Please try again.`)
+      notifyError('Could not delete guest', `Failed to remove "${name}". Please try again.`)
       setTimeout(() => setDeleteError(''), 4000)
     }
     setDeletingId(null)
     setGuestPendingDelete(null)
+  }
+
+  const confirmBulkDeleteGuests = async () => {
+    if (!bulkPendingDelete?.length) return
+    setBulkDeleting(true)
+    const failed: string[] = []
+    const deletedIds = new Set<string>()
+
+    for (const guest of bulkPendingDelete) {
+      const res = await fetch(`/api/projects/${projectId}/guests?id=${guest.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        deletedIds.add(guest.id)
+      } else {
+        failed.push(guest.name)
+      }
+    }
+
+    if (deletedIds.size > 0) {
+      setGuests((prev) => prev.filter((g) => !deletedIds.has(g.id)))
+      setSelectedGuestIds((prev) => {
+        const next = new Set(prev)
+        deletedIds.forEach((id) => next.delete(id))
+        return next
+      })
+      if (inviteGuest && deletedIds.has(inviteGuest.id)) setInviteGuest(null)
+      if (momentsGuest && deletedIds.has(momentsGuest.id)) setMomentsGuest(null)
+      if (lastAddedGuest && deletedIds.has(lastAddedGuest.id)) setLastAddedGuest(null)
+    }
+
+    setBulkDeleting(false)
+    setBulkPendingDelete(null)
+
+    if (failed.length > 0) {
+      setDeleteError(
+        failed.length === 1
+          ? `Failed to delete "${failed[0]}". Please try again.`
+          : `Failed to delete ${failed.length} guests. Please try again.`,
+      )
+      setTimeout(() => setDeleteError(''), 4000)
+    }
   }
 
   const updateProject = useCallback((updates: Partial<Project>, options?: { immediate?: boolean }) => {
@@ -1698,6 +1871,10 @@ export default function ProjectDashboardPage() {
       if (!trimmed) {
         setProjectSaveStatus('error')
         setProjectSaveError('Project name is required')
+        toast.error('Project name required', {
+          id: 'project-name',
+          description: 'Enter a project name before saving.',
+        })
         return
       }
       updates = { ...updates, name: trimmed }
@@ -1723,6 +1900,10 @@ export default function ProjectDashboardPage() {
         if (Object.keys(batch).length === 0) {
           setProjectSaveStatus('error')
           setProjectSaveError('Project name is required')
+          toast.error('Project name required', {
+            id: 'project-name',
+            description: 'Enter a project name before saving.',
+          })
           return
         }
       }
@@ -1741,6 +1922,7 @@ export default function ProjectDashboardPage() {
             : data.error || 'Failed to update project'
         setProjectSaveStatus('error')
         setProjectSaveError(message)
+        toast.error('Could not save project', { id: 'project-save', description: message })
         // Re-sync from server so UI matches persisted data
         try {
           const refresh = await fetch(`/api/projects/${projectId}/event`)
@@ -1757,6 +1939,7 @@ export default function ProjectDashboardPage() {
       }
       setProjectSaveStatus('saved')
       setProjectSaveError('')
+      toast.success('Changes saved', { id: 'project-save', duration: 1800 })
     }
 
     if (projectUpdateTimerRef.current) clearTimeout(projectUpdateTimerRef.current)
@@ -1796,34 +1979,76 @@ export default function ProjectDashboardPage() {
     setDeletingProject(true)
     const res = await fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
     if (res.ok) {
+      notifySuccess('Project deleted', `"${project?.name}" has been permanently removed.`)
       router.push('/admin')
     } else {
-      alert('Failed to delete project. Please try again.')
+      notifyError('Could not delete project', 'Please try again.')
       setDeletingProject(false)
     }
+  }
+
+  const processImportFile = (file: File) => {
+    const lower = file.name.toLowerCase()
+    if (!lower.endsWith('.xlsx') && !lower.endsWith('.xls') && !lower.endsWith('.csv')) {
+      setImportResult('✗ Please upload an XLSX, XLS, or CSV file.')
+      notifyError('Invalid file', 'Please upload an XLSX, XLS, or CSV file.')
+      return
+    }
+    setImportFile(file)
+    setImportResult('')
+    setImportPreview([])
+    setImportPreviewCols([])
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
+        const wb = XLSX.read(data, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
+        const preview = rows.slice(0, 5)
+        setImportPreview(preview)
+        setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
+      } catch {
+        setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
+        setImportFile(null)
+        notifyError('Could not read file', 'Make sure it is a valid Excel or CSV.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setImportFile(file)
-    setImportResult('')
-    setImportPreview([])
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target?.result as ArrayBuffer)
-      const wb = XLSX.read(data, { type: 'array' })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' })
-      const preview = rows.slice(0, 5)
-      setImportPreview(preview)
-      setImportPreviewCols(preview.length > 0 ? Object.keys(preview[0]) : [])
-    }
-    reader.readAsArrayBuffer(file)
+    processImportFile(file)
+    // Allow re-selecting the same file
+    e.target.value = ''
+  }
+
+  const downloadImportTemplate = () => {
+    const rows = [
+      {
+        Name: 'Priya Sharma',
+        Phone: '+91 98765 43210',
+        Email: 'priya@example.com',
+        Category: 'Family',
+      },
+      {
+        Name: 'Arjun Mehta',
+        Phone: '+91 91234 56789',
+        Email: '',
+        Category: 'Friends',
+      },
+    ]
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['Name', 'Phone', 'Email', 'Category'] })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Guests')
+    XLSX.writeFile(wb, 'guest-import-template.xlsx')
   }
 
   const handleBulkImport = () => {
     if (!importFile) return
+    const fileName = importFile.name
     setImporting(true)
     const reader = new FileReader()
     reader.onload = async (evt) => {
@@ -1864,6 +2089,11 @@ export default function ProjectDashboardPage() {
               ? `✓ ${result.message || parts.join('. ')}`
               : `✓ ${result.message || 'Import complete'}`,
           )
+          setLastImportSummary({
+            fileName,
+            count: typeof result.count === 'number' ? result.count : 0,
+            at: new Date(),
+          })
           addNotification({
             type: 'bulk_import',
             title: `Import Complete 📥`,
@@ -1887,9 +2117,14 @@ export default function ProjectDashboardPage() {
           setImportResult(
             `✗ Import failed: ${err.error}${detail ? ` (${detail})` : ''}`,
           )
+          notifyError(
+            'Import failed',
+            `${err.error || 'Could not import guests'}${detail ? ` (${detail})` : ''}`,
+          )
         }
       } catch {
         setImportResult('✗ Could not read file. Make sure it is a valid Excel or CSV.')
+        notifyError('Could not read file', 'Make sure it is a valid Excel or CSV.')
       } finally {
         setImporting(false)
       }
@@ -1910,6 +2145,7 @@ export default function ProjectDashboardPage() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Guests')
     XLSX.writeFile(wb, `${project?.name ?? 'guests'}-links.xlsx`)
+    notifySuccess('Excel exported', 'Guest list downloaded as XLSX.')
   }
 
   const handleExportCSV = () => {
@@ -1928,6 +2164,7 @@ export default function ProjectDashboardPage() {
     a.download = `${project?.name ?? 'guests'}-links.csv`
     a.click()
     URL.revokeObjectURL(url)
+    notifySuccess('CSV exported', 'Guest list downloaded as CSV.')
   }
 
   /** Quick WhatsApp: link-only message (opens WhatsApp; user taps Send). */
@@ -1945,6 +2182,49 @@ export default function ProjectDashboardPage() {
       '_blank',
       'noopener,noreferrer',
     )
+  }
+
+  const toggleGuestSelected = (id: string) => {
+    setSelectedGuestIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setBulkCopyDone(false)
+  }
+
+  const clearGuestSelection = () => {
+    setSelectedGuestIds(new Set())
+    setBulkCopyDone(false)
+  }
+
+  const startWaQueueFromSelection = (queueGuests: Guest[]) => {
+    const withPhone = queueGuests.filter((g) => toWhatsAppDigits(g.phone))
+    if (withPhone.length === 0) {
+      setDeleteError('None of the selected guests have a WhatsApp-ready phone number.')
+      setTimeout(() => setDeleteError(''), 4000)
+      return
+    }
+    setWaQueue(withPhone)
+    setWaQueueIndex(0)
+    setWaQueueSentIds(new Set())
+  }
+
+  const copySelectedInviteLinks = async (selected: Guest[]) => {
+    if (selected.length === 0) return
+    const origin =
+      (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '')) ||
+      window.location.origin
+    const text = selected.map((g) => `${origin}/invite/${g.unique_token}`).join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      setBulkCopyDone(true)
+      setTimeout(() => setBulkCopyDone(false), 2200)
+    } catch {
+      setDeleteError('Could not copy links. Please try again.')
+      setTimeout(() => setDeleteError(''), 4000)
+    }
   }
 
   // ── Derived stats ────────────────────────────────────────────────────────────
@@ -1972,24 +2252,145 @@ export default function ProjectDashboardPage() {
   })
   const categories = Object.entries(categoryMap).sort((a, b) => b[1].total - a[1].total)
 
+  const projectEvents = project ? resolveProjectEvents(project) : []
+  const invitedToOptions = projectEvents.map((e) => ({
+    id: e.id,
+    label: eventLabel(e),
+  }))
+
   const recentActivity = [...guests]
     .filter((g) => g.responded_at)
     .sort((a, b) => new Date(b.responded_at!).getTime() - new Date(a.responded_at!).getTime())
     .slice(0, 4)
 
-  const filteredGuests = guests.filter((g) => {
-    const matchFilter = filter === 'all' || g.rsvp_status === filter
-    const term = search.toLowerCase()
-    const matchSearch = !term || g.name.toLowerCase().includes(term) ||
-      (g.phone || '').includes(term) || (g.guest_category || '').toLowerCase().includes(term)
-    return matchFilter && matchSearch
-  })
+  const statusSortOrder: Record<string, number> = { pending: 0, yes: 1, no: 2 }
+
+  const filteredGuests = guests
+    .filter((g) => {
+      const matchStatus = statusFilter === 'all' || g.rsvp_status === statusFilter
+      const matchOpened =
+        openedFilter === 'all' ||
+        (openedFilter === 'opened' ? !!g.opened_at : !g.opened_at)
+      const hasPhone = !!toWhatsAppDigits(g.phone)
+      const matchPhone =
+        phoneFilter === 'all' ||
+        (phoneFilter === 'has_phone' ? hasPhone : !hasPhone)
+
+      const guestCategory = g.guest_category || 'Other'
+      const matchCategory = categoryFilter === 'all' || guestCategory === categoryFilter
+
+      const matchInvitedTo =
+        invitedToFilter === 'all' ||
+        (project
+          ? effectiveInvitedTo(project, g.invited_to).includes(invitedToFilter)
+          : false)
+
+      const term = search.toLowerCase()
+      const matchSearch =
+        !term ||
+        g.name.toLowerCase().includes(term) ||
+        (g.phone || '').includes(term) ||
+        (g.guest_category || '').toLowerCase().includes(term)
+
+      return matchStatus && matchOpened && matchPhone && matchCategory && matchInvitedTo && matchSearch
+    })
+    .slice()
+    .sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1
+
+      const compareText = (left: string, right: string) =>
+        left.localeCompare(right, undefined, { sensitivity: 'base' }) * dir
+
+      const compareDate = (left?: string | null, right?: string | null) => {
+        const leftTime = left ? new Date(left).getTime() : null
+        const rightTime = right ? new Date(right).getTime() : null
+        if (leftTime == null && rightTime == null) return 0
+        // Empty dates always sink to the bottom, regardless of direction
+        if (leftTime == null) return 1
+        if (rightTime == null) return -1
+        return (leftTime - rightTime) * dir
+      }
+
+      switch (sortBy) {
+        case 'added':
+          return compareDate(a.created_at, b.created_at) || compareText(a.name, b.name)
+        case 'opened':
+          return compareDate(a.opened_at, b.opened_at) || compareText(a.name, b.name)
+        case 'responded':
+          return compareDate(a.responded_at, b.responded_at) || compareText(a.name, b.name)
+        case 'category':
+          return (
+            compareText(a.guest_category || 'Other', b.guest_category || 'Other') ||
+            compareText(a.name, b.name)
+          )
+        case 'status': {
+          const statusDiff =
+            ((statusSortOrder[a.rsvp_status] ?? 99) - (statusSortOrder[b.rsvp_status] ?? 99)) * dir
+          return statusDiff || compareText(a.name, b.name)
+        }
+        case 'name':
+        default:
+          return compareText(a.name, b.name)
+      }
+    })
+
+  const hasActiveFilters =
+    statusFilter !== 'all' ||
+    openedFilter !== 'all' ||
+    phoneFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    invitedToFilter !== 'all'
+
+  const hasCustomSort = sortBy !== 'name' || sortDir !== 'asc'
+
+  const selectedGuests = guests.filter((g) => selectedGuestIds.has(g.id))
+  const selectedCount = selectedGuests.length
+  const filteredSelectedCount = filteredGuests.filter((g) => selectedGuestIds.has(g.id)).length
+  const allFilteredSelected =
+    filteredGuests.length > 0 && filteredSelectedCount === filteredGuests.length
+  const someFilteredSelected =
+    filteredSelectedCount > 0 && filteredSelectedCount < filteredGuests.length
+  const selectedWithPhoneCount = selectedGuests.filter((g) => toWhatsAppDigits(g.phone)).length
+
+  const setAllFilteredSelected = (checked: boolean) => {
+    setSelectedGuestIds((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        filteredGuests.forEach((g) => next.add(g.id))
+      } else {
+        filteredGuests.forEach((g) => next.delete(g.id))
+      }
+      return next
+    })
+    setBulkCopyDone(false)
+  }
+
+  const clearAllFilters = () => {
+    setStatusFilter('all')
+    setOpenedFilter('all')
+    setPhoneFilter('all')
+    setCategoryFilter('all')
+    setInvitedToFilter('all')
+    setSortBy('name')
+    setSortDir('asc')
+  }
 
   const projectDateStr = project?.date
     ? new Date(project.date + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       })
     : ''
+  const importStep: 1 | 2 | 3 =
+    importing || (Boolean(importResult.startsWith('✓')) && !importFile)
+      ? 3
+      : importFile
+        ? 2
+        : 1
+  const importPrimaryLabel = importing
+    ? 'Importing…'
+    : importFile
+      ? `Import "${importFile.name}"`
+      : 'Select a file to continue'
 
   const theme = getDashboardTheme(project?.event_template)
   const HeaderIcon =
@@ -2118,7 +2519,10 @@ export default function ProjectDashboardPage() {
 
               {/* Refresh button */}
               <button
-                onClick={fetchData}
+                onClick={async () => {
+                  await fetchData()
+                  notifySuccess('Dashboard refreshed', 'Guest list and project data are up to date.')
+                }}
                 disabled={refreshing}
                 className="inline-flex items-center justify-center gap-1.5 rounded-[10px] border-[1.5px] border-gray-200 bg-[#FAFAFA] text-gray-500 text-[13px] font-semibold h-9 w-9 sm:w-auto sm:px-3.5"
                 style={{ opacity: refreshing ? 0.6 : 1 }}
@@ -2171,24 +2575,28 @@ export default function ProjectDashboardPage() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-5 sm:py-8">
         <style>{`
           .admin-tabs-scroll,
+          .overview-panel-scroll,
           .admin-table-scroll,
           .admin-table-scroll [data-slot='table-container'] {
             scrollbar-width: thin;
             scrollbar-color: #D1D5DB #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar,
+          .overview-panel-scroll::-webkit-scrollbar,
           .admin-table-scroll::-webkit-scrollbar,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar {
             height: 8px;
             width: 8px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-track,
+          .overview-panel-scroll::-webkit-scrollbar-track,
           .admin-table-scroll::-webkit-scrollbar-track,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-track {
             background: #F3F4F6;
             border-radius: 999px;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb,
+          .overview-panel-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll::-webkit-scrollbar-thumb,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb {
             background: #D1D5DB;
@@ -2196,15 +2604,15 @@ export default function ProjectDashboardPage() {
             border: 2px solid #F3F4F6;
           }
           .admin-tabs-scroll::-webkit-scrollbar-thumb:hover,
+          .overview-panel-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll::-webkit-scrollbar-thumb:hover,
           .admin-table-scroll [data-slot='table-container']::-webkit-scrollbar-thumb:hover {
             background: #9CA3AF;
           }
           .admin-table-scroll [data-slot='table-container'] {
-            overflow-x: auto;
+            overflow-x: hidden;
             overflow-y: auto;
             max-height: calc(2.5rem + 10 * 3.85rem); /* header + 10 guest rows */
-            padding-bottom: 6px;
             -webkit-overflow-scrolling: touch;
             scroll-behavior: smooth;
             overscroll-behavior: contain;
@@ -2385,64 +2793,68 @@ export default function ProjectDashboardPage() {
 
             {/* Category breakdown + Recent activity */}
             <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Guests by Category</CardTitle>
-                      <CardDescription className="text-xs mt-1">
-                        {categories.length} group{categories.length !== 1 ? 's' : ''}
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Guests by Category</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {categories.length} group{categories.length !== 1 ? 's' : ''} · {stats.total} guests
                       </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <BarChart3 className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600 ring-1 ring-inset ring-violet-100">
+                      <BarChart3 className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-5">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-gutter:stable] sm:px-5 sm:py-5">
                   {categories.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No guests added yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No guests added yet</p>
                   )}
                   {categories.map(([cat, data]) => (
-                    <div key={cat}>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-800">{cat}</span>
-                        <div className="flex items-center gap-3 text-xs tabular-nums">
-                          <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold">
-                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.yes}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-red-500 font-semibold">
-                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.no}
-                          </span>
-                          <span className="inline-flex items-center gap-0.5 text-amber-600 font-semibold">
-                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
-                            {data.pending}
-                          </span>
-                          <span className="text-gray-400 font-semibold w-5 text-right">{data.total}</span>
-                        </div>
+                    <div
+                      key={cat}
+                      className="rounded-xl border border-slate-100 bg-slate-50/65 px-4 py-3.5 transition-colors hover:border-slate-200 hover:bg-slate-50"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <span className="truncate text-sm font-semibold text-slate-800">{cat}</span>
+                        <span className="shrink-0 rounded-md bg-white px-2 py-1 text-[10px] font-bold tabular-nums text-slate-500 ring-1 ring-inset ring-slate-200">
+                          {data.total} total
+                        </span>
                       </div>
-                      <div className="h-1.5 bg-white/50 rounded-full overflow-hidden flex ring-1 ring-black/[0.03]">
+                      <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] tabular-nums">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 font-semibold text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.yes} confirmed
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-600">
+                            <XCircle className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.no} declined
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-700">
+                            <Clock className="h-3 w-3" strokeWidth={2} aria-hidden />
+                            {data.pending} pending
+                          </span>
+                      </div>
+                      <div
+                        className="flex h-2 overflow-hidden rounded-full bg-slate-200/80"
+                        aria-label={`${cat}: ${data.yes} confirmed, ${data.no} declined, ${data.pending} pending`}
+                      >
                         {data.yes > 0 && (
                           <div
-                            className="bg-emerald-400 transition-all"
+                            className="bg-emerald-500 transition-all"
                             style={{ width: `${(data.yes / data.total) * 100}%` }}
                           />
                         )}
                         {data.no > 0 && (
                           <div
-                            className="bg-red-300 transition-all"
+                            className="bg-red-400 transition-all"
                             style={{ width: `${(data.no / data.total) * 100}%` }}
                           />
                         )}
                         {data.pending > 0 && (
                           <div
-                            className="bg-amber-200 transition-all"
+                            className="bg-amber-300 transition-all"
                             style={{ width: `${(data.pending / data.total) * 100}%` }}
                           />
                         )}
@@ -2452,35 +2864,33 @@ export default function ProjectDashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card className={`${theme.glassCard} gap-0 py-0 overflow-hidden`}>
-                <CardHeader className="relative px-6 pt-6 pb-4">
-                  <div
-                    className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent"
-                    aria-hidden
-                  />
-                  <div className="relative flex items-center justify-between gap-4">
+              <Card className="flex h-[430px] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/70 bg-white/90 py-0 shadow-[0_8px_28px_rgba(15,23,42,0.055)]">
+                <CardHeader className="shrink-0 border-b border-slate-100 px-5 py-5 sm:px-6">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
-                      <CardTitle className="text-base font-semibold tracking-tight">Recent Responses</CardTitle>
-                      <CardDescription className="text-xs mt-1">Latest guest replies</CardDescription>
+                      <CardTitle className="text-base font-bold tracking-tight text-slate-900">Recent Responses</CardTitle>
+                      <CardDescription className="mt-1 text-xs font-medium">
+                        {recentActivity.length > 0 ? `${recentActivity.length} latest guest replies` : 'Latest guest replies'}
+                      </CardDescription>
                     </div>
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/50 ring-1 ring-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-sm">
-                      <Bell className="h-4 w-4 text-gray-500" strokeWidth={1.75} aria-hidden />
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-100">
+                      <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} aria-hidden />
                     </span>
                   </div>
                 </CardHeader>
-                <CardContent className="relative px-6 pb-6 space-y-3">
+                <CardContent className="overview-panel-scroll min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto overscroll-contain px-4 py-2 [scrollbar-gutter:stable] sm:px-5">
                   {recentActivity.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-8">No responses yet</p>
+                    <p className="py-10 text-center text-sm font-medium text-slate-400">No responses yet</p>
                   )}
                   {recentActivity.map((g) => (
                     <div
                       key={g.id}
-                      className="flex items-center gap-3 p-3 rounded-xl bg-white/25 hover:bg-white/45 ring-1 ring-white/40 transition-colors"
+                      className="flex items-center gap-3 px-1 py-3.5 transition-colors hover:bg-slate-50/80 sm:px-2"
                     >
                       <GuestAvatar name={g.name} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{g.name}</p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="truncate text-sm font-semibold text-slate-800">{g.name}</p>
+                        <p className="mt-0.5 truncate text-xs font-medium text-slate-400">
                           {g.guest_category || 'Other'}
                           {g.responded_at
                             ? ` · ${new Date(g.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -2488,12 +2898,12 @@ export default function ProjectDashboardPage() {
                         </p>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md shrink-0 backdrop-blur-sm ${
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold ring-1 ring-inset ${
                           g.rsvp_status === 'yes'
-                            ? 'bg-emerald-100/80 text-emerald-700'
+                            ? 'bg-emerald-50 text-emerald-700 ring-emerald-100'
                             : g.rsvp_status === 'no'
-                              ? 'bg-red-100/80 text-red-600'
-                              : 'bg-amber-100/80 text-amber-700'
+                              ? 'bg-red-50 text-red-600 ring-red-100'
+                              : 'bg-amber-50 text-amber-700 ring-amber-100'
                         }`}
                       >
                         {g.rsvp_status === 'yes' ? (
@@ -2568,53 +2978,193 @@ export default function ProjectDashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 pt-1">
-                {/* Filter pills */}
-                <div className="admin-tabs-scroll -mx-1 px-1 overflow-x-auto pb-1">
-                  <div className="flex gap-2 w-max min-w-full">
-                  {([
-                    { key: 'all', label: 'All', count: guests.length },
-                    { key: 'pending', label: 'Pending', count: stats.pending },
-                    { key: 'yes', label: 'Confirmed', count: stats.confirmed },
-                    { key: 'no', label: 'Declined', count: stats.declined },
-                  ] as const).map((f) => (
-                    <button
-                      key={f.key}
-                      onClick={() => setFilter(f.key)}
-                      className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium transition-all shrink-0 ${
-                        filter === f.key ? theme.filterActive : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {f.label}
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                        filter === f.key ? theme.filterActiveBadge : 'bg-gray-200 text-gray-500'
-                      }`}>{f.count}</span>
-                    </button>
-                  ))}
+                {/* Single unified filter + sort bar */}
+                <div className="rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5">
+                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                      <Select
+                        value={statusFilter}
+                        onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Status: All</SelectItem>
+                          <SelectItem value="pending">Pending ({stats.pending})</SelectItem>
+                          <SelectItem value="yes">Confirmed ({stats.confirmed})</SelectItem>
+                          <SelectItem value="no">Declined ({stats.declined})</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={openedFilter}
+                        onValueChange={(v) => setOpenedFilter(v as typeof openedFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Opened" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Opened: Any</SelectItem>
+                          <SelectItem value="not_opened">
+                            Not opened ({guests.filter((g) => !g.opened_at).length})
+                          </SelectItem>
+                          <SelectItem value="opened">
+                            Opened ({guests.filter((g) => !!g.opened_at).length})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select
+                        value={phoneFilter}
+                        onValueChange={(v) => setPhoneFilter(v as typeof phoneFilter)}
+                      >
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[140px]">
+                          <SelectValue placeholder="Phone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Phone: Any</SelectItem>
+                          <SelectItem value="has_phone">
+                            Has phone ({guests.filter((g) => !!toWhatsAppDigits(g.phone)).length})
+                          </SelectItem>
+                          <SelectItem value="no_phone">
+                            No / invalid ({guests.filter((g) => !toWhatsAppDigits(g.phone)).length})
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[145px]">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Category: All</SelectItem>
+                          {categories.map(([cat, data]) => (
+                            <SelectItem key={cat} value={cat}>
+                              {cat} ({data.total})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={invitedToFilter} onValueChange={setInvitedToFilter}>
+                        <SelectTrigger className="h-9 w-[calc(50%_-_3px)] rounded-lg border-gray-200 bg-white text-xs sm:w-[150px]">
+                          <SelectValue placeholder="Invited to" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Invited to: All</SelectItem>
+                          {invitedToOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <div className="flex w-[calc(50%_-_3px)] items-center gap-1 sm:w-auto">
+                        <Select
+                          value={sortBy}
+                          onValueChange={(v) => {
+                            const next = v as typeof sortBy
+                            setSortBy(next)
+                            // Dates default to newest-first; text/status to A→Z / pending→yes→no
+                            setSortDir(
+                              next === 'opened' || next === 'responded' || next === 'added'
+                                ? 'desc'
+                                : 'asc',
+                            )
+                          }}
+                        >
+                          <SelectTrigger className="h-9 w-full rounded-lg border-gray-200 bg-white text-xs sm:w-[150px]">
+                            <SelectValue placeholder="Sort" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="name">Sort: Name</SelectItem>
+                            <SelectItem value="added">Sort: Recently added</SelectItem>
+                            <SelectItem value="opened">Sort: Opened</SelectItem>
+                            <SelectItem value="responded">Sort: Responded</SelectItem>
+                            <SelectItem value="category">Sort: Category</SelectItem>
+                            <SelectItem value="status">Sort: Status</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <button
+                          type="button"
+                          aria-label={sortDir === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                          title={
+                            sortBy === 'opened' || sortBy === 'responded' || sortBy === 'added'
+                              ? sortDir === 'desc'
+                                ? 'Newest first'
+                                : 'Oldest first'
+                              : sortDir === 'asc'
+                                ? 'A → Z'
+                                : 'Z → A'
+                          }
+                          onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50"
+                        >
+                          {sortDir === 'asc' ? (
+                            <ArrowDownAZ className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpZA className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {(hasActiveFilters || hasCustomSort) && (
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-700 self-start lg:self-center"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Clear
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Table — ~10 rows visible; rest scroll. min-width forces horizontal scroll on mobile */}
-                <div className="admin-table-scroll rounded-xl border border-gray-100 bg-white/40">
-                  <Table className="min-w-[960px]">
+                {/* Compact fixed layout keeps every column and action visible without horizontal scrolling. */}
+                <div className={`admin-table-scroll rounded-xl border bg-white/40 ${selectedCount > 0 ? 'border-rose-200/80' : 'border-gray-100'}`}>
+                  <Table className="w-full table-fixed">
                     <TableHeader className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm [&_tr]:border-b">
                       <TableRow className="bg-gray-50/80 hover:bg-gray-50/80">
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[160px]">Guest</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Category</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[120px]">Invited to</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Status</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[64px]">Pax</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[90px]">Opened</TableHead>
-                        <TableHead className="font-semibold text-gray-600 text-xs uppercase tracking-wide min-w-[100px]">Responded</TableHead>
-                        <TableHead className="min-w-[280px] text-right text-xs font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
+                        <TableHead className="w-[4%] pl-2 pr-0">
+                          <Checkbox
+                            aria-label={allFilteredSelected ? 'Deselect all visible guests' : 'Select all visible guests'}
+                            checked={
+                              allFilteredSelected
+                                ? true
+                                : someFilteredSelected
+                                  ? 'indeterminate'
+                                  : false
+                            }
+                            disabled={filteredGuests.length === 0}
+                            onCheckedChange={(value) => setAllFilteredSelected(value === true)}
+                            className="border-gray-300 data-[state=checked]:border-rose-700 data-[state=checked]:bg-rose-700 data-[state=indeterminate]:border-rose-700 data-[state=indeterminate]:bg-rose-700"
+                          />
+                        </TableHead>
+                        <TableHead className="w-[19%] px-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Guest</TableHead>
+                        <TableHead className="w-[9%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Category</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Invited to</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Status</TableHead>
+                        <TableHead className="w-[5%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Pax</TableHead>
+                        <TableHead className="w-[10%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Opened</TableHead>
+                        <TableHead className="w-[11%] px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-600">Responded</TableHead>
+                        <TableHead className="w-[22%] px-1 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-600">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredGuests.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-16 text-gray-400">
+                          <TableCell colSpan={9} className="text-center py-16 text-gray-400">
                             <div className="flex flex-col items-center gap-2">
                               <span className="text-4xl">🔍</span>
-                              <p className="text-sm">{search ? 'No guests match your search.' : 'No guests in this category.'}</p>
+                              <p className="text-sm">
+                                {search || hasActiveFilters
+                                  ? 'No guests match your filters.'
+                                  : 'No guests yet.'}
+                              </p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -2627,82 +3177,99 @@ export default function ProjectDashboardPage() {
                         const invitedLabels = project
                           ? invitedToLabels(guest.invited_to, project)
                           : []
+                        const isSelected = selectedGuestIds.has(guest.id)
                         return (
                         <TableRow
                           key={guest.id}
-                          className={`transition-colors group border-gray-50 cursor-pointer ${theme.tableRowHover}`}
+                          data-state={isSelected ? 'selected' : undefined}
+                          className={`transition-colors group border-gray-50 cursor-pointer ${
+                            isSelected
+                              ? 'bg-rose-50/70 hover:bg-rose-50/90'
+                              : theme.tableRowHover
+                          }`}
                           onClick={() => setInviteGuest(guest)}
                         >
-                          <TableCell>
-                            <div className="flex items-center gap-3">
+                          <TableCell
+                            className="pl-2 pr-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              aria-label={`Select ${guest.name}`}
+                              checked={isSelected}
+                              onCheckedChange={() => toggleGuestSelected(guest.id)}
+                              className="border-gray-300 data-[state=checked]:border-rose-700 data-[state=checked]:bg-rose-700"
+                            />
+                          </TableCell>
+                          <TableCell className="overflow-hidden px-1.5">
+                            <div className="flex min-w-0 items-center gap-2">
                               <GuestAvatar name={guest.name} />
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 text-sm truncate">{guest.name}</p>
                                 {guest.phone && (
-                                  <p className="text-xs text-gray-400 font-mono">
+                                  <p className="truncate text-[10px] text-gray-400 font-mono">
                                     {formatGuestPhoneDisplay(guest.phone) || guest.phone}
                                   </p>
                                 )}
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-medium">
+                          <TableCell className="overflow-hidden px-1">
+                            <span className="block truncate rounded-sm bg-gray-100 px-1.5 py-1 text-center text-[10px] font-medium text-gray-600">
                               {guest.guest_category || 'Other'}
                             </span>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1 max-w-[160px]">
+                          <TableCell className="overflow-hidden px-1">
+                            <div className="flex min-w-0 flex-col gap-1 overflow-hidden">
                               {invitedLabels.map((label) => (
                                 <span
                                   key={label}
-                                  className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700"
+                                  className="block truncate rounded-sm bg-rose-50 px-1.5 py-1 text-center text-[10px] font-semibold text-rose-700"
                                 >
                                   {label}
                                 </span>
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                          <TableCell className="px-1">
+                            <span className={`block truncate rounded-sm px-1.5 py-1 text-center text-[10px] font-semibold ${
                               guest.rsvp_status === 'yes' ? 'bg-emerald-100 text-emerald-700' :
                               guest.rsvp_status === 'no' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'
                             }`}>
                               {guest.rsvp_status === 'yes' ? '✓ Yes' : guest.rsvp_status === 'no' ? '✗ No' : '⏳ Pending'}
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.rsvp_status === 'yes' ? (
-                              <span className="text-sm font-semibold text-emerald-700">
-                                {guest.pax_count}<span className="text-xs font-normal text-gray-400 ml-1">{guest.pax_count === 1 ? 'person' : 'people'}</span>
-                              </span>
+                              <span className="text-xs font-semibold text-emerald-700">{guest.pax_count}</span>
                             ) : <span className="text-gray-300 text-sm">—</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.opened_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">{new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                                <p className="text-gray-400">{new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                              <div className="text-[10px]">
+                                <p className="truncate font-medium text-gray-700">{new Date(guest.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                <p className="truncate text-gray-400">{new Date(guest.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
-                            ) : <span className="text-xs text-gray-300 italic">Not yet</span>}
+                            ) : <span className="text-[10px] text-gray-300 italic">Not yet</span>}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="px-1">
                             {guest.responded_at ? (
-                              <div className="text-xs">
-                                <p className="font-medium text-gray-700">{new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                                <p className="text-gray-400">{new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                              <div className="text-[10px]">
+                                <p className="truncate font-medium text-gray-700">{new Date(guest.responded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                <p className="truncate text-gray-400">{new Date(guest.responded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                               </div>
                             ) : <span className="text-xs text-gray-300">—</span>}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="px-1 text-center">
                             <div
-                              className="ml-auto grid w-max grid-cols-[7.25rem_2rem_7.5rem_2rem] items-center justify-items-stretch gap-1.5"
+                              className="mx-auto grid w-max grid-cols-[2rem_2rem_6.5rem_2rem] items-center gap-1"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className={`h-8 w-full justify-center rounded-lg px-2 text-xs transition-all ${
+                                aria-label={`Copy invite link for ${guest.name}`}
+                                title={copiedId === guest.id ? 'Invite link copied' : 'Copy invite link'}
+                                className={`h-8 w-8 justify-self-center rounded-lg p-0 transition-all ${
                                   copiedId === guest.id
                                     ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                                     : theme.copyLinkBtn
@@ -2712,16 +3279,14 @@ export default function ProjectDashboardPage() {
                                     `${window.location.origin}/invite/${guest.unique_token}`,
                                   )
                                   setCopiedId(guest.id)
+                                  notifySuccess('Link copied', `Invite link for ${guest.name} copied.`)
                                   setTimeout(() => setCopiedId(null), 2000)
                                 }}
                               >
                                 {copiedId === guest.id ? (
-                                  '✓ Copied!'
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
                                 ) : (
-                                  <span className="inline-flex items-center gap-1">
-                                    <Link2 className="h-3.5 w-3.5 shrink-0" />
-                                    Copy
-                                  </span>
+                                  <Link2 className="h-3.5 w-3.5" />
                                 )}
                               </Button>
                               <Button
@@ -2746,7 +3311,7 @@ export default function ProjectDashboardPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-2 text-xs text-amber-800 hover:bg-amber-50"
+                                className="h-8 w-full justify-center rounded-lg border-amber-200 px-1.5 text-xs tabular-nums text-amber-800 hover:bg-amber-50"
                                 onClick={() => setMomentsGuest(guest)}
                               >
                                 Moments{momentCount > 0 ? ` (${momentCount})` : ''}
@@ -2770,187 +3335,748 @@ export default function ProjectDashboardPage() {
                     </TableBody>
                   </Table>
                 </div>
-                <p className="text-[11px] text-gray-400 sm:hidden pt-1">
-                  Scroll sideways in the list for status, pax, and actions
-                </p>
               </CardContent>
             </Card>
+
+            {/* Bulk selection bar */}
+            <AnimatePresence>
+              {selectedCount > 0 && (
+                <motion.div
+                  key="guest-selection-bar"
+                  className="sticky bottom-4 z-30 mx-auto max-w-4xl"
+                  role="toolbar"
+                  aria-label="Guest selection actions"
+                  initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <div className="flex flex-col gap-3 rounded-2xl border border-white/70 bg-gray-950/95 px-4 py-3 text-white shadow-[0_16px_48px_rgba(15,23,42,0.35)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+                    <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-full bg-white/15 px-2.5 text-sm font-bold tabular-nums">
+                      {selectedCount}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-tight">
+                        {selectedCount === 1 ? '1 guest selected' : `${selectedCount} guests selected`}
+                      </p>
+                      {!allFilteredSelected && filteredGuests.length > filteredSelectedCount && (
+                        <button
+                          type="button"
+                          className="mt-0.5 text-xs font-medium text-rose-200 hover:text-white underline-offset-2 hover:underline"
+                          onClick={() => setAllFilteredSelected(true)}
+                        >
+                          Select all {filteredGuests.length} visible
+                        </button>
+                      )}
+                      {selectedCount > selectedWithPhoneCount && (
+                        <p className="mt-0.5 text-[11px] text-white/55">
+                          {selectedWithPhoneCount} with WhatsApp number
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-white/20 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white"
+                      onClick={() => copySelectedInviteLinks(selectedGuests)}
+                    >
+                      <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                      {bulkCopyDone ? 'Copied!' : 'Copy links'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-9 rounded-xl bg-[#25D366] px-3 text-xs font-semibold text-white hover:bg-[#1da851] disabled:opacity-40"
+                      disabled={selectedWithPhoneCount === 0}
+                      title={
+                        selectedWithPhoneCount === 0
+                          ? 'No selected guests have a phone number'
+                          : 'Open WhatsApp one guest at a time'
+                      }
+                      onClick={() => startWaQueueFromSelection(selectedGuests)}
+                    >
+                      <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />
+                      WhatsApp ({selectedWithPhoneCount})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 rounded-xl border-red-400/40 bg-red-500/15 px-3 text-xs text-red-100 hover:bg-red-500/25 hover:text-white"
+                      onClick={() => setBulkPendingDelete(selectedGuests)}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                    <button
+                      type="button"
+                      aria-label="Clear selection"
+                      className="ml-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition hover:bg-white/10 hover:text-white"
+                      onClick={clearGuestSelection}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </AnimatedTabsContent>
 
           {/* Delete error toast */}
           {deleteError && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl shadow-xl text-sm font-medium text-red-700 bg-red-50 border border-red-200">
+            <div
+              className={`fixed left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-medium text-red-700 shadow-xl ${
+                selectedCount > 0 ? 'bottom-24' : 'bottom-6'
+              }`}
+            >
               <span>⚠</span> {deleteError}
             </div>
           )}
 
           {/* ══ ADD GUEST ═════════════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="add-guest" className="mt-0">
-            <div className="max-w-md space-y-4">
-              <Card className={theme.glassCard}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">👤</span>
-                    <div>
-                      <CardTitle>Add New Guest</CardTitle>
-                      <CardDescription>Create a personalised invitation</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={addGuest} className="space-y-4">
-                    <div>
-                      <Label htmlFor="name">Guest Name *</Label>
-                      <Input id="name" value={newGuestName} onChange={(e) => setNewGuestName(e.target.value)}
-                        placeholder="Full name" className="mt-2 rounded-xl" required />
-                    </div>
-                    <GuestPhoneInput
-                      id="phone"
-                      value={newGuestPhone}
-                      onChange={(e164) => {
-                        setNewGuestPhone(e164)
-                        setPhoneError('')
-                      }}
-                      onValidityChange={setPhoneValid}
-                      error={phoneError}
-                    />
-                    <div>
-                      <Label htmlFor="category">Category</Label>
-                      <Select value={newGuestCategory} onValueChange={setNewGuestCategory}>
-                        <SelectTrigger className="mt-2 rounded-xl"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {GUEST_CATEGORIES.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {addGuestError && (
-                      <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-sm text-red-700 bg-red-50 border border-red-200">
-                        <span className="shrink-0 mt-0.5">⚠</span><span>{addGuestError}</span>
+          <AnimatedTabsContent value="add-guest" className="mt-0 pb-8">
+            <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
+              <div className="min-w-0 space-y-4">
+                <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_10px_35px_rgba(31,41,55,0.07)]">
+                  <CardHeader className="border-b border-gray-100 px-5 py-4 sm:px-7">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-100">
+                          <UserPlus className="h-5 w-5" aria-hidden />
+                        </span>
+                        <div>
+                          <CardTitle className="font-serif text-2xl font-semibold tracking-tight text-gray-900">
+                            Add a new guest
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Create a personalised invitation for this guest.
+                          </CardDescription>
+                        </div>
                       </div>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError}
-                      className={`w-full rounded-xl ${theme.primaryBtn}`}
-                    >
-                      {adding ? 'Adding…' : '+ Add Guest'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              {lastAddedGuest && (
-                <Card className={theme.glassCard}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Moments with {lastAddedGuest.name}</CardTitle>
-                    <CardDescription>
-                      Optional — up to {MAX_GUEST_MOMENTS} photos on their personal invite only.
-                    </CardDescription>
+                      <div className="inline-flex shrink-0 items-center gap-2 self-start rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-100">
+                        <Users className="h-3.5 w-3.5" aria-hidden />
+                        {guests.length} guests added
+                      </div>
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {momentsError && (
-                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                        {momentsError}
+                  <CardContent className="px-5 py-4 sm:px-7">
+                    <form onSubmit={addGuest} className="space-y-4">
+                      <div>
+                        <Label htmlFor="add-guest-name">
+                          Full name <span className="text-rose-600">*</span>
+                        </Label>
+                        <Input
+                          ref={addGuestNameRef}
+                          id="add-guest-name"
+                          value={newGuestName}
+                          onChange={(e) => {
+                            setNewGuestName(e.target.value)
+                            setAddGuestError('')
+                          }}
+                          placeholder="e.g., Priya Sharma"
+                          autoComplete="name"
+                          className="mt-2 h-11 rounded-xl border-gray-200 bg-white"
+                          required
+                        />
                       </div>
-                    )}
-                    <MediaUploader
-                      title="Add images"
-                      images={lastAddedMoments}
-                      max={MAX_GUEST_MOMENTS}
-                      uploading={momentsUploading}
-                      onUpload={uploadLastAddedMoments}
-                      onRemove={removeLastAddedMoment}
-                    />
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <GuestPhoneInput
+                          id="add-guest-phone"
+                          label="Phone"
+                          value={newGuestPhone}
+                          onChange={(e164) => {
+                            setNewGuestPhone(e164)
+                            setPhoneError('')
+                          }}
+                          onValidityChange={setPhoneValid}
+                          error={phoneError}
+                        />
+                        <div>
+                          <Label htmlFor="add-guest-email">
+                            Email <span className="font-normal text-gray-400">(optional)</span>
+                          </Label>
+                          <div className="relative mt-2">
+                            <Mail
+                              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                              aria-hidden
+                            />
+                            <Input
+                              id="add-guest-email"
+                              type="email"
+                              value={newGuestEmail}
+                              onChange={(e) => {
+                                setNewGuestEmail(e.target.value)
+                                setEmailError('')
+                              }}
+                              placeholder="optional@email.com"
+                              autoComplete="email"
+                              className={`h-9 rounded-xl border-gray-200 bg-white pl-10 ${
+                                emailError ? 'border-red-400 focus-visible:ring-red-300' : ''
+                              }`}
+                            />
+                          </div>
+                          {emailError ? (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-red-500">
+                              <span>⚠</span> {emailError}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <fieldset>
+                        <legend className="text-sm font-medium text-gray-700">Guest category</legend>
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {GUEST_CATEGORIES.map((category) => {
+                            const selected = newGuestCategory === category
+                            return (
+                              <button
+                                key={category}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() => setNewGuestCategory(category)}
+                                className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 ${
+                                  selected
+                                    ? 'border-rose-600 bg-rose-50 text-rose-700 shadow-sm'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-rose-200 hover:bg-rose-50/40'
+                                }`}
+                              >
+                                {category}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </fieldset>
+
+                      {addGuestError && (
+                        <div
+                          role="alert"
+                          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                        >
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                          <span>{addGuestError}</span>
+                        </div>
+                      )}
+
+                      <div className="border-t border-gray-100 pt-4">
+                        <Button
+                          type="submit"
+                          disabled={!newGuestName.trim() || adding || !phoneValid || !!phoneError || !!emailError}
+                          className={`h-11 w-full rounded-xl ${theme.primaryBtn}`}
+                        >
+                          <UserPlus className="h-4 w-4" aria-hidden />
+                          {adding ? 'Adding guest…' : 'Add guest'}
+                        </Button>
+                      </div>
+                    </form>
                   </CardContent>
                 </Card>
-              )}
+
+                {lastAddedGuest && (
+                  <Card
+                    ref={lastAddedMomentsRef}
+                    className="rounded-2xl border border-gray-200/80 bg-white/95 shadow-[0_8px_28px_rgba(31,41,55,0.06)]"
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg">
+                        Moments with {lastAddedGuest.name}
+                      </CardTitle>
+                      <CardDescription>
+                        Optional — up to {MAX_GUEST_MOMENTS} photos on their personal invite only.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {momentsError && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                          {momentsError}
+                        </div>
+                      )}
+                      <MediaUploader
+                        title="Add images"
+                        images={lastAddedMoments}
+                        max={MAX_GUEST_MOMENTS}
+                        uploading={momentsUploading}
+                        onUpload={uploadLastAddedMoments}
+                        onRemove={removeLastAddedMoment}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <aside className="min-w-0 self-start space-y-5 lg:sticky lg:top-24">
+                <Card className="gap-0 rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="border-b border-gray-100 px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-rose-600" aria-hidden />
+                      <CardTitle className="font-serif text-base">Quick tips</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4 px-5 py-5">
+                    {[
+                      {
+                        icon: PhoneCall,
+                        title: 'Use an accurate phone number',
+                        text: 'A valid number makes opening the invite in WhatsApp quick and reliable.',
+                      },
+                      {
+                        icon: UserPlus,
+                        title: 'Personalisation makes it special',
+                        text: 'Use the guest’s preferred full name and the right category.',
+                      },
+                      {
+                        icon: ShieldCheck,
+                        title: 'Every invite link is unique',
+                        text: 'The secure personal link is generated after the guest is added.',
+                      },
+                    ].map((tip) => {
+                      const TipIcon = tip.icon
+                      return (
+                        <div key={tip.title} className="flex gap-3">
+                          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+                            <TipIcon className="h-4 w-4" aria-hidden />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{tip.title}</p>
+                            <p className="mt-0.5 text-xs leading-relaxed text-gray-500">{tip.text}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              </aside>
             </div>
           </AnimatedTabsContent>
 
           {/* ══ IMPORT / EXPORT ═══════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="import-export" className="mt-0 space-y-6">
-            <Card className={`${theme.glassCard} max-w-2xl`}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📥</span>
-                  <div>
-                    <CardTitle>Import from Excel / CSV</CardTitle>
-                    <CardDescription>Upload a spreadsheet — tokens and links are auto-generated.</CardDescription>
+          <AnimatedTabsContent value="import-export" className="mt-0 space-y-5">
+            {/* First viewport: import + export + tips */}
+            <div className="grid items-stretch gap-4 lg:min-h-[calc(100dvh-12.5rem)] lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,1fr)]">
+              {/* ── Import card ── */}
+              <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_10px_35px_rgba(31,41,55,0.07)]">
+                <CardHeader className="shrink-0 border-b border-gray-100 px-5 py-3 sm:px-6">
+                  <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <CardTitle className="font-serif text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl">
+                        Import guest list
+                      </CardTitle>
+                      <CardDescription className="mt-0.5 text-xs sm:text-sm">
+                        Upload a spreadsheet — invite links are generated automatically.
+                      </CardDescription>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={downloadImportTemplate}
+                      className="h-9 shrink-0 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50"
+                    >
+                      <Download className="h-4 w-4" aria-hidden />
+                      Download template
+                    </Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <label htmlFor="import-file" className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl p-10 cursor-pointer transition-colors ${theme.importDropzone}`}>
-                  <span className="text-4xl">📂</span>
-                  <p className="text-gray-700 font-light text-sm">{importFile ? importFile.name : 'Click to upload or drag & drop'}</p>
-                  <p className="text-xs text-gray-400">Accepts .xlsx · .xls · .csv</p>
-                  <input id="import-file" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
-                </label>
-                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
-                  <p className="font-semibold text-amber-900 mb-1">Expected columns (case-insensitive):</p>
-                  <p className="font-mono text-amber-800 text-xs">Name · Phone · Email · Category</p>
-                  <p className="text-amber-700 text-xs mt-1">Only <strong>Name</strong> is required.</p>
-                </div>
-                {importPreview.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-600 mb-2 font-medium">Preview — first {importPreview.length} rows:</p>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="text-xs w-full">
-                        <thead className="bg-gray-50">
-                          <tr>{importPreviewCols.map((col) => <th key={col} className="px-3 py-2 text-left text-gray-700 font-semibold border-b border-gray-200">{col}</th>)}</tr>
+                </CardHeader>
+
+                <CardContent className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4 sm:px-6">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        importFileInputRef.current?.click()
+                      }
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setImportDragOver(true)
+                    }}
+                    onDragLeave={() => setImportDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setImportDragOver(false)
+                      const file = e.dataTransfer.files?.[0]
+                      if (file) processImportFile(file)
+                    }}
+                    onClick={() => importFileInputRef.current?.click()}
+                    className={`flex min-h-[8.5rem] flex-1 flex-col items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed px-5 py-5 text-center transition-colors ${
+                      importDragOver
+                        ? 'border-rose-400 bg-rose-50/80'
+                        : importFile
+                          ? 'border-rose-200 bg-rose-50/40'
+                          : 'border-rose-200/80 bg-rose-50/30 hover:border-rose-300 hover:bg-rose-50/50'
+                    }`}
+                  >
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+                      <Upload className="h-4 w-4" aria-hidden />
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">
+                        {importFile ? importFile.name : 'Drop your file here or choose a file'}
+                      </p>
+
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        importFileInputRef.current?.click()
+                      }}
+                      className={`h-9 rounded-xl ${theme.primaryBtn}`}
+                    >
+                      Choose file
+                    </Button>
+                    <input
+                      ref={importFileInputRef}
+                      id="import-file"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                    <p>
+                      Accepted formats:{' '}
+                      <span className="font-medium text-gray-700">XLSX, XLS, CSV</span>
+                    </p>
+                    <p>
+                      Maximum <span className="font-medium text-gray-700">500 guests</span>
+                    </p>
+                  </div>
+
+                  <div
+                    id="import-file-structure"
+                    className="shrink-0 rounded-xl border border-gray-100 bg-gray-50/70 p-3"
+                  >
+                    <p className="text-sm font-semibold text-gray-800">Required file structure</p>
+                    <p className="mt-0.5 text-[11px] text-gray-500">
+                      Column headers are matched case-insensitively.
+                    </p>
+                    <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                      <table className="w-full min-w-[420px] text-left text-xs">
+                        <thead className="bg-gray-50 text-gray-600">
+                          <tr>
+                            {[
+                              { label: 'Name', badge: 'Required', required: true },
+                              { label: 'Phone', badge: 'Optional', required: false },
+                              { label: 'Email', badge: 'Optional', required: false },
+                              { label: 'Category', badge: 'Optional', required: false },
+                            ].map((col) => (
+                              <th key={col.label} className="px-3 py-2 font-semibold">
+                                <span className="inline-flex flex-wrap items-center gap-1.5">
+                                  {col.label}
+                                  <span
+                                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      col.required
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}
+                                  >
+                                    {col.badge}
+                                  </span>
+                                </span>
+                              </th>
+                            ))}
+                          </tr>
                         </thead>
                         <tbody>
-                          {importPreview.map((row, i) => (
-                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
-                              {importPreviewCols.map((col) => <td key={col} className="px-3 py-2 text-gray-700">{String(row[col] ?? '')}</td>)}
-                            </tr>
-                          ))}
+                          <tr className="text-gray-700">
+                            <td className="px-3 py-2">Priya Sharma</td>
+                            <td className="px-3 py-2">+91 98765 43210</td>
+                            <td className="px-3 py-2">priya@example.com</td>
+                            <td className="px-3 py-2">Family</td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
                   </div>
-                )}
-                {importResult && (
-                  <p className={`text-sm font-semibold px-4 py-3 rounded-xl ${importResult.startsWith('✓') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                    {importResult}
-                  </p>
-                )}
-                <Button onClick={handleBulkImport} disabled={!importFile || importing} className={`w-full rounded-xl ${theme.primaryBtn}`}>
-                  {importing ? 'Importing…' : importFile ? `Import "${importFile.name}"` : 'Select a file first'}
-                </Button>
-              </CardContent>
-            </Card>
 
-            <Card className={`${theme.glassCard} max-w-2xl`}>
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">📤</span>
-                  <div>
-                    <CardTitle>Export Guest Links</CardTitle>
-                    <CardDescription>
-                      Download the full guest list with invite links and per-event RSVP status.
-                    </CardDescription>
+                  {(importPreview.length > 0 || importResult) && (
+                    <div className="min-h-0 max-h-28 shrink space-y-2 overflow-y-auto">
+                      {importPreview.length > 0 && (
+                        <div>
+                          <p className="mb-1.5 text-xs font-medium text-gray-700">
+                            Preview — first {importPreview.length} row
+                            {importPreview.length === 1 ? '' : 's'}
+                          </p>
+                          <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full text-xs">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  {importPreviewCols.map((col) => (
+                                    <th
+                                      key={col}
+                                      className="border-b border-gray-200 px-3 py-1.5 text-left font-semibold text-gray-700"
+                                    >
+                                      {col}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {importPreview.map((row, i) => (
+                                  <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                                    {importPreviewCols.map((col) => (
+                                      <td key={col} className="px-3 py-1.5 text-gray-700">
+                                        {String(row[col] ?? '')}
+                                      </td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                      {importResult && (
+                        <p
+                          role="status"
+                          className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                            importResult.startsWith('✓')
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}
+                        >
+                          {importResult}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-auto flex shrink-0 flex-col gap-2.5 border-t border-gray-100 pt-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                      {[
+                        { step: 1 as const, label: 'Upload file' },
+                        { step: 2 as const, label: 'Review guests' },
+                        { step: 3 as const, label: 'Import' },
+                      ].map((item, index) => {
+                        const active = importStep === item.step
+                        const done = importStep > item.step
+                        return (
+                          <div key={item.step} className="flex items-center gap-2 sm:gap-3">
+                            {index > 0 && (
+                              <span
+                                className={`hidden h-px w-5 sm:block ${
+                                  done || active ? 'bg-rose-300' : 'bg-gray-200'
+                                }`}
+                                aria-hidden
+                              />
+                            )}
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                                  active
+                                    ? 'bg-rose-600 text-white'
+                                    : done
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-gray-100 text-gray-400'
+                                }`}
+                              >
+                                {done ? <CheckCircle2 className="h-3 w-3" aria-hidden /> : item.step}
+                              </span>
+                              <span
+                                className={`text-[11px] font-medium sm:text-xs ${
+                                  active ? 'text-gray-900' : done ? 'text-rose-700' : 'text-gray-400'
+                                }`}
+                              >
+                                {item.label}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={handleBulkImport}
+                      disabled={!importFile || importing}
+                      className={`h-10 w-full rounded-xl text-sm font-semibold ${
+                        !importFile || importing
+                          ? 'bg-gray-200 text-gray-500 hover:bg-gray-200'
+                          : theme.primaryBtn
+                      }`}
+                    >
+                      <Upload className="h-4 w-4" aria-hidden />
+                      {importPrimaryLabel}
+                    </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* ── Sidebar ── */}
+              <aside className="flex min-h-0 flex-col gap-4">
+                <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="shrink-0 border-b border-gray-100 px-4 py-3 sm:px-5">
+                    <CardTitle className="font-serif text-lg font-semibold text-gray-900">
+                      Export guest data
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Download the full list with invite links and RSVP status.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-1 flex-col gap-3 px-4 py-3.5 sm:px-5">
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { label: 'Total guests', value: stats.total, icon: Users },
+                        { label: 'Responded', value: responded, icon: CheckCircle2 },
+                        { label: 'Pending', value: stats.pending, icon: Clock },
+                      ].map((stat) => {
+                        const StatIcon = stat.icon
+                        return (
+                          <div
+                            key={stat.label}
+                            className="rounded-xl bg-gray-50 px-2 py-2.5 text-center ring-1 ring-inset ring-gray-100"
+                          >
+                            <StatIcon className="mx-auto h-3.5 w-3.5 text-rose-600" aria-hidden />
+                            <p className="mt-1 text-base font-semibold tabular-nums text-gray-900">
+                              {stat.value}
+                            </p>
+                            <p className="text-[10px] font-medium leading-tight text-gray-500">
+                              {stat.label}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        onClick={handleExportExcel}
+                        disabled={guests.length === 0}
+                        className={`h-10 w-full rounded-xl ${theme.primaryBtn}`}
+                      >
+                        <Download className="h-4 w-4" aria-hidden />
+                        Export Excel (.xlsx)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleExportCSV}
+                        disabled={guests.length === 0}
+                        className="h-10 w-full rounded-xl border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                      >
+                        <Download className="h-4 w-4" aria-hidden />
+                        Export CSV
+                      </Button>
+                    </div>
+
+                    <div className="mt-auto">
+                      {guests.length === 0 && (
+                        <p className="mt-2 text-xs text-gray-400">
+                          Add or import guests first to enable export.
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="shrink-0 gap-0 rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+                  <CardHeader className="border-b border-gray-100 px-4 py-3 sm:px-5">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="h-4 w-4 text-rose-600" aria-hidden />
+                      <CardTitle className="font-serif text-base">Before you import</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 px-4 py-3.5 sm:px-5">
+                    {[
+                      {
+                        n: '1',
+                        title: 'Download the template',
+                        text: 'Use the provided columns so names and phones map correctly.',
+                      },
+                      {
+                        n: '2',
+                        title: 'Check phone country codes',
+                        text: 'Include the country code (e.g. +91) for reliable WhatsApp invites.',
+                      },
+                      {
+                        n: '3',
+                        title: 'Review duplicates',
+                        text: 'Rows with phones already on the list are skipped during import.',
+                      },
+                    ].map((tip) => (
+                      <div key={tip.n} className="flex gap-2.5">
+                        <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-50 text-[11px] font-bold text-rose-700">
+                          {tip.n}
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{tip.title}</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">{tip.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </aside>
+            </div>
+
+            {/* Below the fold — scroll to see */}
+            <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_8px_28px_rgba(31,41,55,0.06)]">
+              <CardHeader className="border-b border-gray-100 px-5 py-4 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4 text-rose-600" aria-hidden />
+                  <CardTitle className="font-serif text-lg">Recent imports</CardTitle>
                 </div>
+                <CardDescription>
+                  Shown for this browser session after a successful import.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-gray-50 rounded-xl p-4 text-sm">
-                  <p className="text-gray-700"><strong>{guests.length}</strong> guests · links will use:</p>
-                  <p className="font-mono text-xs text-gray-500 mt-1 break-all">
-                    {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/invite/<em>TOKEN</em>
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <Button onClick={handleExportExcel} disabled={guests.length === 0} className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl">
-                    ⬇ Export Excel (.xlsx)
-                  </Button>
-                  <Button onClick={handleExportCSV} disabled={guests.length === 0} variant="outline" className="border-emerald-700 text-emerald-700 hover:bg-emerald-50 rounded-xl">
-                    ⬇ Export CSV
-                  </Button>
-                </div>
-                {guests.length === 0 && <p className="text-xs text-gray-400">Add or import guests first to enable export.</p>}
+              <CardContent className="px-0 py-0">
+                {lastImportSummary ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-left text-sm">
+                      <thead className="border-b border-gray-100 bg-gray-50/80 text-xs uppercase tracking-wide text-gray-500">
+                        <tr>
+                          <th className="px-5 py-3 font-semibold sm:px-6">File name</th>
+                          <th className="px-5 py-3 font-semibold">Status</th>
+                          <th className="px-5 py-3 font-semibold">Guests</th>
+                          <th className="px-5 py-3 font-semibold sm:px-6">Imported on</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-gray-50">
+                          <td className="px-5 py-3.5 sm:px-6">
+                            <span className="inline-flex items-center gap-2 font-medium text-gray-800">
+                              <FileSpreadsheet className="h-4 w-4 text-emerald-600" aria-hidden />
+                              {lastImportSummary.fileName}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-100">
+                              Completed
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 tabular-nums text-gray-700">
+                            {lastImportSummary.count}
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-600 sm:px-6">
+                            {lastImportSummary.at.toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="px-5 py-8 text-center sm:px-6">
+                    <p className="text-sm font-medium text-gray-700">No imports yet this session</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Successful uploads will appear here until you leave this page.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </AnimatedTabsContent>
@@ -2965,360 +4091,33 @@ export default function ProjectDashboardPage() {
           </AnimatedTabsContent>
 
           {/* ══ EVENT DETAILS ═════════════════════════════════════════════════ */}
-          <AnimatedTabsContent value="event" className="mt-0 space-y-6">
+          <AnimatedTabsContent value="event" className="mt-0 pb-8">
             {project && (
-              <Card className={`${theme.glassCard} max-w-2xl`} key={projectFormKey}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🎊</span>
-                    <div>
-                      <CardTitle>Event Details</CardTitle>
-                      <CardDescription>
-                        Update your {project.event_template ?? 'event'} information
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-5">
-
-                  {/* Project name */}
-                  <div>
-                    <Label htmlFor="project-name">Project Name</Label>
-                    <Input id="project-name" defaultValue={project.name}
-                      onChange={(e) => updateProject({ name: e.target.value })}
-                      className="mt-2 rounded-xl" />
-                  </div>
-
-                  {/* Event type */}
-                  <div>
-                    <Label htmlFor="event-type">Event Type</Label>
-                    <Select
-                      value={project.event_template ?? 'Wedding'}
-                      onValueChange={(val) => {
-                        const nextTemplate = val as Project['event_template']
-                        // Reset Events included to ONLY the new primary (drop previous extras)
-                        const nextEvents = resetEventsToPrimary(project, nextTemplate || 'Wedding')
-                        updateProject(
-                          { event_template: nextTemplate, events: nextEvents },
-                          { immediate: true },
-                        )
-                      }}
-                    >
-                      <SelectTrigger id="event-type" className="mt-2 rounded-xl">
-                        <SelectValue placeholder="Select event type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Wedding">💍 Wedding</SelectItem>
-                        <SelectItem value="Engagement">💑 Engagement</SelectItem>
-                        <SelectItem value="Reception">🥂 Reception</SelectItem>
-                        <SelectItem value="Mehendi">🌿 Mehendi</SelectItem>
-                        <SelectItem value="Haldi">🌼 Haldi</SelectItem>
-                        <SelectItem value="Save The Date">📅 Save The Date</SelectItem>
-                        <SelectItem value="Birthday">🎂 Birthday</SelectItem>
-                        <SelectItem value="Housewarming">🏡 Housewarming</SelectItem>
-                        <SelectItem value="Corporate Event">🏢 Corporate Event</SelectItem>
-                        <SelectItem value="Custom Event">✨ Custom Event</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      Theme/wording preset. Use &quot;Events included&quot; below to invite for Engagement and Wedding together.
-                    </p>
-                  </div>
-
-                  {project.event_template === 'Birthday' ? (
-                    <BirthdayPersonsFields
-                      couple1={project.couple_1}
-                      couple2={project.couple_2}
-                      onUpdatePrimary={(name) => updateProject({ couple_1: name })}
-                      onUpdateAdditional={(names) => updateProject({ couple_2: serializeAdditionalBirthdayPersons(names) })}
-                    />
-                  ) : (
-                    /* ── Wedding / all other events: Partner 1 + Partner 2 ── */
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
-                        <Label>Partner 1 full name</Label>
-                        <Input
-                          defaultValue={project.couple_1}
-                          placeholder="e.g. Rita Maria Chacko"
-                          onChange={(e) => updateProject({ couple_1: e.target.value })}
-                          className="mt-2 rounded-xl"
-                        />
-                        <p className="mt-1.5 text-[11px] text-gray-500">
-                          Invite name card shows the first name only; family section shows the full name.
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Partner 2 full name</Label>
-                        <Input
-                          defaultValue={project.couple_2}
-                          placeholder="e.g. Alan Joseph"
-                          onChange={(e) => updateProject({ couple_2: e.target.value })}
-                          className="mt-2 rounded-xl"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {showsCoupleFamilyDetails(project.event_template) ? (
-                    <div className="rounded-2xl border border-rose-100/80 bg-rose-50/40 p-4 sm:p-5 space-y-4">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">Family details</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Role drives D/o or S/o. Invite shows name, relation, parents, house, then place.
-                        </p>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {([
-                          {
-                            key: '1' as const,
-                            name: project.couple_1?.trim() || 'Partner 1',
-                            role: project.couple_1_role,
-                            father: project.couple_1_father,
-                            mother: project.couple_1_mother,
-                            house: project.couple_1_house,
-                            place: project.couple_1_place,
-                            defaultRole: 'bride' as const,
-                            roleKey: 'couple_1_role' as const,
-                            fatherKey: 'couple_1_father' as const,
-                            motherKey: 'couple_1_mother' as const,
-                            houseKey: 'couple_1_house' as const,
-                            placeKey: 'couple_1_place' as const,
-                          },
-                          {
-                            key: '2' as const,
-                            name: project.couple_2?.trim() || 'Partner 2',
-                            role: project.couple_2_role,
-                            father: project.couple_2_father,
-                            mother: project.couple_2_mother,
-                            house: project.couple_2_house,
-                            place: project.couple_2_place,
-                            defaultRole: 'groom' as const,
-                            roleKey: 'couple_2_role' as const,
-                            fatherKey: 'couple_2_father' as const,
-                            motherKey: 'couple_2_mother' as const,
-                            houseKey: 'couple_2_house' as const,
-                            placeKey: 'couple_2_place' as const,
-                          },
-                        ]).map((side) => {
-                          const roleValue = side.role || side.defaultRole
-                          const preview = buildCoupleFamilySide({
-                            name: side.name,
-                            role: roleValue,
-                            father: side.father,
-                            mother: side.mother,
-                            house: side.house,
-                            place: side.place,
-                          })
-                          return (
-                            <div key={side.key} className="space-y-3">
-                              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-700/80">
-                                {side.name}
-                              </p>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-role`}>Role</Label>
-                                <Select
-                                  value={roleValue}
-                                  onValueChange={(val) =>
-                                    updateProject({ [side.roleKey]: val }, { immediate: true })
-                                  }
-                                >
-                                  <SelectTrigger
-                                    id={`couple-${side.key}-role`}
-                                    className="mt-2 rounded-xl"
-                                  >
-                                    <SelectValue placeholder="Select role" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="bride">Bride</SelectItem>
-                                    <SelectItem value="groom">Groom</SelectItem>
-                                    <SelectItem value="partner">Partner</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-father`}>Father&apos;s name</Label>
-                                <Input
-                                  id={`couple-${side.key}-father`}
-                                  defaultValue={side.father || ''}
-                                  placeholder="Father's full name"
-                                  onChange={(e) =>
-                                    updateProject({
-                                      [side.fatherKey]: e.target.value,
-                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
-                                    })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-mother`}>Mother&apos;s name</Label>
-                                <Input
-                                  id={`couple-${side.key}-mother`}
-                                  defaultValue={side.mother || ''}
-                                  placeholder="Mother's full name"
-                                  onChange={(e) =>
-                                    updateProject({
-                                      [side.motherKey]: e.target.value,
-                                      ...(!side.role ? { [side.roleKey]: side.defaultRole } : {}),
-                                    })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-house`}>House name</Label>
-                                <Input
-                                  id={`couple-${side.key}-house`}
-                                  defaultValue={side.house || ''}
-                                  placeholder="House or family name"
-                                  onChange={(e) =>
-                                    updateProject({ [side.houseKey]: e.target.value })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`couple-${side.key}-place`}>Place</Label>
-                                <Input
-                                  id={`couple-${side.key}-place`}
-                                  defaultValue={side.place || ''}
-                                  placeholder="Place or locality"
-                                  onChange={(e) =>
-                                    updateProject({ [side.placeKey]: e.target.value })
-                                  }
-                                  className="mt-2 rounded-xl"
-                                />
-                              </div>
-                              {(preview.parents || preview.house || preview.place) ? (
-                                <div className="text-[11px] text-gray-500 leading-snug rounded-lg bg-white/60 px-3 py-2 border border-rose-100/60 space-y-0.5">
-                                  <p className="font-medium text-gray-600">Will show as:</p>
-                                  <p className="font-medium text-gray-800">{preview.name}</p>
-                                  {preview.relation ? <p>{preview.relation}</p> : null}
-                                  {preview.parents ? <p>{preview.parents}</p> : null}
-                                  {preview.house ? <p>{preview.house}</p> : null}
-                                  {preview.place ? <p>{preview.place}</p> : null}
-                                  {!preview.relation && formatRelationAbbrev(roleValue) ? (
-                                    <p className="text-gray-400">
-                                      (Add parents to show {formatRelationAbbrev(roleValue)})
-                                    </p>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {project.event_template !== 'Birthday' ? (
-                    <EventsIncludedEditor
-                      project={project}
-                      onChange={(events) => updateProject({ events }, { immediate: true })}
-                    />
-                  ) : (
-                    <>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>Date</Label>
-                          <Input type="date" min={new Date().toISOString().split('T')[0]} defaultValue={project.date}
-                            onChange={(e) => updateProject({ date: e.target.value })} className="mt-2 rounded-xl" />
-                        </div>
-                        <div>
-                          <Label>Time</Label>
-                          <Input type="time" defaultValue={project.time} onChange={(e) => updateProject({ time: e.target.value })} className="mt-2 rounded-xl" />
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Venue</Label>
-                        <Input defaultValue={project.venue} onChange={(e) => updateProject({ venue: e.target.value })} className="mt-2 rounded-xl" />
-                      </div>
-                      <div>
-                        <Label>Location / City</Label>
-                        <Input defaultValue={project.location} onChange={(e) => updateProject({ location: e.target.value })} className="mt-2 rounded-xl" />
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <Label>Contact Number</Label>
-                    <Input defaultValue={project.contact} onChange={(e) => updateProject({ contact: e.target.value })} className="mt-2 rounded-xl" />
-                  </div>
-                  {project.event_template === 'Birthday' ? (
-                  <div>
-                    <Label>Maps Link or Address</Label>
-                    <Input defaultValue={project.maps_url || ''} onChange={(e) => updateProject({ maps_url: e.target.value })}
-                      placeholder="Paste a Google Maps URL, address, or Plus Code" className="mt-2 rounded-xl" />
-                    <p className="text-xs text-gray-400 mt-1">You can paste a full Google Maps link, a plain address, or a Plus Code — it will always open the correct location.</p>
-                  </div>
-                  ) : null}
-
-                  <div className="border-t border-gray-100 pt-5">
-                    <MediaUploader
-                      title="Invite gallery"
-                      description="Shared photos shown on every invite link (open + personal)."
-                      images={galleryImages}
-                      max={MAX_GALLERY_IMAGES}
-                      uploading={galleryUploading}
-                      onUpload={uploadGalleryFiles}
-                      onRemove={removeGalleryImage}
-                    />
-                    {galleryError && (
-                      <p className="text-xs text-red-600 mt-2">{galleryError}</p>
-                    )}
-                  </div>
-
-                  <p
-                    className={`text-xs flex items-center gap-1.5 ${
-                      projectSaveStatus === 'error'
-                        ? 'text-red-600'
-                        : projectSaveStatus === 'saving'
-                          ? 'text-amber-600'
-                          : 'text-gray-400 italic'
-                    }`}
-                  >
-                    {projectSaveStatus === 'saving' ? (
-                      <>Saving…</>
-                    ) : projectSaveStatus === 'error' ? (
-                      <><span>⚠</span> {projectSaveError || 'Couldn’t save changes'}</>
-                    ) : projectSaveStatus === 'saved' ? (
-                      <><span>✓</span> All changes saved</>
-                    ) : (
-                      <><span>✓</span> Changes are saved automatically</>
-                    )}
-                  </p>
-                </CardContent>
-              </Card>
+              <EventDetailsPanel
+                project={project}
+                projectFormKey={projectFormKey}
+                projectSaveStatus={projectSaveStatus}
+                projectSaveError={projectSaveError}
+                galleryImages={galleryImages}
+                galleryUploading={galleryUploading}
+                galleryError={galleryError}
+                deletingProject={deletingProject}
+                birthdayFields={
+                  <BirthdayPersonsFields
+                    couple1={project.couple_1}
+                    couple2={project.couple_2}
+                    onUpdatePrimary={(name) => updateProject({ couple_1: name })}
+                    onUpdateAdditional={(names) =>
+                      updateProject({ couple_2: serializeAdditionalBirthdayPersons(names) })
+                    }
+                  />
+                }
+                onUpdateProject={updateProject}
+                onUploadGallery={uploadGalleryFiles}
+                onRemoveGalleryImage={removeGalleryImage}
+                onDeleteProject={handleDeleteProject}
+              />
             )}
-
-            {/* Danger Zone */}
-            <Card className="bg-red-50 border border-red-200 rounded-2xl max-w-2xl">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <div>
-                    <CardTitle className="text-red-800">Danger Zone</CardTitle>
-                    <CardDescription className="text-red-600">Irreversible actions — proceed with caution</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between gap-4 p-4 bg-white rounded-xl border border-red-200">
-                  <div>
-                    <p className="text-sm font-semibold text-red-800">Delete this project</p>
-                    <p className="text-xs text-red-600 mt-0.5">Permanently deletes all guests, RSVP data, and invitation links.</p>
-                  </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={deletingProject}
-                    onClick={handleDeleteProject}
-                    className="shrink-0 rounded-xl"
-                  >
-                    {deletingProject ? 'Deleting…' : 'Delete Project'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </AnimatedTabsContent>
 
         </Tabs>
@@ -3382,6 +4181,174 @@ export default function ProjectDashboardPage() {
               {deletingId ? 'Deleting…' : 'Yes, delete'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!bulkPendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !bulkDeleting) setBulkPendingDelete(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Delete {bulkPendingDelete?.length ?? 0} guest
+              {(bulkPendingDelete?.length ?? 0) === 1 ? '' : 's'}?
+            </DialogTitle>
+            <DialogDescription>
+              Remove the selected guests from this list. Their invite links will stop working.
+              This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {bulkPendingDelete && bulkPendingDelete.length > 0 && (
+            <ul className="max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 text-sm text-gray-700">
+              {bulkPendingDelete.slice(0, 8).map((g) => (
+                <li key={g.id} className="truncate py-0.5 font-medium">
+                  {g.name}
+                </li>
+              ))}
+              {bulkPendingDelete.length > 8 && (
+                <li className="py-0.5 text-xs text-gray-400">
+                  +{bulkPendingDelete.length - 8} more
+                </li>
+              )}
+            </ul>
+          )}
+          <DialogFooter className="gap-3 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={bulkDeleting}
+              onClick={() => setBulkPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700"
+              disabled={bulkDeleting}
+              onClick={confirmBulkDeleteGuests}
+            >
+              {bulkDeleting ? 'Deleting…' : 'Yes, delete selected'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!waQueue}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWaQueue(null)
+            setWaQueueIndex(0)
+            setWaQueueSentIds(new Set())
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          {waQueue && waQueue.length > 0 && (() => {
+            const current = waQueue[Math.min(waQueueIndex, waQueue.length - 1)]
+            const sentCount = waQueueSentIds.size
+            const allDone = sentCount >= waQueue.length
+            const isCurrentSent = waQueueSentIds.has(current.id)
+            const progressPct = Math.round((sentCount / waQueue.length) * 100)
+
+            const markSentAndAdvance = () => {
+              setWaQueueSentIds((prev) => new Set([...prev, current.id]))
+              if (waQueueIndex < waQueue.length - 1) {
+                setTimeout(() => setWaQueueIndex((i) => i + 1), 280)
+              }
+            }
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>WhatsApp send queue</DialogTitle>
+                  <DialogDescription>
+                    Opens one chat at a time. Tap Send in WhatsApp, then continue here for the next guest.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div>
+                    <div className="mb-1.5 flex items-center justify-between text-xs text-gray-500">
+                      <span>
+                        {sentCount} of {waQueue.length} opened
+                      </span>
+                      <span className="font-semibold text-gray-700">{progressPct}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className="h-full rounded-full bg-[#25D366] transition-all duration-300"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {!allDone ? (
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Guest {waQueueIndex + 1} of {waQueue.length}
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">{current.name}</p>
+                      <p className="mt-0.5 font-mono text-xs text-gray-500">
+                        {formatGuestPhoneDisplay(current.phone) || current.phone}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-6 text-center">
+                      <p className="text-base font-semibold text-emerald-800">Queue complete</p>
+                      <p className="mt-1 text-sm text-emerald-700/80">
+                        WhatsApp was opened for all {waQueue.length} guests with a phone number.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => {
+                      setWaQueue(null)
+                      setWaQueueIndex(0)
+                      setWaQueueSentIds(new Set())
+                    }}
+                  >
+                    {allDone ? 'Done' : 'Close'}
+                  </Button>
+                  {!allDone && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={() => {
+                          markSentAndAdvance()
+                        }}
+                      >
+                        Skip
+                      </Button>
+                      <Button
+                        type="button"
+                        className="rounded-xl bg-[#25D366] text-white hover:bg-[#1da851]"
+                        onClick={() => {
+                          sendGuestInviteWhatsApp(current)
+                          markSentAndAdvance()
+                        }}
+                      >
+                        <WhatsAppIcon className="mr-1.5 h-3.5 w-3.5" />
+                        {isCurrentSent ? 'Send again' : 'Send via WhatsApp'}
+                      </Button>
+                    </div>
+                  )}
+                </DialogFooter>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
