@@ -504,9 +504,6 @@ Looking forward to seeing you! 😊`
               <p style={{ color: '#166534', fontSize: 12, margin: '4px 0 0', lineHeight: 1.5 }}>
                 Share with anyone — no guest name, no RSVP or headcount. Unique to this project.
               </p>
-              <p style={{ color: '#14532D', fontSize: 12, margin: '8px 0 0', fontWeight: 700, lineHeight: 1.4 }}>
-                Link preview title: {shareTitle}
-              </p>
               <p style={{
                 color: '#15803D', fontSize: 11, margin: '8px 0 0', fontFamily: 'monospace',
                 wordBreak: 'break-all', opacity: 0.85,
