@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { extractFirstName } from '@/lib/extract-first-name'
-import { getProjectGallery } from '@/lib/invite-media-server'
+import { inviteOgImageMeta } from '@/lib/invite-og'
 
 export function getSiteOrigin(): string {
   const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, '')
@@ -29,6 +29,12 @@ function formatDateLabel(date: string | null | undefined): string {
   })
 }
 
+function clipDescription(text: string, max = 140): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, max - 1).trimEnd()}…`
+}
+
 export async function buildInviteMetadata(opts: {
   event: ProjectForMeta | null | undefined
   path: string
@@ -39,15 +45,24 @@ export async function buildInviteMetadata(opts: {
   const url = `${origin}${path.startsWith('/') ? path : `/${path}`}`
 
   if (!event) {
+    const title = 'Invitation'
+    const description = 'You are invited. Open to view details and RSVP.'
+    const image = inviteOgImageMeta(origin, { alt: title })
     return {
-      title: 'Invitation',
-      description: 'You are invited. Open to view details and RSVP.',
+      title,
+      description,
       openGraph: {
-        title: 'Invitation',
-        description: 'You are invited. Open to view details and RSVP.',
+        title,
+        description,
         type: 'website',
         url,
-        images: [{ url: `${origin}/invitations/couple-portrait.png` }],
+        images: [image],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [image.url],
       },
     }
   }
@@ -57,19 +72,16 @@ export async function buildInviteMetadata(opts: {
   const template = event.event_template?.trim() || 'Event'
   const title = `${couple1} & ${couple2} — ${template} Invitation`
   const dateLabel = formatDateLabel(event.date)
-  const description = guestName?.trim()
-    ? `Dear ${guestName.trim()}, you are invited. Open to view details and RSVP${dateLabel ? ` · ${dateLabel}` : ''}.`
-    : `You are invited. Open to view details and RSVP${dateLabel ? ` · ${dateLabel}` : ''}.`
+  const description = clipDescription(
+    guestName?.trim()
+      ? `Dear ${guestName.trim()}, you are invited. Open to RSVP${dateLabel ? ` · ${dateLabel}` : ''}.`
+      : `You are invited. Open to view details and RSVP${dateLabel ? ` · ${dateLabel}` : ''}.`,
+  )
 
-  let imageUrl = `${origin}/invitations/couple-portrait.png`
-  if (event.id) {
-    try {
-      const gallery = await getProjectGallery(event.id)
-      if (gallery[0]?.url) imageUrl = gallery[0].url
-    } catch {
-      // keep fallback
-    }
-  }
+  const image = inviteOgImageMeta(origin, {
+    projectId: event.id,
+    alt: `${couple1} and ${couple2}`,
+  })
 
   return {
     title,
@@ -79,18 +91,13 @@ export async function buildInviteMetadata(opts: {
       description,
       type: 'website',
       url,
-      images: [
-        {
-          url: imageUrl,
-          alt: `${couple1} and ${couple2}`,
-        },
-      ],
+      images: [image],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [imageUrl],
+      images: [image.url],
     },
   }
 }
