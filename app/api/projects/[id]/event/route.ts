@@ -3,12 +3,19 @@ import { requireAdmin } from '@/lib/admin-auth'
 import {
   COUPLE_FAMILY_FIELDS,
   EMPTY_COUPLE_FAMILY,
+  EMPTY_DESIGN_TEMPLATE,
   EMPTY_PLACE_FIELDS,
   PROJECT_EVENT_ADMIN_SELECT,
+  PROJECT_EVENT_ADMIN_SELECT_WITHOUT_DESIGN,
   PROJECT_EVENT_CORE_SELECT,
+  PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN,
   PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE,
   isMissingCoupleFamilyColumn,
+  isMissingDesignTemplateColumn,
+  mergeProjectRow,
+  queryProjectRow,
 } from '@/lib/couple-family'
+import { isInviteTemplateId, withDefaultDesignTemplate } from '@/lib/invite-templates'
 import {
   resolveProjectEvents,
   sanitizeEventsPayload,
@@ -28,49 +35,71 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   try {
     const supabase = createAdminClient()
-    let { data, error } = await supabase
+    let { data: projectRow, error: initialError } = await supabase
       .from('projects')
       .select(PROJECT_EVENT_ADMIN_SELECT)
       .eq('id', id)
       .single()
 
+    let data: Record<string, unknown> | null = projectRow as Record<string, unknown> | null
+    let fetchError: { message: string } | null = initialError
+      ? { message: initialError.message }
+      : null
+
+    let includeDesign = true
+    if (fetchError && isMissingDesignTemplateColumn(fetchError.message)) {
+      includeDesign = false
+      const retry = await supabase
+        .from('projects')
+        .select(PROJECT_EVENT_ADMIN_SELECT_WITHOUT_DESIGN)
+        .eq('id', id)
+        .single()
+      data = retry.data ? mergeProjectRow(retry.data, EMPTY_DESIGN_TEMPLATE) : null
+      fetchError = retry.error ? { message: retry.error.message } : null
+    }
+
+    const coreSelect = includeDesign
+      ? PROJECT_EVENT_CORE_SELECT
+      : PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN
+    const designFallback = includeDesign ? {} : EMPTY_DESIGN_TEMPLATE
+
     // Fallback if family columns not migrated yet
-    if (error && isMissingCoupleFamilyColumn(error.message)) {
-      if (/place/i.test(error.message || '')) {
-        const retry = await supabase
-          .from('projects')
-          .select(
-            `${PROJECT_EVENT_CORE_SELECT},status,name,events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`,
-          )
-          .eq('id', id)
-          .single()
-        data = retry.data ? { ...retry.data, ...EMPTY_PLACE_FIELDS } : null
-        error = retry.error
+    if (fetchError && isMissingCoupleFamilyColumn(fetchError.message)) {
+      if (/place/i.test(fetchError.message || '')) {
+        const retry = await queryProjectRow(
+          supabase,
+          id,
+          `${coreSelect},status,name,events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`,
+        )
+        data = retry.data
+          ? mergeProjectRow(retry.data, { ...EMPTY_PLACE_FIELDS, ...designFallback })
+          : null
+        fetchError = retry.error
       } else {
-        const retry = await supabase
-          .from('projects')
-          .select(`${PROJECT_EVENT_CORE_SELECT},status,name,events`)
-          .eq('id', id)
-          .single()
-        data = retry.data ? { ...retry.data, ...EMPTY_COUPLE_FAMILY } : null
-        error = retry.error
+        const retry = await queryProjectRow(
+          supabase,
+          id,
+          `${coreSelect},status,name,events`,
+        )
+        data = retry.data
+          ? mergeProjectRow(retry.data, { ...EMPTY_COUPLE_FAMILY, ...designFallback })
+          : null
+        fetchError = retry.error
       }
     }
 
     // Fallback if `events` column not migrated yet
-    if (error && /events/i.test(error.message || '')) {
-      const retry = await supabase
-        .from('projects')
-        .select(`${PROJECT_EVENT_CORE_SELECT},status,name`)
-        .eq('id', id)
-        .single()
-      data = retry.data ? { ...retry.data, events: [], ...EMPTY_COUPLE_FAMILY } : null
-      error = retry.error
+    if (fetchError && /events/i.test(fetchError.message || '')) {
+      const retry = await queryProjectRow(supabase, id, `${coreSelect},status,name`)
+      data = retry.data
+        ? mergeProjectRow(retry.data, { events: [], ...EMPTY_COUPLE_FAMILY, ...designFallback })
+        : null
+      fetchError = retry.error
     }
 
-    if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (fetchError || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    return NextResponse.json(data, {
+    return NextResponse.json(withDefaultDesignTemplate(data as Record<string, unknown>), {
       headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' },
     })
   } catch {
@@ -94,7 +123,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const ALLOWED_FIELDS = [
       'couple_1', 'couple_2', 'date', 'time',
-      'venue', 'location', 'contact', 'maps_url', 'event_template', 'status', 'name',
+      'venue', 'location', 'contact', 'maps_url', 'event_template', 'design_template',
+      'status', 'name',
       ...COUPLE_FAMILY_FIELDS,
     ] as const
 
@@ -111,6 +141,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       !ALLOWED_EVENT_TYPES.includes(updates.event_template)
     ) {
       return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
+    }
+
+    if (
+      typeof updates.design_template === 'string' &&
+      !isInviteTemplateId(updates.design_template)
+    ) {
+      return NextResponse.json({ error: 'Invalid design template' }, { status: 400 })
     }
 
     const supabase = createAdminClient()
@@ -199,6 +236,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           {
             error:
               'Multi-event columns are missing. Run db/migrations/multi-event-schema.sql in Supabase, then try again.',
+          },
+          { status: 500 },
+        )
+      }
+      if (isMissingDesignTemplateColumn(error.message)) {
+        return NextResponse.json(
+          {
+            error:
+              'Design template column is missing. Run db/migrations/design-template.sql in Supabase, then try again.',
           },
           { status: 500 },
         )

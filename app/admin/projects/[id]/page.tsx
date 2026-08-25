@@ -139,6 +139,7 @@ interface Project {
   contact: string
   maps_url?: string
   event_template?: 'Wedding' | 'Engagement' | 'Reception' | 'Mehendi' | 'Haldi' | string
+  design_template?: string | null
   status: string
   gallery_images?: MediaItem[] | unknown
   events?: ProjectEvent[] | unknown

@@ -43,6 +43,44 @@ export function isMissingCoupleFamilyColumn(message?: string | null) {
   return FAMILY_COL_RE.test(message || '')
 }
 
+export function isMissingDesignTemplateColumn(message?: string | null) {
+  return /design_template/i.test(message || '')
+}
+
+export const EMPTY_DESIGN_TEMPLATE = {
+  design_template: 'eternal-vows' as string,
+}
+
+/** Merge extras onto a Supabase row without exploding generated union types. */
+export function mergeProjectRow(
+  row: unknown,
+  extras?: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!row || typeof row !== 'object') return null
+  return extras ? { ...(row as Record<string, unknown>), ...extras } : { ...(row as Record<string, unknown>) }
+}
+
+export type ProjectRowQueryResult = {
+  data: Record<string, unknown> | null
+  error: { message: string } | null
+}
+
+/** Dynamic `.select(...)` without Supabase union-type explosion. */
+export async function queryProjectRow(
+  supabase: { from: (table: string) => unknown },
+  projectId: string,
+  select: string,
+): Promise<ProjectRowQueryResult> {
+  const client = supabase.from('projects') as {
+    select: (cols: string) => {
+      eq: (col: string, val: string) => {
+        single: () => Promise<ProjectRowQueryResult>
+      }
+    }
+  }
+  return client.select(select).eq('id', projectId).single()
+}
+
 /** Event templates that show bride/groom family fields in admin + invite. */
 export function showsCoupleFamilyDetails(template?: string | null) {
   switch (template) {
@@ -273,12 +311,20 @@ export const EMPTY_PLACE_FIELDS = {
   couple_2_place: null as string | null,
 }
 
+/** Core columns without design_template (fallback before the column is migrated). */
+export const PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN =
+  'id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template'
+
 /** Core project event columns (no events JSONB, no family). */
 export const PROJECT_EVENT_CORE_SELECT =
-  'id,couple_1,couple_2,date,time,venue,location,contact,maps_url,event_template'
+  `${PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN},design_template`
 
 /** Admin event GET: core + status/name + events + family. */
 export const PROJECT_EVENT_ADMIN_SELECT = `${PROJECT_EVENT_CORE_SELECT},status,name,events,${FAMILY_SELECT}`
 
+export const PROJECT_EVENT_ADMIN_SELECT_WITHOUT_DESIGN = `${PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN},status,name,events,${FAMILY_SELECT}`
+
 /** Invite / public project GET. */
 export const PROJECT_EVENT_INVITE_SELECT = `${PROJECT_EVENT_CORE_SELECT},events,${FAMILY_SELECT}`
+
+export const PROJECT_EVENT_INVITE_SELECT_WITHOUT_DESIGN = `${PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN},events,${FAMILY_SELECT}`

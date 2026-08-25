@@ -6,6 +6,7 @@ import { Invitation } from '@/components/ui/invitation'
 import { allBirthdayPersons, formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
 import { getEventCopy } from '@/lib/eventCopy'
 import { buildInvitationConfig } from '@/lib/invitation-config'
+import { inviteThemeStyle, resolveDesignTemplate } from '@/lib/invite-templates'
 
 // ─────────────────────────────────────────────────────────────
 //  SHARED UTILITIES
@@ -1262,8 +1263,12 @@ export default function InvitationClient({ guest, event, open = false }: { guest
   }
 
   const config = buildInvitationConfig(event, guest)
+  const design = resolveDesignTemplate(config.designTemplate)
   return (
-    <div className="invite-root relative">
+    <div
+      className={`invite-root relative invite-theme-${design.id}`}
+      style={inviteThemeStyle(design.id)}
+    >
       <Invitation config={config} openInvite={open} />
     </div>
   )

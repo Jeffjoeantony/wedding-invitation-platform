@@ -3,7 +3,9 @@ import { requireAdmin } from '@/lib/admin-auth'
 import {
   COUPLE_FAMILY_FIELDS,
   isMissingCoupleFamilyColumn,
+  isMissingDesignTemplateColumn,
 } from '@/lib/couple-family'
+import { isInviteTemplateId } from '@/lib/invite-templates'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -55,7 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ALLOWED_FIELDS = [
       'name', 'couple_1', 'couple_2', 'date', 'time',
       'venue', 'location', 'contact', 'maps_url',
-      'event_template', 'status',
+      'event_template', 'design_template', 'status',
       ...COUPLE_FAMILY_FIELDS,
     ] as const
 
@@ -72,6 +74,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       !ALLOWED_EVENT_TYPES.includes(updates.event_template)
     ) {
       return NextResponse.json({ error: 'Invalid event type' }, { status: 400 })
+    }
+
+    if (
+      typeof updates.design_template === 'string' &&
+      !isInviteTemplateId(updates.design_template)
+    ) {
+      return NextResponse.json({ error: 'Invalid design template' }, { status: 400 })
     }
 
     if ('events' in body) {
@@ -111,6 +120,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           {
             error:
               'Multi-event columns are missing. Run db/migrations/multi-event-schema.sql in Supabase, then try again.',
+          },
+          { status: 500 },
+        )
+      }
+      if (isMissingDesignTemplateColumn(error.message)) {
+        return NextResponse.json(
+          {
+            error:
+              'Design template column is missing. Run db/migrations/design-template.sql in Supabase, then try again.',
           },
           { status: 500 },
         )

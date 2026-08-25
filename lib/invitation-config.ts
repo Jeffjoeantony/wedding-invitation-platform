@@ -1,6 +1,7 @@
 import { getEventCopy } from '@/lib/eventCopy'
 import { buildCoupleFamilySide } from '@/lib/couple-family'
 import { parseMediaList, type MediaItem } from '@/lib/invite-media'
+import { resolveDesignTemplate } from '@/lib/invite-templates'
 import {
   buildEventDateISO,
   eventLabel,
@@ -56,6 +57,7 @@ export type InvitationConfig = {
   mapsUrl: string
   contact: string
   eventTemplate: string
+  designTemplate: string
   requestLine: string
   atLine: string
   countdownLabel: string
@@ -197,6 +199,7 @@ export function buildInvitationConfig(
     contact?: string
     maps_url?: string
     event_template?: string
+    design_template?: string | null
     gallery_images?: unknown
     events?: unknown
   },
@@ -236,6 +239,7 @@ export function buildInvitationConfig(
   const location = event.location?.trim() || ''
   const address = fullEventAddress(venue, location)
   const template = event.event_template || 'Wedding'
+  const designTemplate = resolveDesignTemplate(event.design_template).id
   const copy = getEventCopy(template)
 
   const projectEvents = resolveProjectEvents(event)
@@ -269,6 +273,7 @@ export function buildInvitationConfig(
     mapsUrl: primary?.mapsUrl || getMapsUrl(event.maps_url, address),
     contact: event.contact?.trim() || '',
     eventTemplate: template,
+    designTemplate,
     requestLine: copy.requestLine,
     atLine: atLineFor(inviteEvents, copy.atLine),
     countdownLabel:

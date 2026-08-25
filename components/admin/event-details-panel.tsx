@@ -24,11 +24,17 @@ import {
 import type { MediaItem } from '@/lib/invite-media'
 import { MAX_GALLERY_IMAGES } from '@/lib/invite-media'
 import {
+  getInviteTemplates,
+  inviteThemeStyle,
+  resolveDesignTemplate,
+} from '@/lib/invite-templates'
+import {
   AlertTriangle,
   CheckCircle2,
   Circle,
   ExternalLink,
   MapPin,
+  Palette,
   Phone,
   Sparkles,
   TriangleAlert,
@@ -57,6 +63,7 @@ export type EventDetailsProject = {
   maps_url?: string
   contact: string
   event_template?: string | null
+  design_template?: string | null
   events?: unknown
 }
 
@@ -133,6 +140,8 @@ export function EventDetailsPanel({
 }) {
   const isBirthday = project.event_template === 'Birthday'
   const showFamily = showsCoupleFamilyDetails(project.event_template)
+  const templateOptions = getInviteTemplates(project.event_template)
+  const selectedDesign = resolveDesignTemplate(project.design_template)
   const events = resolveProjectEvents(project)
   const primaryEvent = events[0]
   const venueAddress = isBirthday
@@ -578,6 +587,72 @@ export function EventDetailsPanel({
           </CardContent>
         </Card>
 
+        {/* Invitation templates */}
+        {templateOptions.length > 0 ? (
+          <Card className="gap-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 py-0 shadow-[0_10px_35px_rgba(31,41,55,0.07)]">
+            <CardHeader className="border-b border-gray-100 px-5 py-4 sm:px-7">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-100">
+                  <Palette className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <CardTitle className="font-serif text-2xl font-semibold tracking-tight text-gray-900">
+                    Templates
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Select a skin for your wedding invitation. Applies to every guest and open invite link.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="px-5 py-5 sm:px-7">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {templateOptions.map((tpl) => {
+                  const selected = selectedDesign.id === tpl.id
+                  return (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        onUpdateProject({ design_template: tpl.id }, { immediate: true })
+                      }
+                      className={`group relative overflow-hidden rounded-2xl border text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300 ${
+                        selected
+                          ? 'border-violet-400 bg-violet-50/40 shadow-[0_8px_24px_rgba(91,33,182,0.12)] ring-2 ring-violet-300/70'
+                          : 'border-gray-200 bg-white hover:border-violet-200 hover:bg-violet-50/20'
+                      }`}
+                    >
+                      <div className="flex h-14 border-b border-black/[0.06]">
+                        <div className="flex-[3]" style={{ background: tpl.preview[0] }} />
+                        <div className="flex-[2]" style={{ background: tpl.preview[1] }} />
+                        <div className="w-10 shrink-0" style={{ background: tpl.preview[2] }} />
+                      </div>
+                      <div className="px-4 py-3.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{tpl.name}</p>
+                            <p className="mt-1 text-xs leading-snug text-gray-500">{tpl.description}</p>
+                          </div>
+                          {selected ? (
+                            <CheckCircle2
+                              className="h-5 w-5 shrink-0 text-violet-600"
+                              aria-label="Selected"
+                            />
+                          ) : null}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-4 text-xs text-gray-400">
+                Currently selected: <span className="font-medium text-gray-600">{selectedDesign.name}</span>
+              </p>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {/* Danger zone */}
         <Card className="gap-0 overflow-hidden rounded-2xl border border-red-200 bg-red-50/80 py-0 shadow-none">
           <CardContent className="px-5 py-5 sm:px-7">
@@ -619,23 +694,37 @@ export function EventDetailsPanel({
             <CardTitle className="font-serif text-base">Invite preview</CardTitle>
           </CardHeader>
           <CardContent className="px-5 py-5">
-            <div className="relative overflow-hidden rounded-2xl border border-rose-100 bg-gradient-to-b from-rose-50/80 via-white to-amber-50/40 px-5 py-6 text-center shadow-inner">
-              <div
-                className="pointer-events-none absolute inset-0 opacity-[0.12]"
-                style={{
-                  backgroundImage:
-                    'radial-gradient(circle at 20% 20%, #9D022C 0.6px, transparent 0.7px), radial-gradient(circle at 80% 70%, #9D022C 0.6px, transparent 0.7px)',
-                  backgroundSize: '18px 18px',
-                }}
-              />
-              <p className="relative font-serif text-xl font-semibold tracking-tight text-gray-900">
+            <div
+              className="relative overflow-hidden rounded-2xl border px-5 py-6 text-center shadow-inner"
+              style={{
+                ...inviteThemeStyle(selectedDesign.id),
+                borderColor: 'color-mix(in oklab, var(--border) 80%, transparent)',
+                background:
+                  'linear-gradient(180deg, color-mix(in oklab, var(--gold-soft) 25%, var(--background)), var(--background))',
+                color: 'var(--foreground)',
+              }}
+            >
+              <p className="relative font-serif text-xl font-semibold tracking-tight">
                 {project.name || 'Your celebration'}
               </p>
               {previewDate ? (
-                <p className="relative mt-2 text-xs font-medium text-rose-800/80">{previewDate}</p>
+                <p
+                  className="relative mt-2 text-xs font-medium"
+                  style={{ color: 'color-mix(in oklab, var(--foreground) 75%, transparent)' }}
+                >
+                  {previewDate}
+                </p>
               ) : (
-                <p className="relative mt-2 text-xs text-gray-400">Add a date to preview timing</p>
+                <p className="relative mt-2 text-xs opacity-50">Add a date to preview timing</p>
               )}
+              {templateOptions.length > 0 ? (
+                <p
+                  className="relative mt-3 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                  style={{ color: 'var(--gold)' }}
+                >
+                  {selectedDesign.name}
+                </p>
+              ) : null}
               {showFamily ? (
                 <div className="relative mt-5 grid gap-4 text-left sm:grid-cols-2">
                   {familySides.map((side) => {

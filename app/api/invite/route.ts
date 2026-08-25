@@ -1,12 +1,19 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   EMPTY_COUPLE_FAMILY,
+  EMPTY_DESIGN_TEMPLATE,
   EMPTY_PLACE_FIELDS,
   PROJECT_EVENT_CORE_SELECT,
+  PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN,
   PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE,
   PROJECT_EVENT_INVITE_SELECT,
+  PROJECT_EVENT_INVITE_SELECT_WITHOUT_DESIGN,
   isMissingCoupleFamilyColumn,
+  isMissingDesignTemplateColumn,
+  mergeProjectRow,
+  queryProjectRow,
 } from '@/lib/couple-family'
+import { withDefaultDesignTemplate } from '@/lib/invite-templates'
 import { getGuestMoments, getProjectGallery } from '@/lib/invite-media-server'
 import { rateLimit } from '@/lib/rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
@@ -105,39 +112,63 @@ export async function GET(req: NextRequest) {
       .update({ opened_at: new Date().toISOString() })
       .eq('id', guestRow.id)
 
-    let { data: event, error: eventError } = await supabase
+    let { data: eventRow, error: eventError } = await supabase
       .from('projects')
       .select(PROJECT_EVENT_INVITE_SELECT)
       .eq('id', guestRow.project_id)
       .single()
 
-    if (eventError && isMissingCoupleFamilyColumn(eventError.message)) {
-      if (/place/i.test(eventError.message || '')) {
-        const retry = await supabase
-          .from('projects')
-          .select(`${PROJECT_EVENT_CORE_SELECT},events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`)
-          .eq('id', guestRow.project_id)
-          .single()
-        event = retry.data ? { ...retry.data, ...EMPTY_PLACE_FIELDS } : null
-        eventError = retry.error
+    let event: Record<string, unknown> | null = eventRow as Record<string, unknown> | null
+    let fetchError: { message: string } | null = eventError
+      ? { message: eventError.message }
+      : null
+
+    let includeDesign = true
+    if (fetchError && isMissingDesignTemplateColumn(fetchError.message)) {
+      includeDesign = false
+      const retry = await supabase
+        .from('projects')
+        .select(PROJECT_EVENT_INVITE_SELECT_WITHOUT_DESIGN)
+        .eq('id', guestRow.project_id)
+        .single()
+      event = retry.data ? mergeProjectRow(retry.data, EMPTY_DESIGN_TEMPLATE) : null
+      fetchError = retry.error
+    }
+
+    const coreSelect = includeDesign
+      ? PROJECT_EVENT_CORE_SELECT
+      : PROJECT_EVENT_CORE_SELECT_WITHOUT_DESIGN
+    const designFallback = includeDesign ? {} : EMPTY_DESIGN_TEMPLATE
+
+    if (fetchError && isMissingCoupleFamilyColumn(fetchError.message)) {
+      if (/place/i.test(fetchError.message || '')) {
+        const retry = await queryProjectRow(
+          supabase,
+          guestRow.project_id,
+          `${coreSelect},events,${PROJECT_EVENT_FAMILY_SELECT_WITHOUT_PLACE}`,
+        )
+        event = retry.data
+          ? mergeProjectRow(retry.data, { ...EMPTY_PLACE_FIELDS, ...designFallback })
+          : null
+        fetchError = retry.error
       } else {
-        const retry = await supabase
-          .from('projects')
-          .select(`${PROJECT_EVENT_CORE_SELECT},events`)
-          .eq('id', guestRow.project_id)
-          .single()
-        event = retry.data ? { ...retry.data, ...EMPTY_COUPLE_FAMILY } : null
-        eventError = retry.error
+        const retry = await queryProjectRow(
+          supabase,
+          guestRow.project_id,
+          `${coreSelect},events`,
+        )
+        event = retry.data
+          ? mergeProjectRow(retry.data, { ...EMPTY_COUPLE_FAMILY, ...designFallback })
+          : null
+        fetchError = retry.error
       }
     }
 
-    if (!event || eventError) {
-      const retry = await supabase
-        .from('projects')
-        .select(PROJECT_EVENT_CORE_SELECT)
-        .eq('id', guestRow.project_id)
-        .single()
-      event = retry.data ? { ...retry.data, events: [], ...EMPTY_COUPLE_FAMILY } : null
+    if (!event || fetchError) {
+      const retry = await queryProjectRow(supabase, guestRow.project_id, coreSelect)
+      event = retry.data
+        ? mergeProjectRow(retry.data, { events: [], ...EMPTY_COUPLE_FAMILY, ...designFallback })
+        : null
     }
 
     const [moments, galleryImages] = await Promise.all([
@@ -147,7 +178,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       guest: { ...guestRow, moments },
-      event: event ? { ...event, gallery_images: galleryImages } : event,
+      event: event ? { ...withDefaultDesignTemplate(event as Record<string, unknown>), gallery_images: galleryImages } : event,
     })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
