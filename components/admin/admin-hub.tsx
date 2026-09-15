@@ -5,7 +5,18 @@ import { createClient } from '@/lib/supabase/client'
 import { usePathname, useRouter } from 'next/navigation'
 import NotificationSystem from '@/components/NotificationSystem'
 import { addNotification, playNotificationSound } from '@/lib/notifications'
-import { formatBirthdayPersonsDisplay } from '@/lib/birthdayPersons'
+import { WeddingDashboardHome } from '@/components/admin/dashboard/wedding-dashboard-home'
+import {
+  DASHBOARD_NAV,
+  ProfileCard,
+  VowStudioMark,
+  type DashboardNavItem,
+} from '@/components/admin/dashboard/nav-config'
+import {
+  CreateProjectCard,
+  ProjectSignatureCard,
+} from '@/components/admin/project-signature-card'
+import { EventsSection } from '@/components/admin/events-section'
 
 interface ProjectStats {
   total: number
@@ -204,165 +215,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// ── Project Card ──────────────────────────────────────────────────────────────
-function ProjectCard({ project, onOpen, onToggleStatus, onDelete }: {
-  project: Project
-  onOpen: () => void
-  onToggleStatus: () => void
-  onDelete: () => void
-}) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const eventType = getEventType(project.event_template)
-
-  const dateStr = project.date
-    ? new Date(project.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-    : null
-
-  const confirmedPct = project._stats.total > 0
-    ? Math.round((project._stats.confirmed / project._stats.total) * 100) : 0
-  const declinedPct = project._stats.total > 0
-    ? Math.round((project._stats.declined / project._stats.total) * 100) : 0
-  const pendingPct = project._stats.total > 0
-    ? Math.round((project._stats.pending / project._stats.total) * 100) : 0
-
-  return (
-    <div
-      style={{
-        background: '#FFFFFF',
-        border: hovered ? '1.5px solid #C4A46A' : '1.5px solid #E5E7EB',
-        borderRadius: '16px',
-        padding: '20px',
-        cursor: 'pointer',
-        position: 'relative',
-        transition: 'all 0.22s ease',
-        boxShadow: hovered
-          ? '0 8px 32px rgba(158,131,72,0.12), 0 2px 8px rgba(31,41,55,0.06)'
-          : '0 1px 4px rgba(31,41,55,0.06), 0 0 0 0 transparent',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={() => { if (!menuOpen) onOpen() }}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          {/* Event icon */}
-          <div style={{
-            width: 40, height: 40, borderRadius: 10,
-            background: eventType.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 20, flexShrink: 0,
-          }}>
-            {eventType.emoji}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p style={{ color: '#1F2937', fontWeight: 700, fontSize: '15px', margin: 0 }} className="truncate">{project.name}</p>
-            {(project.couple_1 || project.couple_2) && (
-              <p style={{ color: '#6B7280', fontSize: '12px', marginTop: 2 }} className="truncate">
-                {project.event_template === 'Birthday'
-                  ? formatBirthdayPersonsDisplay(project.couple_1, project.couple_2)
-                  : `${project.couple_1}${project.couple_1 && project.couple_2 ? ' & ' : ''}${project.couple_2}`}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Context menu */}
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            style={{
-              color: '#9CA3AF', background: menuOpen ? '#F3F4F6' : 'transparent',
-              border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = '#F9FAFB'; e.currentTarget.style.color = '#6B7280' }}
-            onMouseLeave={(e) => { if (!menuOpen) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#9CA3AF' } }}
-          >
-            <Icon.Dots />
-          </button>
-          {menuOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: '4px',
-              background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px',
-              padding: '6px', minWidth: '170px', zIndex: 50,
-              boxShadow: '0 10px 40px rgba(31,41,55,0.12), 0 2px 8px rgba(31,41,55,0.06)',
-            }}>
-              <button className="ctx-item" onClick={() => { setMenuOpen(false); onOpen() }}>Open project</button>
-              <button className="ctx-item" onClick={() => { setMenuOpen(false); onToggleStatus() }}>
-                {project.status === 'paused' ? 'Mark as active' : 'Pause project'}
-              </button>
-              <div style={{ height: 1, background: '#F3F4F6', margin: '4px 0' }} />
-              <button className="ctx-item ctx-danger" onClick={() => { setMenuOpen(false); onDelete() }}>Delete project</button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Badges row */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span style={{
-          background: eventType.bg, color: eventType.color,
-          fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 999,
-          letterSpacing: '0.03em',
-        }}>
-          {eventType.label}
-        </span>
-        {dateStr && (
-          <span style={{ color: '#6B7280', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Icon.Calendar /> {dateStr}
-          </span>
-        )}
-        {project.location && (
-          <span style={{ color: '#6B7280', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }} className="truncate max-w-[140px]">
-            <Icon.MapPin /> {project.location}
-          </span>
-        )}
-      </div>
-
-      {/* Progress bar */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ color: '#9CA3AF', fontSize: 11 }}>
-            {project._stats.total > 0 ? `${project._stats.total} guests invited` : 'No guests yet'}
-          </span>
-          {project._stats.total > 0 && (
-            <span style={{ color: '#16A34A', fontSize: 11, fontWeight: 600 }}>{confirmedPct}% confirmed</span>
-          )}
-        </div>
-        <div style={{ height: 5, background: '#F3F4F6', borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
-          {project._stats.confirmed > 0 && (
-            <div style={{ width: `${confirmedPct}%`, background: '#16A34A', borderRadius: '999px 0 0 999px', transition: 'width 0.5s ease' }} />
-          )}
-          {project._stats.declined > 0 && (
-            <div style={{ width: `${declinedPct}%`, background: '#EF4444' }} />
-          )}
-          {project._stats.pending > 0 && (
-            <div style={{ width: `${pendingPct}%`, background: '#F59E0B', borderRadius: '0 999px 999px 0' }} />
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between">
-        <StatusBadge status={project.status} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 11 }}>
-          {project._stats.total > 0 && (
-            <>
-              <span style={{ color: '#16A34A', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Icon.CheckCircle /> {project._stats.confirmed}
-              </span>
-              <span style={{ color: '#F59E0B', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Icon.Clock /> {project._stats.pending}
-              </span>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
+// Project grid cards live in `@/components/admin/project-signature-card`
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 function StatCard({ label, value, icon, accent, trend }: {
@@ -739,147 +592,66 @@ function NewProjectModal({ onClose, onCreate }: {
   )
 }
 
-// ── Dashboard Stats View ──────────────────────────────────────────────────────
-function DashboardView({ projects }: { projects: Project[] }) {
-  const totalGuests = projects.reduce((s, p) => s + p._stats.total, 0)
-  const totalConfirmed = projects.reduce((s, p) => s + p._stats.confirmed, 0)
-  const totalPending = projects.reduce((s, p) => s + p._stats.pending, 0)
-
-  const now = new Date()
-  const hour = now.getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-
-  const recent = [...projects]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5)
-
+// ── Dashboard Stats View (VowStudio home) ─────────────────────────────────────
+function DashboardView({
+  projects,
+  userName,
+  onRefresh,
+  refreshing,
+}: {
+  projects: Project[]
+  userName: string
+  onRefresh: () => void
+  refreshing?: boolean
+}) {
   return (
-    <div>
-      {/* Welcome */}
-      <div style={{
-        background: 'linear-gradient(135deg, #FAF8F3 0%, #F3EEE6 42%, #E8D5B0 100%)',
-        borderRadius: 20, padding: '28px 32px', marginBottom: 28,
-        position: 'relative', overflow: 'hidden',
-        border: '1.5px solid #E6DDD0',
-        boxShadow: '0 12px 40px -24px rgba(158,131,72,0.35)',
-      }}>
-        <div style={{
-          position: 'absolute', top: -20, right: -20, width: 160, height: 160,
-          borderRadius: '50%', background: 'rgba(196,164,106,0.18)',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: -40, right: 60, width: 120, height: 120,
-          borderRadius: '50%', background: 'rgba(232,213,176,0.45)',
-        }} />
-        <p style={{ color: '#9E8348', fontSize: 13, margin: '0 0 6px', fontWeight: 500 }}>{dateLabel}</p>
-        <h2 style={{ color: '#1C1916', fontSize: 26, fontWeight: 800, margin: '0 0 6px', letterSpacing: '-0.3px' }}>
-          {greeting} ✦
-        </h2>
-        <p style={{ color: '#6E6862', fontSize: 14, margin: 0 }}>
-          You have {projects.filter(p => p.status === 'active').length} active project{projects.filter(p => p.status === 'active').length !== 1 ? 's' : ''} running.
-        </p>
-      </div>
-
-      {/* Stat cards */}
-      <div className="dashboard-stats">
-        <StatCard
-          label="Total Projects"
-          value={projects.length}
-          icon={<Icon.Folder />}
-          accent="#C4A46A"
-        />
-        <StatCard
-          label="Total Guests"
-          value={totalGuests.toLocaleString()}
-          icon={<Icon.Users />}
-          accent="#7C3AED"
-        />
-        <StatCard
-          label="Confirmed RSVPs"
-          value={totalConfirmed.toLocaleString()}
-          icon={<Icon.CheckCircle />}
-          accent="#16A34A"
-        />
-        <StatCard
-          label="Pending RSVPs"
-          value={totalPending.toLocaleString()}
-          icon={<Icon.Clock />}
-          accent="#F59E0B"
-        />
-      </div>
-
-      {/* Recent Projects */}
-      <div style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 4px rgba(31,41,55,0.06)' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ color: '#1F2937', fontSize: 15, fontWeight: 700, margin: 0 }}>Recent Projects</h3>
-          <span style={{ color: '#6B7280', fontSize: 13 }}>{projects.length} total</span>
-        </div>
-        {recent.length === 0 ? (
-          <div style={{ padding: '40px 24px', textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
-            No projects yet. Create your first one!
-          </div>
-        ) : (
-          <div>
-            {recent.map((p, i) => {
-              const et = getEventType(p.event_template)
-              return (
-                <div
-                  key={p.id}
-                  style={{
-                    padding: '14px 24px',
-                    borderBottom: i < recent.length - 1 ? '1px solid #F9FAFB' : 'none',
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    transition: 'background 0.15s', cursor: 'default',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FAFAFA' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-                >
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: et.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                    {et.emoji}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ color: '#1F2937', fontWeight: 600, fontSize: 14, margin: 0 }} className="truncate">{p.name}</p>
-                    <p style={{ color: '#9CA3AF', fontSize: 12, margin: '2px 0 0' }}>
-                      {et.label} · {p._stats.total} guests
-                    </p>
-                  </div>
-                  <StatusBadge status={p.status} />
-                  <span style={{ color: '#16A34A', fontSize: 13, fontWeight: 700, minWidth: 40, textAlign: 'right' }}>
-                    {p._stats.confirmed} ✓
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
+    <WeddingDashboardHome
+      projects={projects}
+      userName={userName}
+      onRefresh={onRefresh}
+      refreshing={refreshing}
+    />
   )
 }
 
 // ── Skeleton loader ───────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div style={{ background: '#FFFFFF', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 20, boxShadow: '0 1px 4px rgba(31,41,55,0.06)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10 }} />
-        <div style={{ flex: 1 }}>
-          <div className="skeleton-pulse" style={{ height: 15, width: '65%', borderRadius: 6, marginBottom: 8 }} />
-          <div className="skeleton-pulse" style={{ height: 12, width: '40%', borderRadius: 6 }} />
+    <div className="flex min-h-[280px] flex-col overflow-hidden rounded-2xl border border-[#E6EAF0] bg-white">
+      <div className="flex items-start gap-3 px-5 py-4">
+        <div className="skeleton-pulse h-11 w-11 shrink-0 rounded-xl" />
+        <div className="min-w-0 flex-1 border-l-2 border-[#EEF2F7] pl-3">
+          <div className="skeleton-pulse mb-2 h-3.5 w-2/3 rounded" />
+          <div className="skeleton-pulse mb-1.5 h-3 w-1/2 rounded" />
+          <div className="skeleton-pulse h-2.5 w-2/5 rounded" />
         </div>
       </div>
-      <div className="skeleton-pulse" style={{ height: 5, borderRadius: 999, marginBottom: 16 }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <div className="skeleton-pulse" style={{ height: 22, width: 72, borderRadius: 999 }} />
-        <div className="skeleton-pulse" style={{ height: 22, width: 90, borderRadius: 6 }} />
+      <div className="flex-1 border-t border-[#EEF2F7] px-5 py-4">
+        <div className="mb-2 flex justify-between gap-2">
+          <div className="skeleton-pulse h-4 w-1/2 rounded" />
+          <div className="skeleton-pulse h-5 w-16 rounded-full" />
+        </div>
+        <div className="skeleton-pulse h-3 w-2/5 rounded" />
+      </div>
+      <div className="flex items-end justify-between border-t border-[#EEF2F7] px-5 py-4">
+        <div>
+          <div className="skeleton-pulse mb-2 h-6 w-10 rounded" />
+          <div className="skeleton-pulse h-2.5 w-12 rounded" />
+        </div>
+        <div className="skeleton-pulse h-3.5 w-12 rounded" />
       </div>
     </div>
   )
 }
 
 // ── Settings Panel ───────────────────────────────────────────────────────────
-function SettingsPanel({ onLogout }: { onLogout: () => void }) {
+function SettingsPanel({
+  onLogout,
+  onDisplayNameChange,
+}: {
+  onLogout: () => void
+  onDisplayNameChange?: (name: string) => void
+}) {
   const supabase = createClient()
   const [section, setSection] = useState<'profile' | 'notifications' | 'security' | 'appearance' | 'danger'>('profile')
   const [userEmail, setUserEmail] = useState('')
@@ -908,7 +680,9 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         setUserEmail(data.user.email ?? '')
-        setDisplayName(data.user.user_metadata?.full_name || 'Admin')
+        const name = (data.user.user_metadata?.full_name as string | undefined)?.trim() || 'Admin'
+        setDisplayName(name)
+        onDisplayNameChange?.(name)
       }
     })
     // Load prefs from localStorage
@@ -932,7 +706,12 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
   const handleSaveProfile = async () => {
     setSaving(true)
     setMsg(null)
-    const { error } = await supabase.auth.updateUser({ data: { full_name: displayName } })
+    const nextName = displayName.trim() || 'Admin'
+    const { error } = await supabase.auth.updateUser({ data: { full_name: nextName } })
+    if (!error) {
+      setDisplayName(nextName)
+      onDisplayNameChange?.(nextName)
+    }
     setMsg(error
       ? { text: 'Failed to update profile.', type: 'error' }
       : { text: 'Profile updated successfully.', type: 'success' }
@@ -1342,6 +1121,7 @@ function SettingsPanel({ onLogout }: { onLogout: () => void }) {
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', href: '/admin', Icon: Icon.Dashboard },
   { id: 'projects', label: 'Projects', href: '/admin/projects', Icon: Icon.Grid },
+  { id: 'events', label: 'Events', href: '/admin/events', Icon: Icon.Calendar },
   { id: 'guests', label: 'Guests', href: '/admin/guests', Icon: Icon.Users },
   { id: 'analytics', label: 'Analytics', href: '/admin/analytics', Icon: Icon.Analytics },
   { id: 'templates', label: 'Templates', href: '/admin/templates', Icon: Icon.Templates },
@@ -1353,10 +1133,22 @@ type NavId = (typeof NAV_ITEMS)[number]['id']
 function navIdFromPathname(pathname: string): NavId {
   if (pathname === '/admin' || pathname === '/admin/') return 'dashboard'
   if (pathname === '/admin/projects' || pathname === '/admin/projects/') return 'projects'
+  if (pathname.startsWith('/admin/events')) return 'events'
   if (pathname.startsWith('/admin/guests')) return 'guests'
   if (pathname.startsWith('/admin/analytics')) return 'analytics'
   if (pathname.startsWith('/admin/templates')) return 'templates'
   if (pathname.startsWith('/admin/settings')) return 'settings'
+  return 'dashboard'
+}
+
+function sidebarActiveId(pathname: string): string {
+  if (pathname === '/admin' || pathname === '/admin/') return 'dashboard'
+  if (pathname.startsWith('/admin/events')) return 'events'
+  if (pathname.startsWith('/admin/guests')) return 'guests'
+  if (pathname.startsWith('/admin/templates')) return 'templates'
+  if (pathname.startsWith('/admin/analytics')) return 'analytics'
+  if (pathname.startsWith('/admin/settings')) return 'settings'
+  if (pathname.startsWith('/admin/projects')) return 'clients'
   return 'dashboard'
 }
 
@@ -1365,23 +1157,44 @@ export function AdminHub() {
   const router = useRouter()
   const pathname = usePathname()
   const activeNav = useMemo(() => navIdFromPathname(pathname), [pathname])
+  const sidebarActive = useMemo(() => sidebarActiveId(pathname), [pathname])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused' | 'completed'>('all')
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'created'>('created')
   const [showNewModal, setShowNewModal] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
+  const [displayName, setDisplayName] = useState('Admin')
+  const [comingSoon, setComingSoon] = useState<string | null>(null)
 
-  const loadProjects = useCallback(async () => {
-    setLoading(true)
+  const loadProjects = useCallback(async (opts?: { soft?: boolean }) => {
+    if (opts?.soft) setRefreshing(true)
+    else setLoading(true)
     const res = await fetch('/api/projects')
     if (res.ok) setProjects(await res.json())
     setLoading(false)
+    setRefreshing(false)
   }, [])
 
   useEffect(() => { loadProjects() }, [loadProjects])
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        // Same source as Settings → Profile display name
+        const metaName = (data.user.user_metadata?.full_name as string | undefined)?.trim()
+        setDisplayName(metaName || 'Admin')
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    setComingSoon(null)
+  }, [pathname])
 
   useEffect(() => {
     if (!navOpen) return
@@ -1395,6 +1208,16 @@ export function AdminHub() {
     await supabase.auth.signOut()
     router.push('/admin/login')
     router.refresh()
+  }
+
+  const handleNavClick = (item: DashboardNavItem) => {
+    setNavOpen(false)
+    if (item.comingSoon) {
+      setComingSoon(item.label)
+      return
+    }
+    setComingSoon(null)
+    if (item.href && pathname !== item.href) router.push(item.href)
   }
 
   const handleToggleStatus = async (project: Project) => {
@@ -1443,33 +1266,47 @@ export function AdminHub() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { background: #FAF8F3 !important; }
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body { background: #F7F9FC !important; }
 
         .admin-root {
-          font-family: 'Inter', -apple-system, sans-serif;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          height: 100vh;
           min-height: 100vh;
-          background:
-            radial-gradient(ellipse 90% 50% at 50% -8%, rgba(232, 213, 176, 0.45), transparent 62%),
-            linear-gradient(180deg, #FAF8F3 0%, #F3EEE6 55%, #EDE6DA 100%);
+          background: #F7F9FC;
           display: flex;
-          color: #1C1916;
+          align-items: stretch;
+          justify-content: stretch;
+          padding: 0;
+          color: #17233F;
+          zoom: 0.9;
+        }
+        .admin-shell {
+          display: flex;
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          background: #FFFFFF;
+          border-radius: 0;
+          overflow: hidden;
+          box-shadow: none;
+          border: none;
         }
 
         /* ── Sidebar ── */
         .sidebar {
-          width: 224px;
-          background: rgba(255, 252, 248, 0.92);
-          border-right: 1.5px solid #E6DDD0;
+          width: 248px;
+          background: #FFFFFF;
+          border-right: 1px solid #E6EAF0;
           display: flex;
           flex-direction: column;
-          padding: 20px 12px;
+          padding: 18px 14px;
           position: sticky;
           top: 0;
-          height: 100vh;
+          height: 100%;
+          min-height: 0;
           flex-shrink: 0;
           z-index: 10;
-          backdrop-filter: blur(12px);
         }
         .sidebar-overlay {
           display: none;
@@ -1495,61 +1332,55 @@ export function AdminHub() {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 0 10px 20px;
-          border-bottom: 1px solid #F3F4F6;
-          margin-bottom: 12px;
-        }
-        .sidebar-logo-icon {
-          width: 34px; height: 34px;
-          border-radius: 9px;
-          background: transparent;
-          display: flex; align-items: center; justify-content: center;
+          padding: 0 8px 16px;
+          border-bottom: 1px solid #EEF2F7;
+          margin-bottom: 14px;
           flex-shrink: 0;
-          overflow: hidden;
-          box-shadow: 0 1px 3px rgba(158, 131, 72, 0.18);
         }
         .sidebar-logo-text {
-          font-size: 15px; font-weight: 800; color: #1F2937; letter-spacing: -0.2px;
+          font-size: 15px; font-weight: 800; color: #17233F; letter-spacing: -0.2px;
         }
         .sidebar-logo-badge {
-          font-size: 9px; font-weight: 700; color: #9E8348;
-          background: #F3EEE6; padding: 1px 5px; border-radius: 4px;
-          letter-spacing: 0.04em; margin-top: 1px;
+          font-size: 11px; font-weight: 500; color: #64748B;
+          margin-top: 1px;
         }
 
         .nav-section-label {
-          font-size: 10px; font-weight: 700; color: #9CA3AF;
+          font-size: 10px; font-weight: 700; color: #94A3B8;
           letter-spacing: 0.08em; text-transform: uppercase;
-          padding: 0 10px; margin: 4px 0 4px;
+          padding: 0 10px; margin: 12px 0 6px;
         }
 
         .nav-item {
           display: flex; align-items: center; gap: 10px;
-          padding: 9px 12px; border-radius: 10px;
-          font-size: 14px; font-weight: 500; color: #6B7280;
-          cursor: pointer; border: none; background: transparent;
-          width: 100%; text-align: left;
-          transition: all 0.15s ease;
-          font-family: inherit;
-          position: relative;
+          padding: 9px 12px; border-radius: 12px;
+          font-size: 13.5px; font-weight: 500; color: #64748B;
+          background: transparent; border: none; cursor: pointer;
+          width: 100%; text-align: left; transition: all 0.15s;
         }
-        .nav-item:hover { background: #F9FAFB; color: #1F2937; }
+        .nav-item:hover { background: #F8FAFC; color: #334155; }
         .nav-item.active {
-          background: #F3EEE6;
-          color: #C4A46A;
-          font-weight: 600;
+          background: #F1F5F9; color: #17233F; font-weight: 600;
         }
-        .nav-item.active::before {
-          content: '';
-          position: absolute; left: 0; top: 20%; bottom: 20%;
-          width: 3px; border-radius: 0 3px 3px 0;
-          background: #C4A46A;
+        .nav-item .nav-badge {
+          margin-left: auto;
+          min-width: 20px; height: 20px; padding: 0 6px;
+          border-radius: 999px; background: #17233F; color: #fff;
+          font-size: 10px; font-weight: 700;
+          display: inline-flex; align-items: center; justify-content: center;
         }
 
         .sidebar-bottom {
           margin-top: auto;
-          padding-top: 12px;
-          border-top: 1px solid #F3F4F6;
+          padding-top: 8px;
+          flex-shrink: 0;
+        }
+        .sidebar-scroll {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow-y: auto;
+          padding-right: 2px;
+          scrollbar-width: thin;
         }
         .user-chip {
           display: flex; align-items: center; gap: 10px;
@@ -1575,33 +1406,33 @@ export function AdminHub() {
         .logout-btn:hover { background: #FEF2F2; color: #EF4444; }
 
         /* ── Main ── */
-        .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #F7F9FC; }
 
         .topbar {
-          height: 60px;
-          background: rgba(250,248,243,0.88);
+          height: 56px;
+          background: rgba(247, 249, 252, 0.92);
           backdrop-filter: blur(12px);
-          border-bottom: 1.5px solid #E6DDD0;
+          border-bottom: 1px solid #E6EAF0;
           display: flex; align-items: center;
-          padding: 0 32px; gap: 16px;
+          padding: 0 24px; gap: 12px;
           position: sticky; top: 0; z-index: 5;
         }
-        .topbar-title { font-size: 16px; font-weight: 700; color: #1C1916; }
-        .topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6E6862; }
+        .topbar-title { font-size: 15px; font-weight: 700; color: #17233F; }
+        .topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748B; }
         .topbar-spacer { flex: 1; }
         .topbar-icon-btn {
           width: 36px; height: 36px; border-radius: 9px;
           display: flex; align-items: center; justify-content: center;
-          color: #6E6862; background: transparent; border: none; cursor: pointer;
+          color: #64748B; background: transparent; border: none; cursor: pointer;
           transition: all 0.15s;
         }
-        .topbar-icon-btn:hover { background: #F3EEE6; color: #1C1916; }
+        .topbar-icon-btn:hover { background: #EEF2F7; color: #17233F; }
 
         /* ── Page body ── */
-        .page-body { padding: 32px; flex: 1; overflow-y: auto; overflow-x: hidden; }
+        .page-body { padding: 22px 24px 28px; flex: 1; overflow-y: auto; overflow-x: hidden; }
         .page-header { margin-bottom: 24px; }
-        .page-header h1 { font-size: 22px; font-weight: 800; color: #1F2937; letter-spacing: -0.3px; }
-        .page-header p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+        .page-header h1 { font-size: 22px; font-weight: 800; color: #17233F; letter-spacing: -0.3px; }
+        .page-header p { font-size: 13px; color: #64748B; margin-top: 4px; }
 
         .dashboard-hero-title { font-size: 22px; }
         .dashboard-stats {
@@ -1668,7 +1499,14 @@ export function AdminHub() {
         .create-btn:active { transform: translateY(0); }
 
         /* ── Grid / List ── */
-        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+        .projects-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 20px;
+        }
+        @media (max-width: 1200px) {
+          .projects-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
         .projects-list { display: flex; flex-direction: column; gap: 8px; }
 
         /* List view header */
@@ -1800,6 +1638,7 @@ export function AdminHub() {
           .sidebar {
             position: fixed;
             left: 0; top: 0;
+            height: 100%;
             transform: translateX(-100%);
             box-shadow: 8px 0 32px rgba(15, 23, 42, 0.12);
             z-index: 40;
@@ -1840,16 +1679,15 @@ export function AdminHub() {
           onClick={() => setNavOpen(false)}
         />
 
+        <div className="admin-shell">
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           {/* Logo */}
           <div className="sidebar-logo">
-            <div className="sidebar-logo-icon">
-              <Icon.GoldleafMark />
-            </div>
-            <div>
-              <div className="sidebar-logo-text">Goldleaf</div>
-              <div className="sidebar-logo-badge">ADMIN</div>
+            <VowStudioMark />
+            <div className="min-w-0">
+              <div className="sidebar-logo-text">VowStudio</div>
+              <div className="sidebar-logo-badge">Wedding Invitations</div>
             </div>
             <button
               type="button"
@@ -1863,42 +1701,54 @@ export function AdminHub() {
           </div>
 
           {/* Nav */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`nav-item ${activeNav === item.id ? 'active' : ''}`}
-                aria-current={activeNav === item.id ? 'page' : undefined}
-                onClick={() => {
-                  setNavOpen(false)
-                  if (pathname !== item.href) router.push(item.href)
-                }}
-              >
-                <item.Icon />
-                {item.label}
-              </button>
+          <div className="sidebar-scroll">
+            {DASHBOARD_NAV.map((group, gi) => (
+              <div key={group.section ?? `nav-${gi}`}>
+                {group.section ? (
+                  <div className="nav-section-label">{group.section}</div>
+                ) : null}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {group.items.map((item) => {
+                    const isActive =
+                      comingSoon === item.label
+                        ? true
+                        : !comingSoon && item.id === sidebarActive
+                    const IconCmp = item.icon
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={`nav-item ${isActive ? 'active' : ''}`}
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={() => handleNavClick(item)}
+                      >
+                        <IconCmp className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+                        <span className="truncate">{item.label}</span>
+                        {item.badge != null ? (
+                          <span className="nav-badge">{item.badge}</span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             ))}
           </div>
 
           {/* Bottom */}
           <div className="sidebar-bottom">
-            <div className="user-chip">
-              <div className="user-avatar">A</div>
-              <div>
-                <div className="user-name">Admin</div>
-                <div className="user-role">Workspace owner</div>
-              </div>
-            </div>
-            <button className="logout-btn" onClick={handleLogout}>
-              <Icon.Logout /> Sign out
-            </button>
+            <ProfileCard
+              name={displayName}
+              role="Administrator"
+              onLogout={handleLogout}
+            />
           </div>
         </aside>
 
         {/* ── Main ── */}
         <div className="main-content">
-          {/* Topbar */}
+          {/* Topbar — compact on non-dashboard pages */}
+          {activeNav !== 'dashboard' || comingSoon ? (
           <header className="topbar">
             <button
               type="button"
@@ -1910,31 +1760,66 @@ export function AdminHub() {
               <Icon.Menu />
             </button>
             <div className="topbar-crumb">
-              <span style={{ color: '#C4A46A', fontSize: 16 }}>✦</span>
-              <span style={{ color: '#D4D4D8' }}>/</span>
-              <span className="topbar-title">{pageTitle}</span>
+              <span style={{ color: '#4D91FF', fontSize: 16 }}>✦</span>
+              <span style={{ color: '#CBD5E1' }}>/</span>
+              <span className="topbar-title">{comingSoon ?? pageTitle}</span>
             </div>
             <div className="topbar-spacer" />
             <NotificationSystem />
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #C4A46A, #9E8348)',
+              background: 'linear-gradient(135deg, #17233F, #334155)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               flexShrink: 0,
-            }}>A</div>
+            }}>{(displayName.trim()[0] || 'A').toUpperCase()}</div>
           </header>
+          ) : (
+          <header className="topbar" style={{ display: 'none' }} aria-hidden />
+          )}
 
           {/* Page body */}
           <div className="page-body">
-            {/* ── Dashboard ── */}
-            {activeNav === 'dashboard' && (
-              <>
+            {comingSoon ? (
+              <div className="coming-soon">
+                <div className="coming-soon-icon">✨</div>
+                <h2>{comingSoon}</h2>
+                <p>This section is coming soon. Existing project tools remain available from the Manage menu.</p>
+                <button
+                  type="button"
+                  className="create-btn"
+                  style={{ marginTop: 8 }}
+                  onClick={() => {
+                    setComingSoon(null)
+                    router.push('/admin')
+                  }}
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            ) : null}
 
+            {/* ── Dashboard ── */}
+            {!comingSoon && activeNav === 'dashboard' && (
+              <>
+                <div className="mb-3 flex items-center gap-2 lg:hidden">
+                  <button
+                    type="button"
+                    className="menu-toggle"
+                    aria-label="Open menu"
+                    onClick={() => setNavOpen(true)}
+                  >
+                    <Icon.Menu />
+                  </button>
+                  <span className="text-sm font-semibold text-[#17233F]">Dashboard</span>
+                </div>
                 {loading ? (
-                  <div className="dashboard-stats">
-                    {[1,2,3,4].map(i => (
-                      <div key={i} className="dashboard-stat-card" style={{ background: '#fff', border: '1.5px solid #E5E7EB', borderRadius: 16, padding: 18 }}>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-[#E6EAF0] bg-white p-4"
+                      >
                         <div className="skeleton-pulse" style={{ width: 40, height: 40, borderRadius: 10, marginBottom: 16 }} />
                         <div className="skeleton-pulse" style={{ height: 28, width: '60%', borderRadius: 6, marginBottom: 8 }} />
                         <div className="skeleton-pulse" style={{ height: 13, width: '50%', borderRadius: 6 }} />
@@ -1942,17 +1827,34 @@ export function AdminHub() {
                     ))}
                   </div>
                 ) : (
-                  <DashboardView projects={projects} />
+                  <DashboardView
+                    projects={projects}
+                    userName={displayName}
+                    onRefresh={() => loadProjects({ soft: true })}
+                    refreshing={refreshing}
+                  />
                 )}
               </>
             )}
 
             {/* ── Projects ── */}
-            {activeNav === 'projects' && (
+            {!comingSoon && activeNav === 'projects' && (
               <>
-                <div className="page-header">
-                  <h1>Projects</h1>
-                  <p>Manage all your digital invitation projects.</p>
+                <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-medium text-[#94A3B8]">Manage › Clients</p>
+                    <h1 className="mt-1 text-[26px] font-bold tracking-tight text-[#17233F]">Projects</h1>
+                    <p className="mt-1 text-sm text-[#64748B]">
+                      Manage invitation workspaces for each couple and event.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#17233F] px-4 text-sm font-semibold text-white transition hover:bg-[#0F172A]"
+                    onClick={() => setShowNewModal(true)}
+                  >
+                    <Icon.Plus /> Create project
+                  </button>
                 </div>
 
                 {/* Toolbar */}
@@ -1995,10 +1897,6 @@ export function AdminHub() {
                       <Icon.List />
                     </button>
                   </div>
-
-                  <button className="create-btn" onClick={() => setShowNewModal(true)}>
-                    <Icon.Plus /> Create Project
-                  </button>
                 </div>
 
                 {/* Content */}
@@ -2007,30 +1905,28 @@ export function AdminHub() {
                     {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
                   </div>
                 ) : filtered.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-icon">💍</div>
-                    <p className="empty-title">
-                      {search || statusFilter !== 'all' ? 'No projects match your filters' : 'No projects yet'}
-                    </p>
-                    <p className="empty-sub">
-                      {search || statusFilter !== 'all'
-                        ? 'Try adjusting your search or filter criteria.'
-                        : 'Create your first digital invitation project to get started.'}
-                    </p>
-                    {!search && statusFilter === 'all' && (
-                      <button className="create-btn" style={{ margin: '0 auto' }} onClick={() => setShowNewModal(true)}>
-                        <Icon.Plus /> Create Project
-                      </button>
-                    )}
+                  <div className="projects-grid">
+                    <CreateProjectCard onClick={() => setShowNewModal(true)} />
+                    <div className="col-span-full empty-state sm:col-span-1 lg:col-span-2">
+                      <div className="empty-icon">💍</div>
+                      <p className="empty-title">
+                        {search || statusFilter !== 'all' ? 'No projects match your filters' : 'No projects yet'}
+                      </p>
+                      <p className="empty-sub">
+                        {search || statusFilter !== 'all'
+                          ? 'Try adjusting your search or filter criteria.'
+                          : 'Create your first digital invitation project to get started.'}
+                      </p>
+                    </div>
                   </div>
                 ) : viewMode === 'grid' ? (
                   <div className="projects-grid">
+                    <CreateProjectCard onClick={() => setShowNewModal(true)} />
                     {filtered.map((project) => (
-                      <ProjectCard
+                      <ProjectSignatureCard
                         key={project.id}
                         project={project}
                         onOpen={() => router.push(`/admin/projects/${project.id}`)}
-                        onToggleStatus={() => handleToggleStatus(project)}
                         onDelete={() => handleDelete(project)}
                       />
                     ))}
@@ -2080,7 +1976,7 @@ export function AdminHub() {
                                 borderRadius: 8, color: '#6B7280', fontSize: 12, cursor: 'pointer',
                                 fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s',
                               }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = '#F3EEE6'; e.currentTarget.style.color = '#C4A46A'; e.currentTarget.style.borderColor = '#C4A46A' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#EEF2F7'; e.currentTarget.style.color = '#17233F'; e.currentTarget.style.borderColor = '#CBD5E1' }}
                               onMouseLeave={(e) => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = '#6B7280'; e.currentTarget.style.borderColor = '#E5E7EB' }}
                             >
                               Open →
@@ -2094,8 +1990,11 @@ export function AdminHub() {
               </>
             )}
 
+            {/* ── Events ── */}
+            {!comingSoon && activeNav === 'events' && <EventsSection />}
+
             {/* ── Guests / Analytics / Templates (coming soon) ── */}
-            {['guests', 'analytics', 'templates'].includes(activeNav) && (
+            {!comingSoon && ['guests', 'analytics', 'templates'].includes(activeNav) && (
               <div className="coming-soon">
                 <div className="coming-soon-icon">
                   {activeNav === 'guests' ? '👥' : activeNav === 'analytics' ? '📊' : '🎨'}
@@ -2106,11 +2005,15 @@ export function AdminHub() {
             )}
 
             {/* ── Settings ── */}
-            {activeNav === 'settings' && (
-              <SettingsPanel onLogout={handleLogout} />
+            {!comingSoon && activeNav === 'settings' && (
+              <SettingsPanel
+                onLogout={handleLogout}
+                onDisplayNameChange={setDisplayName}
+              />
             )}
 
           </div>
+        </div>
         </div>
       </div>
 
