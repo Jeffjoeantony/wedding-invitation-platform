@@ -49,7 +49,7 @@ function TiltCard({
       style={{ rotateX, rotateY, transformPerspective: 900 }}
       whileHover={{ scale: 1.03 }}
       transition={{ type: 'spring', stiffness: 280, damping: 22 }}
-      className="group relative w-[240px] shrink-0 snap-center overflow-hidden rounded-sm border border-[color:var(--landing-champagne)] bg-[color:var(--landing-card)] shadow-[0_18px_50px_-28px_rgba(45,42,38,0.4)] will-change-transform sm:w-[280px]"
+      className="group relative w-[240px] shrink-0 snap-center overflow-hidden rounded-3xl border border-white/45 bg-white/25 shadow-[0_18px_50px_-28px_rgba(45,42,38,0.4)] backdrop-blur-md will-change-transform sm:w-[280px]"
     >
       <div className="relative aspect-[3/4] overflow-hidden">
         <Image

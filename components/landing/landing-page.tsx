@@ -25,37 +25,40 @@ const LandingFooter = dynamic(
 
 export function LandingPage() {
   return (
-    <LandingSmoothScroll>
-      <div
-        className="landing-root min-h-screen overflow-x-clip"
-        style={
-          {
-            '--landing-ivory': LANDING.ivory,
-            '--landing-beige': LANDING.beige,
-            '--landing-champagne': LANDING.champagne,
-            '--landing-gold': LANDING.gold,
-            '--landing-gold-dark': LANDING.goldDark,
-            '--landing-gold-soft': LANDING.goldSoft,
-            '--landing-ink': LANDING.ink,
-            '--landing-charcoal': LANDING.charcoal,
-            '--landing-muted': LANDING.muted,
-            '--landing-card': LANDING.card,
-            background: `linear-gradient(180deg, ${LANDING.ivory} 0%, ${LANDING.beige} 42%, ${LANDING.champagne} 100%)`,
-            color: LANDING.ink,
-          } as CSSProperties
-        }
-      >
-        <LandingNavbar />
-        <main>
-          <LandingHero />
-          <LandingFeatures />
-          <LandingTemplates />
-          <LandingHowItWorks />
-          <LandingFaq />
-          <LandingFinalCta />
-        </main>
-        <LandingFooter />
-      </div>
-    </LandingSmoothScroll>
+    <>
+      {/* Outside Lenis so `fixed` overlays the true viewport (no reserved white strip). */}
+      <LandingNavbar />
+      <LandingSmoothScroll>
+        <div
+          className="landing-root min-h-screen overflow-x-clip"
+          style={
+            {
+              '--landing-ivory': LANDING.ivory,
+              '--landing-beige': LANDING.beige,
+              '--landing-champagne': LANDING.champagne,
+              '--landing-gold': LANDING.gold,
+              '--landing-gold-dark': LANDING.goldDark,
+              '--landing-gold-soft': LANDING.goldSoft,
+              '--landing-ink': LANDING.ink,
+              '--landing-charcoal': LANDING.charcoal,
+              '--landing-muted': LANDING.muted,
+              '--landing-card': LANDING.card,
+              background: `linear-gradient(180deg, transparent 0%, ${LANDING.beige} 38%, ${LANDING.champagne} 100%)`,
+              color: LANDING.ink,
+            } as CSSProperties
+          }
+        >
+          <main>
+            <LandingHero />
+            <LandingFeatures />
+            <LandingTemplates />
+            <LandingHowItWorks />
+            <LandingFaq />
+            <LandingFinalCta />
+          </main>
+          <LandingFooter />
+        </div>
+      </LandingSmoothScroll>
+    </>
   )
 }

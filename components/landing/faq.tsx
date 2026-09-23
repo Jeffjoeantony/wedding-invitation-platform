@@ -37,7 +37,7 @@ export function LandingFaq() {
           <Accordion
             type="single"
             collapsible
-            className="rounded-sm border border-[color:var(--landing-champagne)] bg-[color:var(--landing-card)]/80 px-5 backdrop-blur-sm sm:px-7"
+            className="landing-glass-panel rounded-3xl px-5 sm:px-7"
           >
             {FAQ_ITEMS.map((item) => (
               <AccordionItem

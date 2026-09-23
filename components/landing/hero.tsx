@@ -1,41 +1,12 @@
 'use client'
 
+import Image from 'next/image'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
-import { ArrowDown } from 'lucide-react'
-import { LandingContainer, ThinDivider } from './section'
+import { ArrowDown, ArrowRight, Sparkles } from 'lucide-react'
+import { LandingContainer } from './section'
 import { LandingButton } from './landing-button'
-import { CREATE_HREF } from './constants'
-
-function FloatingParticles() {
-  const reduce = useReducedMotion()
-  if (reduce) return null
-
-  const dots = [
-    { left: '12%', top: '22%', size: 3, delay: 0 },
-    { left: '78%', top: '18%', size: 2, delay: 1.2 },
-    { left: '22%', top: '68%', size: 2.5, delay: 0.6 },
-    { left: '86%', top: '62%', size: 3, delay: 1.8 },
-    { left: '48%', top: '28%', size: 2, delay: 0.3 },
-    { left: '64%', top: '76%', size: 2.5, delay: 2.1 },
-    { left: '8%', top: '48%', size: 2, delay: 1.5 },
-    { left: '92%', top: '38%', size: 2, delay: 0.9 },
-  ]
-
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      {dots.map((d, i) => (
-        <motion.span
-          key={i}
-          className="absolute rounded-full bg-[color:var(--landing-gold)]/35"
-          style={{ left: d.left, top: d.top, width: d.size, height: d.size }}
-          animate={{ y: [0, -18, 0], opacity: [0.25, 0.7, 0.25] }}
-          transition={{ duration: 7 + i * 0.4, repeat: Infinity, delay: d.delay, ease: 'easeInOut' }}
-        />
-      ))}
-    </div>
-  )
-}
+import { CREATE_HREF, HERO_IMAGE } from './constants'
 
 export function LandingHero() {
   const reduce = useReducedMotion()
@@ -44,118 +15,143 @@ export function LandingHero() {
     target: ref,
     offset: ['start start', 'end start'],
   })
-  const lightY = useTransform(scrollYProgress, [0, 1], [0, 80])
-  const contentY = useTransform(scrollYProgress, [0, 1], [0, 40])
+  const bgY = useTransform(scrollYProgress, [0, 1], [0, 70])
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, 36])
 
   return (
     <section
       id="home"
       ref={ref}
-      className="relative flex min-h-[100svh] items-center overflow-hidden pb-16 pt-28"
+      className="relative flex h-[100svh] min-h-[100svh] items-center overflow-hidden"
     >
+      <motion.div
+        aria-hidden
+        className="absolute inset-x-0 -top-16 -bottom-16"
+        style={{ y: reduce ? 0 : bgY }}
+      >
+        <Image
+          src={HERO_IMAGE}
+          alt=""
+          fill
+          priority
+          quality={92}
+          sizes="100vw"
+          className="object-cover object-[72%_center] sm:object-[68%_center]"
+        />
+      </motion.div>
+
+      {/* Left wash for readable flat text; ceremony stays vivid on the right */}
       <div
         aria-hidden
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(ellipse 75% 50% at 50% 12%, rgba(250,248,243,0.9) 0%, transparent 58%), linear-gradient(180deg, var(--landing-ivory) 0%, var(--landing-beige) 45%, color-mix(in srgb, var(--landing-champagne) 70%, var(--landing-beige)) 100%)',
+            'linear-gradient(105deg, rgba(250,248,243,0.78) 0%, rgba(250,248,243,0.45) 30%, rgba(250,248,243,0.08) 54%, transparent 70%), linear-gradient(180deg, rgba(28,25,22,0.1) 0%, transparent 22%, rgba(28,25,22,0.2) 100%)',
         }}
       />
 
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -left-24 top-24 size-[28rem] rounded-full blur-3xl"
-        style={{
-          y: lightY,
-          background: 'radial-gradient(circle, color-mix(in srgb, var(--landing-gold) 22%, transparent), transparent 70%)',
-        }}
-        animate={reduce ? undefined : { opacity: [0.4, 0.7, 0.4] }}
-        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -right-16 bottom-10 size-[22rem] rounded-full blur-3xl"
-        style={{
-          background: 'radial-gradient(circle, color-mix(in srgb, var(--landing-champagne) 80%, transparent), transparent 70%)',
-        }}
-        animate={reduce ? undefined : { opacity: [0.35, 0.6, 0.35] }}
-        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
-      />
+      {!reduce ? (
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+          {[
+            { left: '10%', top: '24%', delay: 0 },
+            { left: '18%', top: '70%', delay: 1.1 },
+            { left: '42%', top: '18%', delay: 0.5 },
+            { left: '8%', top: '48%', delay: 1.6 },
+          ].map((d, i) => (
+            <motion.span
+              key={i}
+              className="absolute size-1.5 rounded-full bg-white/70 shadow-[0_0_12px_rgba(255,255,255,0.55)]"
+              style={{ left: d.left, top: d.top }}
+              animate={{ y: [0, -14, 0], opacity: [0.35, 0.9, 0.35] }}
+              transition={{ duration: 6.5 + i * 0.4, repeat: Infinity, delay: d.delay, ease: 'easeInOut' }}
+            />
+          ))}
+        </div>
+      ) : null}
 
-      <FloatingParticles />
+      <LandingContainer className="relative z-10 w-full pb-10 pt-24 sm:pt-28">
+        <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-8">
+          <motion.div style={{ y: reduce ? 0 : contentY }} className="max-w-xl">
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+              className="inline-flex items-center gap-2.5"
+            >
+              <span
+                aria-hidden
+                className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--landing-ink)] text-[color:var(--landing-gold-soft)] shadow-sm"
+              >
+                <Sparkles className="size-3.5" strokeWidth={2} />
+              </span>
+              <span className="font-sans text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--landing-charcoal)]">
+                ✦ Premium · Wedding Invitations
+              </span>
+            </motion.div>
 
-      <LandingContainer className="relative z-10 flex min-h-[calc(100svh-7rem)] flex-col justify-center pb-20">
-        <motion.div
-          style={{ y: reduce ? 0 : contentY }}
-          className="mx-auto flex max-w-3xl flex-col items-center text-center"
-        >
-          <motion.p
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-            className="font-sans text-[0.65rem] font-medium uppercase tracking-[0.36em] text-[color:var(--landing-gold-dark)]"
-          >
-            Premium Digital Invitations
-          </motion.p>
+            <motion.p
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 font-serif text-3xl font-light tracking-tight text-[color:var(--landing-ink)] sm:text-4xl"
+            >
+              Goldleaf
+            </motion.p>
 
-          <motion.h1
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 36 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-6 font-serif text-4xl font-light leading-[1.12] tracking-tight text-[color:var(--landing-ink)] sm:text-5xl md:text-6xl lg:text-[4.25rem]"
-          >
-            Create unforgettable digital invitations
-            <span className="block italic text-[color:var(--landing-gold-dark)]">
-              for every celebration.
-            </span>
-          </motion.h1>
+            <motion.h1
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 26 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-3 font-sans text-[2rem] font-bold leading-[1.05] tracking-[-0.03em] text-[color:var(--landing-ink)] sm:text-4xl md:text-[2.85rem] lg:text-[3.15rem]"
+            >
+              SHARE YOUR DAY
+              <span className="block">BEAUTIFULLY</span>
+            </motion.h1>
 
-          <motion.div
-            initial={{ opacity: 0, scaleX: 0.6 }}
-            animate={{ opacity: 1, scaleX: 1 }}
-            transition={{ duration: 0.9, delay: 0.28 }}
-            className="mt-8"
-          >
-            <ThinDivider />
+            <motion.p
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.95, delay: 0.26, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-6 max-w-md font-sans text-base font-normal leading-relaxed text-[color:var(--landing-charcoal)] sm:text-[1.05rem]"
+            >
+              From the first save-the-date to the final RSVP — craft invitations that feel like
+              luxury stationery, then send them on WhatsApp, link, or QR.
+            </motion.p>
+
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.95, delay: 0.38, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-9 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center"
+            >
+              <LandingButton href={CREATE_HREF} className="gap-2.5">
+                Create Invitation
+                <Sparkles className="size-3.5" strokeWidth={2} />
+              </LandingButton>
+              <LandingButton href="#templates" variant="glass" className="gap-2">
+                View Templates
+                <ArrowRight className="size-3.5" strokeWidth={2} />
+              </LandingButton>
+            </motion.div>
           </motion.div>
 
-          <motion.p
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.95, delay: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-8 max-w-xl font-sans text-base font-light leading-relaxed text-[color:var(--landing-muted)] sm:text-lg"
-          >
-            Create elegant invitations for weddings, engagements, receptions, birthdays,
-            housewarming ceremonies and more.
-          </motion.p>
-
-          <motion.div
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.95, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-10 flex w-full flex-col items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center"
-          >
-            <LandingButton href={CREATE_HREF}>Start Creating</LandingButton>
-            <LandingButton href="#templates" variant="secondary">
-              Explore Templates
-            </LandingButton>
-          </motion.div>
-        </motion.div>
+          <div className="pointer-events-none relative hidden min-h-[380px] lg:block" aria-hidden />
+        </div>
 
         <motion.a
           href="#features"
           aria-label="Scroll to features"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.1, duration: 0.8 }}
-          className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-[color:var(--landing-muted)]"
+          transition={{ delay: 1.05, duration: 0.8 }}
+          className="absolute bottom-2 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 text-[color:var(--landing-ink)]/70"
         >
           <span className="font-sans text-[0.6rem] uppercase tracking-[0.28em]">Scroll</span>
           <motion.span
             animate={reduce ? undefined : { y: [0, 8, 0] }}
             transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
           >
-            <ArrowDown className="size-4 text-[color:var(--landing-gold)]" />
+            <ArrowDown className="size-4" />
           </motion.span>
         </motion.a>
       </LandingContainer>

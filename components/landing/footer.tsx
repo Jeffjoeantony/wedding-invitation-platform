@@ -40,7 +40,7 @@ const COLUMNS = [
 
 export function LandingFooter() {
   return (
-    <footer className="relative border-t border-[color:var(--landing-champagne)] bg-[color:var(--landing-beige)]/70 pb-10 pt-16">
+    <footer className="relative border-t border-white/40 bg-[color:var(--landing-beige)]/55 pb-10 pt-16 backdrop-blur-md">
       <LandingContainer>
         <div className="flex flex-col gap-12 lg:flex-row lg:justify-between">
           <div className="max-w-xs">
@@ -65,7 +65,7 @@ export function LandingFooter() {
                   key={label}
                   href="#"
                   aria-label={label}
-                  className="flex size-9 items-center justify-center rounded-sm border border-[color:var(--landing-champagne)] text-[color:var(--landing-muted)] transition hover:border-[color:var(--landing-gold)]/50 hover:text-[color:var(--landing-gold-dark)]"
+                  className="flex size-9 items-center justify-center rounded-full border border-white/45 bg-white/40 text-[color:var(--landing-muted)] backdrop-blur-md transition hover:border-[color:var(--landing-gold)]/50 hover:text-[color:var(--landing-gold-dark)]"
                 >
                   <Icon className="size-4" strokeWidth={1.5} />
                 </a>

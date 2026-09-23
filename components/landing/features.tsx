@@ -52,9 +52,9 @@ export function LandingFeatures() {
             return (
               <article
                 key={feature.title}
-                className="group flex h-full flex-col rounded-sm border border-[color:var(--landing-champagne)] bg-[color:var(--landing-card)]/75 p-6 shadow-[0_12px_40px_-28px_rgba(45,42,38,0.28)] backdrop-blur-sm transition duration-500 hover:-translate-y-1 hover:border-[color:var(--landing-gold)]/50 hover:shadow-[0_22px_50px_-24px_rgba(158,131,72,0.35)]"
+                className="landing-glass-card group flex h-full flex-col rounded-3xl p-6 hover:-translate-y-1"
               >
-                <div className="flex size-10 items-center justify-center rounded-sm border border-[color:var(--landing-gold)]/30 bg-[color:var(--landing-ivory)] text-[color:var(--landing-gold-dark)] transition group-hover:border-[color:var(--landing-gold)]/60">
+                <div className="flex size-11 items-center justify-center rounded-2xl border border-white/50 bg-white/45 text-[color:var(--landing-gold-dark)] shadow-sm backdrop-blur-md transition group-hover:bg-white/65">
                   <Icon className="size-4" strokeWidth={1.5} />
                 </div>
                 <h3 className="mt-5 font-serif text-xl font-light text-[color:var(--landing-ink)]">

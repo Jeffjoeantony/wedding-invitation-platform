@@ -104,5 +104,8 @@ export const FAQ_ITEMS = [
   },
 ] as const
 
+/** Full-bleed hero — Indian wedding ceremony (golden hour). */
+export const HERO_IMAGE = '/landing/hero-ceremony.png'
+
 export const CREATE_HREF = '/admin/login'
 export const SIGN_IN_HREF = '/admin/login'
