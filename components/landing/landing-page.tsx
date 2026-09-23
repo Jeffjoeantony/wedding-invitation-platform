@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { LandingSmoothScroll } from './landing-smooth-scroll'
 import { LandingNavbar } from './navbar'
 import { LandingHero } from './hero'
+import { LandingPopularWebsites } from './popular-websites'
 import { LandingFeatures } from './features'
 import { LandingHowItWorks } from './how-it-works'
 import { LANDING } from './constants'
@@ -50,6 +51,7 @@ export function LandingPage() {
         >
           <main>
             <LandingHero />
+            <LandingPopularWebsites />
             <LandingFeatures />
             <LandingTemplates />
             <LandingHowItWorks />

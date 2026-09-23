@@ -85,6 +85,53 @@ export const TEMPLATES = [
   { category: 'Celebration', image: SAMPLE_IMAGES.table, title: 'Gathering Night' },
 ] as const
 
+/** Featured grid right under the hero — Aloha-style product cards. */
+export const POPULAR_WEBSITES = [
+  {
+    title: 'Lavender Garden',
+    price: 'Free',
+    image: '/landing/templates/lavender-garden.jpg',
+  },
+  {
+    title: 'Nikah Arch',
+    price: '₹599',
+    image: '/landing/templates/nikah-arch.jpg',
+  },
+  {
+    title: 'Botanical Gold',
+    price: '₹999',
+    image: '/landing/templates/botanical-gold.jpg',
+  },
+  {
+    title: 'Royal Heritage',
+    price: '₹849',
+    image: '/landing/templates/royal-heritage.jpg',
+  },
+  {
+    title: 'Eternal Vows',
+    price: '₹699',
+    image: '/invitations/couple-standing.png',
+  },
+  {
+    title: 'Promise Evening',
+    price: '₹549',
+    image: '/invitations/couple-sitting.png',
+  },
+  {
+    title: 'Golden Portrait',
+    price: '₹799',
+    image: '/invitations/couple-portrait.png',
+  },
+  {
+    title: 'Bridal Bloom',
+    price: '₹649',
+    image: '/invitations/bride-portrait.png',
+  },
+] as const
+
+export const POPULAR_WEBSITES_PAGE_SIZE = 4
+
+
 export const FAQ_ITEMS = [
   {
     q: 'Is Goldleaf free to start?',
