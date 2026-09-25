@@ -29,11 +29,11 @@ export const SAMPLE_IMAGES = {
 } as const
 
 export const NAV_LINKS = [
-  { href: '#home', label: 'Home' },
-  { href: '#features', label: 'Features' },
-  { href: '#templates', label: 'Templates' },
-  { href: '#how-it-works', label: 'How It Works' },
-  { href: '#faq', label: 'FAQ' },
+  { href: '/#home', label: 'Home' },
+  { href: '/#features', label: 'Features' },
+  { href: '/#templates', label: 'Templates' },
+  { href: '/#how-it-works', label: 'How It Works' },
+  { href: '/#faq', label: 'FAQ' },
 ] as const
 
 export const FEATURES = [
@@ -70,10 +70,44 @@ export const FEATURES = [
 ] as const
 
 export const HOW_IT_WORKS = [
-  { step: '01', title: 'Create Project', description: 'Start a new celebration and set the essentials in moments.' },
-  { step: '02', title: 'Customize', description: 'Add events, photos, and the details that matter most.' },
-  { step: '03', title: 'Share Instantly', description: 'Send via link, WhatsApp, or QR — beautifully and fast.' },
-  { step: '04', title: 'Track RSVPs', description: 'Watch responses arrive and manage your day with clarity.' },
+  { step: '01', title: 'Choose a template', description: 'Browse the collection and open the design that feels like your celebration.' },
+  { step: '02', title: 'Preview it', description: 'See the live invitation, then add it to your cart when it is the one.' },
+  { step: '03', title: 'Checkout', description: 'Confirm your details. We prepare your invitation and your dashboard.' },
+  { step: '04', title: 'Use your links', description: 'Your email includes the invitation link to share and the dashboard link to manage it.' },
+] as const
+
+/** Dark step cards under “How an invitation website works”. */
+export const LIVE_IN_MINUTES = [
+  {
+    step: '01',
+    title: 'Choose a template',
+    description: 'Open a design from the collection. Each one has its own product page.',
+    icon: 'Palette',
+    accent: 'gold',
+  },
+  {
+    step: '02',
+    title: 'Preview, then add to cart',
+    description: 'Walk through the live invitation. When it feels right, add it to your cart.',
+    icon: 'Eye',
+    accent: 'sage',
+  },
+  {
+    step: '03',
+    title: 'Checkout & open your links',
+    description: 'After checkout, your email brings the invitation link and your dashboard link.',
+    icon: 'Mail',
+    accent: 'champagne',
+  },
+] as const
+
+export const WEBSITE_INCLUDES = [
+  { title: 'Instant WhatsApp sharing', icon: 'MessageCircle' },
+  { title: 'Automated RSVP tracking', icon: 'Mail' },
+  { title: 'All event details', icon: 'CalendarClock' },
+  { title: 'Photo gallery', icon: 'Images' },
+  { title: 'Map and directions', icon: 'MapPin' },
+  { title: 'Edit while live', icon: 'Pencil' },
 ] as const
 
 export const TEMPLATES = [
@@ -85,44 +119,84 @@ export const TEMPLATES = [
   { category: 'Celebration', image: SAMPLE_IMAGES.table, title: 'Gathering Night' },
 ] as const
 
+/** Editorial gallery — 7 local wedding stills. */
+export const GALLERY_CAROUSEL = [
+  {
+    alt: 'Bridal portrait',
+    image: '/invitations/bride-portrait.png',
+  },
+  {
+    alt: 'Couple seated together',
+    image: '/invitations/couple-sitting.png',
+  },
+  {
+    alt: 'Wedding ceremony under a floral canopy',
+    image: '/landing/hero-ceremony.png',
+  },
+  {
+    alt: 'Bride and groom standing together',
+    image: '/invitations/couple-standing.png',
+  },
+  {
+    alt: 'Couple portrait with a bouquet',
+    image: '/invitations/couple-portrait.png',
+  },
+  {
+    alt: 'Groom holding a bouquet',
+    image: '/invitations/groom-portrait.png',
+  },
+  {
+    alt: 'Wedding rings and flowers',
+    image: '/wedding-hero.jpg',
+  },
+] as const
+
 /** Featured grid right under the hero — Aloha-style product cards. */
 export const POPULAR_WEBSITES = [
   {
+    slug: 'lavender-garden',
     title: 'Lavender Garden',
     price: 'Free',
     image: '/landing/templates/lavender-garden.jpg',
   },
   {
+    slug: 'nikah-arch',
     title: 'Nikah Arch',
     price: '₹599',
     image: '/landing/templates/nikah-arch.jpg',
   },
   {
+    slug: 'botanical-gold',
     title: 'Botanical Gold',
     price: '₹999',
     image: '/landing/templates/botanical-gold.jpg',
   },
   {
+    slug: 'royal-heritage',
     title: 'Royal Heritage',
     price: '₹849',
     image: '/landing/templates/royal-heritage.jpg',
   },
   {
+    slug: 'eternal-vows',
     title: 'Eternal Vows',
     price: '₹699',
     image: '/invitations/couple-standing.png',
   },
   {
+    slug: 'promise-evening',
     title: 'Promise Evening',
     price: '₹549',
     image: '/invitations/couple-sitting.png',
   },
   {
+    slug: 'golden-portrait',
     title: 'Golden Portrait',
     price: '₹799',
     image: '/invitations/couple-portrait.png',
   },
   {
+    slug: 'bridal-bloom',
     title: 'Bridal Bloom',
     price: '₹649',
     image: '/invitations/bride-portrait.png',
@@ -150,6 +224,16 @@ export const FAQ_ITEMS = [
     a: 'Share via WhatsApp, email, or a printable QR code. One elegant link is all your guests need.',
   },
 ] as const
+
+/** Full-bleed “real-time dashboard” features section. */
+export const DASHBOARD_SECTION = {
+  background: '/landing/dashboard-bg.png',
+  preview: '/landing/dashboard-preview.png',
+  eyebrow: 'Together Forever',
+  title: 'Your real-time dashboard',
+  body: 'Every RSVP appears instantly, so the headcount for the caterer is always current. No manual updates, no last-minute confusion.',
+  footnote: 'Sample Data',
+} as const
 
 /** Full-bleed hero — Indian wedding ceremony (golden hour). */
 export const HERO_IMAGE = '/landing/hero-ceremony.png'

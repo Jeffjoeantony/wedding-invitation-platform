@@ -6,6 +6,8 @@ import { LandingSmoothScroll } from './landing-smooth-scroll'
 import { LandingNavbar } from './navbar'
 import { LandingHero } from './hero'
 import { LandingPopularWebsites } from './popular-websites'
+import { LandingWebsiteGuide } from './website-guide'
+import { LandingSpecialBanner } from './special-banner'
 import { LandingFeatures } from './features'
 import { LandingHowItWorks } from './how-it-works'
 import { LANDING } from './constants'
@@ -52,6 +54,8 @@ export function LandingPage() {
           <main>
             <LandingHero />
             <LandingPopularWebsites />
+            <LandingWebsiteGuide />
+            <LandingSpecialBanner />
             <LandingFeatures />
             <LandingTemplates />
             <LandingHowItWorks />

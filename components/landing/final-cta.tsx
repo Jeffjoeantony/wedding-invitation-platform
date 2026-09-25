@@ -2,7 +2,6 @@
 
 import { Reveal } from '@/components/ui/reveal'
 import { LandingButton } from './landing-button'
-import { CREATE_HREF } from './constants'
 import { LandingContainer } from './section'
 
 export function LandingFinalCta() {
@@ -31,8 +30,8 @@ export function LandingFinalCta() {
               with everyone you love.
             </p>
             <div className="relative mt-10 flex w-full flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center sm:justify-center">
-              <LandingButton href={CREATE_HREF}>Create Invitation</LandingButton>
-              <LandingButton href="#templates" variant="glass">
+              <LandingButton href="/#popular">Choose a template</LandingButton>
+              <LandingButton href="/#templates" variant="glass">
                 View Templates
               </LandingButton>
             </div>

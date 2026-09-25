@@ -18,7 +18,7 @@ const COLUMNS = [
     title: 'Company',
     links: [
       { label: 'About', href: '#home' },
-      { label: 'Start Creating', href: CREATE_HREF },
+      { label: 'Start Creating', href: '#popular' },
       { label: 'Sign In', href: SIGN_IN_HREF },
     ],
   },

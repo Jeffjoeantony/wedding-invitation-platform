@@ -12,6 +12,7 @@ type LandingButtonProps = {
   className?: string
   onClick?: () => void
   type?: ComponentProps<'button'>['type']
+  disabled?: boolean
 }
 
 const variants = {
@@ -32,6 +33,7 @@ export function LandingButton({
   className,
   onClick,
   type = 'button',
+  disabled = false,
 }: LandingButtonProps) {
   const classes = cn(
     'inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 font-sans text-[0.7rem] font-semibold uppercase tracking-[0.2em] transition-colors duration-300 will-change-transform',
@@ -57,7 +59,13 @@ export function LandingButton({
   }
 
   return (
-    <motion.button type={type} className={cn(classes, 'w-full sm:w-auto')} onClick={onClick} {...motionProps}>
+    <motion.button
+      type={type}
+      disabled={disabled}
+      className={cn(classes, 'w-full sm:w-auto disabled:pointer-events-none disabled:opacity-60')}
+      onClick={onClick}
+      {...motionProps}
+    >
       {children}
     </motion.button>
   )

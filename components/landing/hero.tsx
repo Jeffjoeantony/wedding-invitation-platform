@@ -6,7 +6,7 @@ import { useRef } from 'react'
 import { ArrowDown, ArrowRight, Sparkles } from 'lucide-react'
 import { LandingContainer } from './section'
 import { LandingButton } from './landing-button'
-import { CREATE_HREF, HERO_IMAGE } from './constants'
+import { HERO_IMAGE } from './constants'
 
 export function LandingHero() {
   const reduce = useReducedMotion()
@@ -124,11 +124,11 @@ export function LandingHero() {
               transition={{ duration: 0.95, delay: 0.38, ease: [0.16, 1, 0.3, 1] }}
               className="mt-9 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center"
             >
-              <LandingButton href={CREATE_HREF} className="gap-2.5">
-                Create Invitation
+              <LandingButton href="/#popular" className="gap-2.5">
+                Choose a template
                 <Sparkles className="size-3.5" strokeWidth={2} />
               </LandingButton>
-              <LandingButton href="#templates" variant="glass" className="gap-2">
+              <LandingButton href="/#templates" variant="glass" className="gap-2">
                 View Templates
                 <ArrowRight className="size-3.5" strokeWidth={2} />
               </LandingButton>

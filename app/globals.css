@@ -501,6 +501,20 @@ html.landing-lenis {
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
+/* Shallow editorial wedding gallery — positions come from JS, not coverflow. */
+.landing-coverflow-stage {
+  transform-style: preserve-3d;
+}
+
+.landing-coverflow-card {
+  border: none;
+  border-radius: 2px;
+  box-shadow: 0 12px 28px -18px rgba(28, 25, 22, 0.45);
+  backface-visibility: hidden;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
 .scrollbar-landing {
   scrollbar-width: thin;
   scrollbar-color: rgba(201, 169, 110, 0.45) transparent;

@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Menu, Search, ShoppingBag, UserRound, X } from 'lucide-react'
 import { LandingButton } from './landing-button'
-import { CREATE_HREF, NAV_LINKS, SIGN_IN_HREF } from './constants'
+import { NAV_LINKS, SIGN_IN_HREF } from './constants'
+import { useCart } from '@/components/shop/cart-provider'
 import { cn } from '@/lib/utils'
 
 const iconBtn =
@@ -15,6 +16,7 @@ export function LandingNavbar() {
   const [scrolled, setScrolled] = useState(false)
   const [open, setOpen] = useState(false)
   const reduce = useReducedMotion()
+  const cart = useCart()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16)
@@ -46,7 +48,7 @@ export function LandingNavbar() {
         >
           {/* Brand — unchanged */}
           <Link
-            href="#home"
+            href="/#home"
             className="group relative z-10 flex min-w-0 shrink-0 items-center gap-2.5"
             onClick={() => setOpen(false)}
           >
@@ -76,11 +78,16 @@ export function LandingNavbar() {
 
           {/* Icon trio — search / bag / account */}
           <div className="relative z-10 ml-auto hidden items-center gap-1 lg:flex">
-            <Link href="#templates" aria-label="Search templates" className={iconBtn}>
+            <Link href="/#popular" aria-label="Search templates" className={iconBtn}>
               <Search className="size-[1.15rem]" strokeWidth={1.6} />
             </Link>
-            <Link href={CREATE_HREF} aria-label="Start creating" className={iconBtn}>
+            <Link href="/cart" aria-label="Cart" className={cn(iconBtn, 'relative')}>
               <ShoppingBag className="size-[1.15rem]" strokeWidth={1.6} />
+              {cart.count > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-[color:var(--landing-ink)] font-sans text-[0.55rem] font-semibold text-white">
+                  {cart.count}
+                </span>
+              ) : null}
             </Link>
             <Link href={SIGN_IN_HREF} aria-label="Sign in" className={iconBtn}>
               <UserRound className="size-[1.15rem]" strokeWidth={1.6} />
@@ -120,7 +127,7 @@ export function LandingNavbar() {
               ))}
               <div className="mt-3 flex items-center justify-center gap-2 border-t border-white/35 pt-4">
                 <Link
-                  href="#templates"
+                  href="/#popular"
                   aria-label="Search templates"
                   className={cn(iconBtn, 'size-11 bg-white/35')}
                   onClick={() => setOpen(false)}
@@ -128,12 +135,17 @@ export function LandingNavbar() {
                   <Search className="size-5" strokeWidth={1.6} />
                 </Link>
                 <Link
-                  href={CREATE_HREF}
-                  aria-label="Start creating"
-                  className={cn(iconBtn, 'size-11 bg-white/35')}
+                  href="/cart"
+                  aria-label="Cart"
+                  className={cn(iconBtn, 'relative size-11 bg-white/35')}
                   onClick={() => setOpen(false)}
                 >
                   <ShoppingBag className="size-5" strokeWidth={1.6} />
+                  {cart.count > 0 ? (
+                    <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-[color:var(--landing-ink)] font-sans text-[0.55rem] font-semibold text-white">
+                      {cart.count}
+                    </span>
+                  ) : null}
                 </Link>
                 <Link
                   href={SIGN_IN_HREF}
@@ -148,8 +160,8 @@ export function LandingNavbar() {
                 <LandingButton href={SIGN_IN_HREF} variant="glass" onClick={() => setOpen(false)}>
                   Sign In
                 </LandingButton>
-                <LandingButton href={CREATE_HREF} onClick={() => setOpen(false)}>
-                  Start Creating
+                <LandingButton href="/#popular" onClick={() => setOpen(false)}>
+                  Choose a template
                 </LandingButton>
               </div>
             </div>

@@ -6,8 +6,8 @@ import { useState } from 'react'
 import { ArrowRight, Plus, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Reveal } from '@/components/ui/reveal'
+import { templateHref } from '@/lib/shop/catalog'
 import {
-  CREATE_HREF,
   POPULAR_WEBSITES,
   POPULAR_WEBSITES_PAGE_SIZE,
 } from './constants'
@@ -76,7 +76,7 @@ export function LandingPopularWebsites() {
               className="group flex flex-col"
             >
               <Link
-                href={CREATE_HREF}
+                href={templateHref(item.slug)}
                 className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-[#F0EEE9]"
               >
                 <Image
@@ -97,8 +97,8 @@ export function LandingPopularWebsites() {
                   {item.price}
                 </p>
                 <Link
-                  href={CREATE_HREF}
-                  aria-label={`Start with ${item.title}`}
+                  href={templateHref(item.slug)}
+                  aria-label={`View ${item.title}`}
                   className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--landing-ink)] text-white transition hover:scale-105 hover:bg-[#3A2F27] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--landing-gold)]/55 focus-visible:ring-offset-2"
                 >
                   <Plus className="size-4" strokeWidth={2.25} />
