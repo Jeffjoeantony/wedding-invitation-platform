@@ -166,10 +166,10 @@ export const POPULAR_WEBSITES = [
     image: '/landing/templates/nikah-arch.jpg',
   },
   {
-    slug: 'botanical-gold',
-    title: 'Botanical Gold',
+    slug: 'wine-gold',
+    title: 'Wine Gold',
     price: '₹999',
-    image: '/landing/templates/botanical-gold.jpg',
+    image: '/landing/templates/wine-gold.jpg',
   },
   {
     slug: 'royal-heritage',

@@ -91,6 +91,9 @@ const nextConfig = {
   // ── Compression / performance ─────────────────────────────────────────────────
   compress: true,
 
+  // Hide the Next.js dev indicator so it doesn't reserve bottom viewport space
+  devIndicators: false,
+
   // ── Fix process polyfill issue with Radix UI / Turbopack ─────────────────────
   // Radix UI (used by shadcn/ui) checks process.env.NODE_ENV internally.
   // optimizePackageImports tells Turbopack to properly tree-shake these packages,
