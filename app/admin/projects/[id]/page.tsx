@@ -68,6 +68,7 @@ import {
   serializeAdditionalBirthdayPersons,
 } from '@/lib/birthdayPersons'
 import { buildOpenInviteUrl } from '@/lib/inviteLinks'
+import { buildInviteShareTitle } from '@/lib/invite-metadata'
 import { MediaUploader } from '@/components/admin/media-uploader'
 import { GuestMomentsEditor } from '@/components/admin/guest-moments-editor'
 import { EventDetailsPanel } from '@/components/admin/event-details-panel'
@@ -470,6 +471,18 @@ Looking forward to seeing you! 😊`
 
   const OpenInviteLinkBar = () => {
     if (!project?.id) return null
+    const shareTitle = buildInviteShareTitle({
+      couple_1: project.couple_1,
+      couple_2: project.couple_2,
+      event_template: project.event_template,
+      events: project.events,
+      date: project.date,
+      time: project.time,
+      venue: project.venue,
+      location: project.location,
+      maps_url: project.maps_url,
+      openInvite: true,
+    })
     return (
       <div style={{
         ...card,
