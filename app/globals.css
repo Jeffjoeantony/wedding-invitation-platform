@@ -399,21 +399,20 @@ html.landing-lenis {
   position: fixed;
   inset: 0;
   z-index: 0;
-  opacity: 0.55;
   background:
     radial-gradient(
       ellipse 90% 50% at 50% -8%,
-      color-mix(in srgb, var(--landing-gold-soft, #e8d5b0) 28%, transparent),
+      color-mix(in srgb, var(--landing-gold-soft, #e8d5b0) 38%, transparent),
       transparent 62%
     ),
     radial-gradient(
       circle at 88% 18%,
-      color-mix(in srgb, var(--landing-gold, #c4a46a) 10%, transparent),
+      color-mix(in srgb, var(--landing-gold, #c4a46a) 14%, transparent),
       transparent 42%
     ),
     radial-gradient(
       circle at 8% 72%,
-      color-mix(in srgb, var(--landing-champagne, #e6ddd0) 40%, transparent),
+      color-mix(in srgb, var(--landing-champagne, #e6ddd0) 55%, transparent),
       transparent 48%
     );
 }
@@ -441,78 +440,6 @@ html.landing-lenis {
 
 .landing-link:hover {
   background-size: 100% 1px;
-}
-
-/* Glassmorphism — Aloha-style floating pill */
-.landing-glass-nav {
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.32);
-  backdrop-filter: blur(22px) saturate(1.45);
-  -webkit-backdrop-filter: blur(22px) saturate(1.45);
-  box-shadow:
-    0 8px 32px -12px rgba(28, 25, 22, 0.28),
-    0 2px 8px -4px rgba(28, 25, 22, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-.landing-glass-nav--solid {
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 12px 40px -16px rgba(28, 25, 22, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-
-.landing-glass-panel {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(
-    160deg,
-    rgba(255, 252, 248, 0.48) 0%,
-    rgba(255, 255, 255, 0.22) 100%
-  );
-  backdrop-filter: blur(20px) saturate(1.3);
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  box-shadow:
-    0 18px 50px -28px rgba(28, 25, 22, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
-}
-
-.landing-glass-card {
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  background: linear-gradient(
-    165deg,
-    rgba(255, 252, 248, 0.72) 0%,
-    rgba(255, 255, 255, 0.42) 100%
-  );
-  backdrop-filter: blur(16px) saturate(1.25);
-  -webkit-backdrop-filter: blur(16px) saturate(1.25);
-  box-shadow:
-    0 16px 44px -28px rgba(28, 25, 22, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  transition:
-    transform 0.45s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.45s ease,
-    border-color 0.35s ease;
-}
-
-.landing-glass-card:hover {
-  border-color: rgba(196, 164, 106, 0.45);
-  box-shadow:
-    0 22px 52px -24px rgba(158, 131, 72, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-/* Shallow editorial wedding gallery — positions come from JS, not coverflow. */
-.landing-coverflow-stage {
-  transform-style: preserve-3d;
-}
-
-.landing-coverflow-card {
-  border: none;
-  border-radius: 2px;
-  box-shadow: 0 12px 28px -18px rgba(28, 25, 22, 0.45);
-  backface-visibility: hidden;
-  will-change: transform;
-  transform-style: preserve-3d;
 }
 
 .scrollbar-landing {

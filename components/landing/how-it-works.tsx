@@ -43,7 +43,7 @@ export function LandingHowItWorks() {
           {HOW_IT_WORKS.map((item) => (
             <article
               key={item.step}
-              className="landing-glass-card relative flex h-full min-h-[220px] flex-col rounded-3xl p-7"
+              className="relative flex h-full min-h-[220px] flex-col rounded-sm border border-[color:var(--landing-champagne)] bg-[color:var(--landing-card)]/80 p-7 shadow-[0_16px_44px_-30px_rgba(45,42,38,0.32)] backdrop-blur-sm"
             >
               <p className="font-serif text-4xl font-light text-[color:var(--landing-gold)]/80">
                 {item.step}

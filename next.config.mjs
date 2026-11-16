@@ -46,8 +46,7 @@ const nextConfig = {
   images: {
     unoptimized: false,
     formats: ['image/avif', 'image/webp'],
-    // Include retina / full-bleed hero widths (was capped at 1200 → soft on desktop)
-    deviceSizes: [384, 540, 640, 750, 828, 1080, 1200, 1920, 2048, 2560, 3840],
+    deviceSizes: [384, 540, 640, 750, 828, 1080, 1200],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     remotePatterns: [
       {
@@ -90,9 +89,6 @@ const nextConfig = {
 
   // ── Compression / performance ─────────────────────────────────────────────────
   compress: true,
-
-  // Hide the Next.js dev indicator so it doesn't reserve bottom viewport space
-  devIndicators: false,
 
   // ── Fix process polyfill issue with Radix UI / Turbopack ─────────────────────
   // Radix UI (used by shadcn/ui) checks process.env.NODE_ENV internally.
