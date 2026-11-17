@@ -2,10 +2,10 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useMemo, useState } from 'react'
-import { ArrowRight, Search } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Search } from 'lucide-react'
 import { POPULAR_WEBSITES } from '@/components/landing/constants'
-import { templateHref } from '@/lib/shop/catalog'
 import { cn } from '@/lib/utils'
 
 type TemplateCard = {
@@ -16,11 +16,12 @@ type TemplateCard = {
   category: string
   description: string
   tone: string
+  hasPreview: boolean
 }
 
 const DESCRIPTIONS: Record<string, string> = {
-  'lavender-garden':
-    'Soft florals and airy type for garden ceremonies and intimate outdoor vows.',
+  'classic-romance':
+    'Deep burgundy florals, cream paper, script names, venue map, dress-code palette, and RSVP.',
   'nikah-arch':
     'Elegant arch framing with calm typography — ideal for Nikah and sacred gatherings.',
   'wine-gold':
@@ -38,7 +39,7 @@ const DESCRIPTIONS: Record<string, string> = {
 }
 
 const CATEGORIES: Record<string, string> = {
-  'lavender-garden': 'Wedding',
+  'classic-romance': 'Wedding',
   'nikah-arch': 'Nikah',
   'wine-gold': 'Wedding',
   'royal-heritage': 'Wedding',
@@ -60,6 +61,9 @@ const TONES = [
 
 const FILTERS = ['All', 'Wedding', 'Engagement', 'Nikah', 'Bridal', 'Portrait'] as const
 
+/** Templates with a live invitation preview route under /templates/[slug]/preview */
+const PREVIEW_SLUGS = new Set(['classic-romance', 'wine-gold'])
+
 function buildTemplates(): TemplateCard[] {
   return POPULAR_WEBSITES.map((item, index) => ({
     slug: item.slug,
@@ -71,14 +75,25 @@ function buildTemplates(): TemplateCard[] {
       DESCRIPTIONS[item.slug] ??
       'A polished invitation layout ready to preview, customize, and share with guests.',
     tone: TONES[index % TONES.length],
+    hasPreview: PREVIEW_SLUGS.has(item.slug),
   }))
 }
 
+function adminTemplateHref(slug: string) {
+  return `/admin/templates/${slug}`
+}
+
 export function TemplatesSection() {
+  const pathname = usePathname()
   const templates = useMemo(() => buildTemplates(), [])
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('All')
   const [selected, setSelected] = useState<string | null>(null)
+
+  const detailSlug = pathname.startsWith('/admin/templates/')
+    ? pathname.replace('/admin/templates/', '').split('/')[0] || null
+    : null
+  const detail = detailSlug ? templates.find((t) => t.slug === detailSlug) ?? null : null
 
   const visible = templates.filter((t) => {
     const matchesFilter = filter === 'All' || t.category === filter
@@ -90,6 +105,96 @@ export function TemplatesSection() {
       t.description.toLowerCase().includes(q)
     return matchesFilter && matchesQuery
   })
+
+  if (detailSlug && !detail) {
+    return (
+      <div className="mx-auto w-full max-w-[720px] rounded-2xl border border-dashed border-[#E6EAF0] bg-white px-6 py-16 text-center">
+        <p className="text-sm font-semibold text-[#17233F]">Template not found</p>
+        <Link
+          href="/admin/templates"
+          className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#17233F]"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back to templates
+        </Link>
+      </div>
+    )
+  }
+
+  if (detail) {
+    return (
+      <div className="mx-auto w-full max-w-[720px]">
+        <Link
+          href="/admin/templates"
+          className="inline-flex items-center gap-1.5 text-[12px] font-medium text-[#94A3B8] transition hover:text-[#17233F]"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+          All templates
+        </Link>
+
+        <div
+          className="mt-5 overflow-hidden rounded-[28px] border border-[#E6EAF0] shadow-[0_8px_28px_rgba(23,35,63,0.06)]"
+          style={{ background: detail.tone }}
+        >
+          <div className="relative aspect-[16/9] w-full overflow-hidden">
+            <Image
+              src={detail.image}
+              alt={detail.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 720px"
+              className="object-cover"
+              priority
+            />
+            <span className="absolute left-4 top-4 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#17233F] backdrop-blur-sm">
+              {detail.category}
+            </span>
+            <span className="absolute right-4 top-4 rounded-full bg-[#17233F]/90 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+              {detail.price}
+            </span>
+          </div>
+
+          <div className="px-6 py-6 sm:px-8 sm:py-8">
+            <h1 className="text-[28px] font-bold tracking-tight text-[#17233F]">{detail.title}</h1>
+            <p className="mt-2 text-[15px] leading-relaxed text-[#64748B]">{detail.description}</p>
+            <p className="mt-4 text-lg font-semibold text-[#17233F]">{detail.price}</p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              {detail.hasPreview ? (
+                <Link
+                  href={`/templates/${detail.slug}/preview`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex flex-1 items-center justify-center rounded-full bg-[#17233F] px-6 py-3.5 text-center text-[12px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-[#0F172A]"
+                >
+                  Preview invitation
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex flex-1 cursor-not-allowed items-center justify-center rounded-full bg-[#17233F] px-6 py-3.5 text-[12px] font-semibold uppercase tracking-[0.16em] text-white opacity-45"
+                >
+                  Preview coming soon
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(detail.slug)}
+                className={cn(
+                  'inline-flex flex-1 items-center justify-center rounded-full border px-6 py-3.5 text-[12px] font-semibold uppercase tracking-[0.16em] transition',
+                  selected === detail.slug
+                    ? 'border-[#17233F] bg-[#17233F] text-white'
+                    : 'border-[#E6EAF0] bg-white text-[#17233F] hover:border-[#CBD5E1]',
+                )}
+              >
+                {selected === detail.slug ? 'Selected' : 'Select template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1120px]">
@@ -161,12 +266,10 @@ export function TemplatesSection() {
                 )}
                 style={{ background: template.tone }}
               >
-                <button
-                  type="button"
-                  onClick={() => setSelected(template.slug)}
+                <Link
+                  href={adminTemplateHref(template.slug)}
                   className="relative block aspect-[4/3] w-full overflow-hidden text-left"
-                  aria-pressed={isSelected}
-                  aria-label={`Select ${template.title}`}
+                  aria-label={`Explore ${template.title}`}
                 >
                   <Image
                     src={template.image}
@@ -182,7 +285,7 @@ export function TemplatesSection() {
                   <span className="absolute right-4 top-4 rounded-full bg-[#17233F]/90 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
                     {template.price}
                   </span>
-                </button>
+                </Link>
 
                 <div className="flex flex-1 flex-col px-6 pb-6 pt-5">
                   <h3 className="text-[20px] font-bold leading-snug tracking-tight text-[#17233F]">
@@ -193,7 +296,7 @@ export function TemplatesSection() {
                   </p>
                   <div className="mt-5 flex items-center justify-between gap-3">
                     <Link
-                      href={templateHref(template.slug)}
+                      href={adminTemplateHref(template.slug)}
                       className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#17233F] transition hover:gap-2"
                     >
                       Explore
