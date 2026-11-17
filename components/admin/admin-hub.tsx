@@ -17,6 +17,7 @@ import {
   ProjectSignatureCard,
 } from '@/components/admin/project-signature-card'
 import { EventsSection } from '@/components/admin/events-section'
+import { TemplatesSection } from '@/components/admin/templates-section'
 
 interface ProjectStats {
   total: number
@@ -1271,15 +1272,14 @@ export function AdminHub() {
 
         .admin-root {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-          height: 100vh;
-          min-height: 100vh;
+          height: 100dvh;
+          min-height: 100dvh;
           background: #F7F9FC;
           display: flex;
           align-items: stretch;
           justify-content: stretch;
           padding: 0;
           color: #17233F;
-          zoom: 0.9;
         }
         .admin-shell {
           display: flex;
@@ -1993,11 +1993,14 @@ export function AdminHub() {
             {/* ── Events ── */}
             {!comingSoon && activeNav === 'events' && <EventsSection />}
 
-            {/* ── Guests / Analytics / Templates (coming soon) ── */}
-            {!comingSoon && ['guests', 'analytics', 'templates'].includes(activeNav) && (
+            {/* ── Templates ── */}
+            {!comingSoon && activeNav === 'templates' && <TemplatesSection />}
+
+            {/* ── Guests / Analytics (coming soon) ── */}
+            {!comingSoon && ['guests', 'analytics'].includes(activeNav) && (
               <div className="coming-soon">
                 <div className="coming-soon-icon">
-                  {activeNav === 'guests' ? '👥' : activeNav === 'analytics' ? '📊' : '🎨'}
+                  {activeNav === 'guests' ? '👥' : '📊'}
                 </div>
                 <h2>{pageTitle}</h2>
                 <p>This section is coming soon. Stay tuned for updates.</p>

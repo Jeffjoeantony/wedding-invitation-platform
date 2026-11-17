@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { Cormorant_Garamond, Jost } from 'next/font/google'
+import { CartProvider } from '@/components/shop/cart-provider'
 import './globals.css'
 
 const cormorant = Cormorant_Garamond({
@@ -44,7 +45,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${jost.variable}`}>
       <body style={{ background: '#FAFAFA', margin: 0, padding: 0, overflowX: 'clip' }}>
-        {children}
+        <CartProvider>{children}</CartProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
