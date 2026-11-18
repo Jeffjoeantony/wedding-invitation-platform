@@ -154,10 +154,10 @@ export const GALLERY_CAROUSEL = [
 /** Featured grid right under the hero — Aloha-style product cards. */
 export const POPULAR_WEBSITES = [
   {
-    slug: 'lavender-garden',
-    title: 'Lavender Garden',
+    slug: 'classic-romance',
+    title: 'Classic Romance',
     price: 'Free',
-    image: '/landing/templates/lavender-garden.jpg',
+    image: '/landing/templates/classic-romance/classic-romance.jpg',
   },
   {
     slug: 'nikah-arch',
@@ -204,7 +204,6 @@ export const POPULAR_WEBSITES = [
 ] as const
 
 export const POPULAR_WEBSITES_PAGE_SIZE = 4
-
 
 export const FAQ_ITEMS = [
   {

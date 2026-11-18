@@ -1,0 +1,49 @@
+/* Self-hosted date faces. The files ship with the app, so the lockup
+   does not depend on fonts installed on the device. */
+@font-face {
+  font-family: "Bodoni Moda";
+  src: url("/fonts/BodoniModa-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Wistania";
+  src: url("/fonts/Wistania-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.classic-romance-date {
+  container-type: inline-size;
+}
+
+.classic-romance-date__day,
+.classic-romance-date__year {
+  font-family: "Bodoni Moda", Didot, "Bodoni MT", serif;
+  font-weight: 400;
+}
+
+.classic-romance-date__day {
+  font-size: clamp(5.25rem, 34cqi, 8.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+}
+
+.classic-romance-date__month {
+  margin-top: -0.2em;
+  font-family: Wistania, cursive;
+  font-weight: 400;
+  font-size: clamp(7.75rem, 24cqi, 6.5rem);
+  line-height: 0.95;
+}
+
+.classic-romance-date__year {
+  margin-top: 0.4em;
+  font-size: clamp(1.85rem, 10cqi, 3.35rem);
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
