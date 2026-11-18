@@ -1,7 +1,6 @@
 'use client'
 
-import Image from 'next/image'
-import { MapPin } from 'lucide-react'
+import { Gem } from 'lucide-react'
 import type { ClassicRomanceData } from '../sample-data'
 import { HeartRule } from '../heart-rule'
 import { CR } from '../tokens'
@@ -9,59 +8,78 @@ import { CR } from '../tokens'
 const SCRIPT = 'var(--font-invite-script), "Segoe Script", cursive'
 const SANS = 'var(--font-invite-sans), system-ui, sans-serif'
 
+const IVORY = '#F0E2D5'
+const BURGUNDY = '#650817'
+const ADDRESS = '#8C4E56'
+const SCRIPT_TINT = 'rgba(186, 164, 150, 0.85)'
+const BUTTON = '#2A1216'
+const BUTTON_TEXT = '#F7F1EA'
+
+function addressLines(address: string) {
+  const comma = address.indexOf(',')
+  if (comma === -1) return [address]
+  return [address.slice(0, comma + 1).trim(), address.slice(comma + 1).trim()]
+}
+
 export function VenueSection({ data }: { data: ClassicRomanceData }) {
-  const { venue, images } = data
+  const { venue } = data
+  const lines = addressLines(venue.address)
 
   return (
     <section
-      className="relative overflow-hidden px-7 pb-20 pt-16 text-center sm:px-10 sm:pb-24 sm:pt-20"
-      style={{ background: CR.cream, color: CR.ink }}
+      className="relative flex min-h-[75svh] flex-col items-center justify-center overflow-hidden px-7 py-16 text-center [container-type:inline-size] sm:px-10"
+      style={{ background: IVORY, color: BURGUNDY }}
     >
-
-      <div className="relative z-[2]">
+      <div className="relative z-[2] flex flex-col items-center">
         <p
-          className="text-[1.35rem] leading-none"
-          style={{ color: CR.bronze, fontFamily: SCRIPT }}
+          className="text-[clamp(1.65rem,7cqi,2.15rem)] leading-none"
+          style={{ color: SCRIPT_TINT, fontFamily: SCRIPT }}
         >
           {venue.script}
         </p>
         <h2
-          className="mt-3 text-[clamp(1.55rem,6.5vw,1.95rem)] font-semibold uppercase tracking-[0.18em]"
-          style={{ color: CR.burgundy, fontFamily: SANS }}
+          className="-mt-1 max-w-[11ch] text-[clamp(1.85rem,8cqi,2.35rem)] font-semibold uppercase leading-[1.02] tracking-[0.03em]"
+          style={{ color: BURGUNDY, fontFamily: SANS }}
         >
           {venue.eyebrow}
         </h2>
-        <div className="mt-5">
+        <div className="mt-4 w-44">
           <HeartRule />
+        </div>
+        <div
+          className="mt-8 flex size-16 items-center justify-center rounded-full"
+          style={{ background: CR.burgundy }}
+          aria-hidden
+        >
+          <Gem className="size-6" style={{ color: CR.onDark }} />
         </div>
 
         <p
-          className="mt-8 text-[1.15rem] font-semibold uppercase tracking-[0.12em]"
-          style={{ color: CR.burgundy, fontFamily: SANS }}
+          className="mt-8 text-[clamp(0.95rem,3.6cqi,1.15rem)] font-semibold uppercase tracking-[0.12em]"
+          style={{ color: BURGUNDY, fontFamily: SANS }}
         >
           {venue.name}
         </p>
         <p
-          className="mx-auto mt-3 max-w-[28ch] text-[0.88rem] font-light uppercase leading-relaxed tracking-[0.06em]"
-          style={{ color: CR.muted, fontFamily: SANS }}
+          className="mt-3 text-[0.72rem] font-medium uppercase leading-[1.55] tracking-[0.08em]"
+          style={{ color: ADDRESS, fontFamily: SANS }}
         >
-          {venue.address}
+          {lines.map((line) => (
+            <span key={line} className="block">
+              {line}
+            </span>
+          ))}
         </p>
-
         <a
           href={venue.mapsUrl}
           target="_blank"
           rel="noreferrer"
-          className="mt-8 inline-flex items-center gap-2 rounded-full px-7 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.2em] transition hover:opacity-90"
-          style={{ background: CR.burgundy, color: CR.onDark, fontFamily: SANS }}
+          className="mt-5 inline-flex items-center rounded-full px-5 py-2.5 text-[0.62rem] font-semibold uppercase tracking-[0.16em] transition hover:opacity-90"
+          style={{ background: BUTTON, color: BUTTON_TEXT, fontFamily: SANS }}
         >
-          <MapPin className="h-3.5 w-3.5" aria-hidden />
           {venue.mapsLabel}
         </a>
       </div>
-
-      
-      
     </section>
   )
 }

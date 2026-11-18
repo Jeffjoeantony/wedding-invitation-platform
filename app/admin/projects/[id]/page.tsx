@@ -358,7 +358,7 @@ I have some wonderful news to share! With the blessings of our families, I'm get
 Here's my invitation with all the details:
 {link}
 
-Your presence and blessings would make this occasion even more special. I truly hope you can join me in celebrating this beautiful new chapter of my life.
+We look forward to welcoming you to an unforgettable celebration filled with love, laughter and cherished moments. Your presence will make this occasion truly special
 
 Looking forward to seeing you! 😊`
   )

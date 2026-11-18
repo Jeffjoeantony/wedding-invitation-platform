@@ -56,18 +56,16 @@ export function DressCodeSection({ data }: { data: ClassicRomanceData }) {
         {dressCode.body}
       </p>
 
-      <div className="relative z-[1] mx-auto mt-8 grid max-w-md grid-cols-2 gap-2.5">
-        {dressCode.gallery.slice(0, 4).map((src, i) => (
-          <div key={src + i} className="relative aspect-[4/5] overflow-hidden rounded-xl">
-            <Image
-              src={i === 0 ? images.dressGrid : src}
-              alt=""
-              fill
-              sizes="200px"
-              className="object-cover"
-            />
-          </div>
-        ))}
+      <div className="relative z-[1] mx-auto mt-8 max-w-md">
+        <div className="relative aspect-square overflow-hidden rounded-xl">
+          <Image
+            src={images.dressGrid}
+            alt="Dress code inspiration"
+            fill
+            sizes="(max-width: 768px) 90vw, 448px"
+            className="object-cover"
+          />
+        </div>
 
         {/* Vertical palette strip */}
         <ul

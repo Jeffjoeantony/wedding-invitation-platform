@@ -21,7 +21,7 @@ export function ClassicRomanceInvitation({
 
   return (
     <article
-      className="classic-romance-invite relative mx-auto w-full max-w-[390px] overflow-x-hidden md:max-w-[560px] lg:max-w-[680px]"
+      className="classic-romance-invite relative mx-auto w-full overflow-x-hidden md:max-w-[560px] lg:max-w-[680px]"
       style={{
         background: CR.cream,
         color: CR.ink,

@@ -22,7 +22,8 @@ export type ClassicRomanceData = {
     id: string
     time: string
     title: string
-    icon: 'cake' | 'sparkles' | 'rings' | 'music'
+    detail: string
+    icon: 'gathering' | 'ceremony' | 'banquet' | 'dance' | 'entertainment' | 'conclusion'
   }>
   welcome: string
   dressCode: {
@@ -60,12 +61,14 @@ export type ClassicRomanceData = {
     floralDivider: string
     floralBand: string
     dressGrid: string
+    peonyCluster: string
+    floralCornerWide: string
   }
 }
 
 export const CLASSIC_ROMANCE_SAMPLE: ClassicRomanceData = {
   couple: {
-    first: 'Ilya',
+    first: 'Kashi',
     second: 'Anfisa',
     joinWord: '&',
   },
@@ -78,14 +81,54 @@ export const CLASSIC_ROMANCE_SAMPLE: ClassicRomanceData = {
   venue: {
     script: 'Location',
     eyebrow: 'Celebration venue',
-    name: 'Restaurant Aurora',
-    address: 'Moscow, Solnechnaya St, 115',
-    mapsUrl: 'https://maps.google.com/?q=Moscow',
+    name: 'St. John The Baptist Forane Church, Nedumkunnam',
+    address: 'Karukachal Manimala Rd, Nedumkunnam, Keralam 686542image.png',
+    mapsUrl: 'https://maps.app.goo.gl/1gwktEXonLUvYBq17',
     mapsLabel: 'Open map',
   },
   schedule: [
-    { id: 'cake', time: '20:00', title: 'Wedding cake', icon: 'cake' },
-    { id: 'close', time: '23:00', title: 'End of the evening', icon: 'sparkles' },
+    {
+      id: 'gathering',
+      time: '16:00',
+      title: 'Guest gathering',
+      detail: 'Welcome buffet and meeting',
+      icon: 'gathering',
+    },
+    {
+      id: 'ceremony',
+      time: '17:00',
+      title: 'Ceremony',
+      detail: 'Solemn registration in the open air',
+      icon: 'ceremony',
+    },
+    {
+      id: 'banquet',
+      time: '18:00',
+      title: 'Banquet',
+      detail: 'Festive dinner, toasts, and warm wishes',
+      icon: 'banquet',
+    },
+    {
+      id: 'dance',
+      time: '20:00',
+      title: 'First dance',
+      detail: 'Our special moment',
+      icon: 'dance',
+    },
+    {
+      id: 'entertainment',
+      time: '21:00',
+      title: 'Entertainment',
+      detail: 'Music, dancing, and surprises',
+      icon: 'entertainment',
+    },
+    {
+      id: 'conclusion',
+      time: '23:00',
+      title: 'Conclusion',
+      detail: 'But this is only the beginning of our story...',
+      icon: 'conclusion',
+    },
   ],
   welcome: 'We will be happy to share this day with you!',
   dressCode: {
@@ -107,13 +150,13 @@ export const CLASSIC_ROMANCE_SAMPLE: ClassicRomanceData = {
     title: 'Celebration details',
     giftsTitle: 'Gifts',
     giftsBody:
-      'Your presence is the greatest gift. If you wish to honor us further, a contribution to our new home is warmly appreciated.',
-    flowersTitle: 'Flowers',
+      'We look forward to welcoming you to an unforgettable celebration filled with love, laughter and cherished moments. Your presence will make this occasion truly special',
+    flowersTitle: 'The Evening',
     flowersBody:
-      'Please do not bring flowers — we will have plenty. Your warm wishes mean more than bouquets.',
+      'Join us as we celebrate the beginning of a beautiful journey together, surrounded by family, friends and the people who mean the most to us.',
     contactsTitle: 'Contacts',
-    contactsBody: 'Questions for our organizer Victoria — write anytime.',
-    telegramLabel: 'Telegram',
+    contactsBody: 'For any questions or assistance regarding the celebration, please feel free to contact our event coordinator, Victoria.',
+    telegramLabel: 'CONTACT',
     telegramUrl: 'https://t.me/',
   },
   rsvp: {
@@ -126,10 +169,13 @@ export const CLASSIC_ROMANCE_SAMPLE: ClassicRomanceData = {
     line: 'Waiting for you, with love',
   },
   images: {
-    hero: '/landing/templates/classic-romance/hero-couple.png',
+    hero: '/landing/templates/classic-romance/classic-romance-hero.jpg',
     floralCorner: '/landing/templates/classic-romance/floral-corner.png',
     floralDivider: '/landing/templates/classic-romance/floral-divider.png',
     floralBand: '/landing/templates/classic-romance/floral-band.png',
-    dressGrid: '/landing/templates/classic-romance/dress-grid.jpg',
+    dressGrid: '/landing/templates/classic-romance/dress-code.png',
+    peonyCluster: '/landing/templates/classic-romance/imgbin_9347653bd2f98db8e07ed8506611b05a (1).png',
+    floralCornerWide:
+      '/landing/templates/classic-romance/Wide Burgundy Floral Corner Arrangement.png',
   },
 }

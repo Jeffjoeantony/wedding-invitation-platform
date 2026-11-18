@@ -33,6 +33,20 @@ export default function ClassicRomancePreviewPage() {
       className={`${serif.variable} ${sans.variable} ${script.variable} min-h-dvh pb-6 sm:pb-10`}
       style={{ background: '#EDE3D4' }}
     >
+      <link
+        rel="preload"
+        href="/fonts/BodoniModa-Regular.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
+      <link
+        rel="preload"
+        href="/fonts/Wistania-Regular.woff2"
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
       <ClassicRomanceInvitation preview />
     </main>
   )

@@ -18,7 +18,6 @@ export function RsvpSection({
   preview?: boolean
 }) {
   const { rsvp, couple, footer } = data
-  const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [attendance, setAttendance] = useState<'yes' | 'no' | ''>('')
   const [note, setNote] = useState('')
@@ -60,18 +59,7 @@ export function RsvpSection({
         {rsvp.body}
       </p>
 
-      {!open && !sent ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="mt-8 inline-flex rounded-full px-10 py-3.5 text-[0.72rem] font-semibold uppercase tracking-[0.2em] transition hover:opacity-90"
-          style={{ background: CR.burgundy, color: CR.onDark, fontFamily: SANS }}
-        >
-          {rsvp.cta}
-        </button>
-      ) : null}
-
-      {open && !sent ? (
+      {!sent ? (
         <form onSubmit={onSubmit} className="mx-auto mt-8 w-full max-w-sm space-y-4 text-left" noValidate>
           <p
             className="text-center text-[0.62rem] font-semibold uppercase tracking-[0.24em]"
