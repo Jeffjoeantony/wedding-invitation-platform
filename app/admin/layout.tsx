@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/sonner'
  */
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="admin-app min-h-screen">
+    <div className="admin-app h-dvh min-h-dvh overflow-hidden">
       {children}
       <Toaster />
     </div>
